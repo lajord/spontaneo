@@ -1,28 +1,53 @@
 from pydantic import BaseModel
 from typing import Optional
+from enum import Enum
 
 
-class UserProfile(BaseModel):
-    """Profil utilisateur pour la génération."""
-
-    first_name: str
-    last_name: str
-    job_title: str
-    bio: Optional[str] = None
-    skills: list[str] = []
+class GranularityLevel(str, Enum):
+    faible = "faible"   # Précis : mots-clés exacts du secteur
+    moyen  = "moyen"    # Équilibré : activités liées
+    fort   = "fort"     # Large : secteurs connexes, sous-traitants
 
 
-class GenerationRequest(BaseModel):
-    """Requête de génération de candidature."""
+class Contact(BaseModel):
+    nom: Optional[str] = None
+    prenom: Optional[str] = None
+    role: Optional[str] = None
+    email: Optional[str] = None
+    genre: Optional[str] = None   # "M" ou "F" — déduit du prénom par l'IA
 
-    job_title: str
-    company_name: str
-    company_sector: Optional[str] = None
-    user_profile: Optional[UserProfile] = None
+
+class Company(BaseModel):
+    nom: str
+    adresse: Optional[str] = None
+    site_web: Optional[str] = None
+    telephone: Optional[str] = None
+    source: Optional[str] = None    # "google_places"
 
 
-class GenerationResponse(BaseModel):
-    """Réponse de génération."""
+class EnrichedCompany(Company):
+    emails: list[str] = []
+    dirigeant: Optional[Contact] = None
+    rh: Optional[Contact] = None
+    autres_contacts: list[Contact] = []
 
-    content: str
-    type: str  # "cover_letter", "email", etc.
+
+class SearchRequest(BaseModel):
+    secteur: str
+    localisation: str
+    granularite: GranularityLevel = GranularityLevel.moyen
+    radius: int = 20
+
+
+class SearchResponse(BaseModel):
+    secteur: str
+    localisation: str
+    keywords: list[str]
+    total: int
+    entreprises: list[Company]
+
+
+class CompanyRequest(BaseModel):
+    nom: str
+    site_web: Optional[str] = None
+    adresse: Optional[str] = None
