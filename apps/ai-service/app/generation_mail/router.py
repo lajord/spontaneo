@@ -6,13 +6,13 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.core.config import settings
-from app.utils.ai_caller import call_ai_gemini
+from app.utils.ai_caller import call_ai
 from app.generation_mail.prompts import SYSTEM_PROMPT, USER_PROMPT
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-MODEL = settings.GEMINI_MODEL
+MODEL = settings.MODEL_CREATION_MAIL
 
 
 # ── Schémas ────────────────────────────────────────────────────────────────────
@@ -161,11 +161,10 @@ async def generate_mail(request: GenerateMailRequest):
     )
 
     try:
-        raw = await call_ai_gemini(
+        raw = await call_ai(
             model=MODEL,
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT,
-            api_key=settings.GEMINI_API_KEY,
             temperature=0.4,
         )
         logger.info(f"[GENERATION MAIL] Réponse [{ent.nom}] → {raw[:100]}...")

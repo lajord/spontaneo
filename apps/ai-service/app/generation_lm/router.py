@@ -15,12 +15,12 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.generation_lm.prompts import SYSTEM_PROMPT
 from app.generation_mail.router import _parse_response
-from app.utils.ai_caller import call_ai_gemini
+from app.utils.ai_caller import call_ai
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-MODEL = settings.GEMINI_MODEL
+MODEL = settings.MODEL_CREATION_LM
 TEMPLATE_PATH = Path(__file__).parent / "Lettre de motivation template.docx"
 
 
@@ -102,8 +102,12 @@ def _para_full_text(para) -> str:
 
 
 def _replace_in_para(para, vals: dict) -> None:
-    """Merge all runs into the first one and apply balise replacements."""
+    """Replace balises in a paragraph's runs, preserving indentation and formatting.
+    Only merges runs when a placeholder is actually detected (to avoid touching unrelated paragraphs).
+    """
     full = _para_full_text(para)
+    if not any(f"{{{{ {key} }}}}" in full for key in vals):
+        return  # Aucune balise → on ne touche pas aux runs
     for key, val in vals.items():
         full = full.replace(f"{{{{ {key} }}}}", val)
     if para.runs:
@@ -113,22 +117,37 @@ def _replace_in_para(para, vals: dict) -> None:
 
 
 def _insert_para_before(ref_para, text: str) -> None:
-    """Insert a new paragraph with text immediately before ref_para, copying its formatting."""
+    """Insert a new paragraph with text immediately before ref_para, copying its formatting.
+    Les \\n dans text deviennent des w:br (sauts de ligne dans Word) pour respecter
+    la mise en forme originale de la lettre de motivation.
+    """
     new_p = OxmlElement('w:p')
     pPr = ref_para._element.find(qn('w:pPr'))
     if pPr is not None:
         new_p.append(deepcopy(pPr))
-    new_r = OxmlElement('w:r')
+
     orig_r = ref_para._element.find(qn('w:r'))
+    rPr = None
     if orig_r is not None:
         rPr = orig_r.find(qn('w:rPr'))
+
+    lines = text.split('\n')
+    for i, line in enumerate(lines):
+        new_r = OxmlElement('w:r')
         if rPr is not None:
             new_r.append(deepcopy(rPr))
-    new_t = OxmlElement('w:t')
-    new_t.text = text
-    new_t.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
-    new_r.append(new_t)
-    new_p.append(new_r)
+        new_t = OxmlElement('w:t')
+        new_t.text = line
+        new_t.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+        new_r.append(new_t)
+        new_p.append(new_r)
+        if i < len(lines) - 1:
+            br_r = OxmlElement('w:r')
+            if rPr is not None:
+                br_r.append(deepcopy(rPr))
+            br_r.append(OxmlElement('w:br'))
+            new_p.append(br_r)
+
     ref_para._element.addprevious(new_p)
 
 
@@ -186,7 +205,7 @@ def build_docx_from_template(structured: LmStructured) -> bytes:
 
     # Expansion du corps
     if corps_para is not None:
-        corps_paragraphs = [p.strip() for p in corps_text.split('\n\n') if p.strip()]
+        corps_paragraphs = [p for p in corps_text.split('\n\n') if p.strip()]
         for cp_text in corps_paragraphs:
             _insert_para_before(corps_para, cp_text)
         corps_para._element.getparent().remove(corps_para._element)
@@ -235,11 +254,10 @@ Secteur / activité : {request.secteur or "Non précisé"}
 {request.lm_text}"""
 
     try:
-        raw = await call_ai_gemini(
+        raw = await call_ai(
             model=MODEL,
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT,
-            api_key=settings.GEMINI_API_KEY,
             temperature=0.4,
         )
 

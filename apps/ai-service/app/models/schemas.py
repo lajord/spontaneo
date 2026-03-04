@@ -1,12 +1,13 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
 
 
-class Contact(BaseModel):
+class EnrichedContact(BaseModel):
+    type: Literal["generique", "specialise"]
     nom: Optional[str] = None
     prenom: Optional[str] = None
     role: Optional[str] = None
-    email: Optional[str] = None
+    mail: Optional[str] = None
     genre: Optional[str] = None   # "M" ou "F" — déduit du prénom par l'IA
 
 
@@ -19,10 +20,7 @@ class Company(BaseModel):
 
 
 class EnrichedCompany(Company):
-    emails: list[str] = []
-    dirigeant: Optional[Contact] = None
-    rh: Optional[Contact] = None
-    autres_contacts: list[Contact] = []
+    resultats: list[EnrichedContact] = []
 
 
 class SearchRequest(BaseModel):

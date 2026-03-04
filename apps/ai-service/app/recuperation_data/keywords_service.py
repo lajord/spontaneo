@@ -5,10 +5,11 @@ import logging
 from app.core.config import settings
 from app.utils.ai_caller import call_ai
 
+
+
 logger = logging.getLogger(__name__)
 
-# GPT-4o-mini — rapide et peu coûteux pour de la génération courte (liste de mots-clés)
-_KEYWORDS_MODEL = "gpt-4o-mini"
+_KEYWORDS_MODEL = settings.MODEL_KEYWORDS
 
 SYSTEM_PROMPT = (
     "Tu es un expert de la recherche Google Maps appliquée à la recherche d'emploi en France.\n\n"
@@ -90,14 +91,13 @@ async def get_keywords(secteur: str, user_prompt: str | None = None) -> list[str
 
     try:
         logger.info(
-            f"[IA KEYWORDS] GPT-4o-mini  "
+            f"[IA KEYWORDS] {_KEYWORDS_MODEL}  "
             f"secteur='{secteur}'  user_prompt={'oui' if user_prompt else 'non'}"
         )
         raw = await call_ai(
             model=_KEYWORDS_MODEL,
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT,
-            api_key=settings.CHATGPT_API,
             temperature=0,
         )
         keywords = _parse_keywords(raw)

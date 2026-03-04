@@ -5,7 +5,7 @@ import logging
 import fitz  # PyMuPDF
 
 from app.core.config import settings
-from app.utils.ai_caller import call_ai_with_vision
+from app.utils.ai_caller import call_ai_vision
 from app.creation_campagne.prompts import SYSTEM_PROMPT, USER_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -85,14 +85,11 @@ async def extract_cv_data(pdf_bytes: bytes) -> dict:
         images_b64 = pdf_to_images_b64(pdf_bytes)
         logger.info(f"[CV SERVICE] PDF converti en {len(images_b64)} page(s)")
 
-        raw = await call_ai_with_vision(
-            model=settings.OVH_AI_MODEL,
+        raw = await call_ai_vision(
+            model=settings.MODEL_CV_READER,
             images_b64=images_b64,
             prompt=USER_PROMPT,
             system_prompt=SYSTEM_PROMPT,
-            base_url=settings.OVH_AI_BASE_URL,
-            api_key=settings.OVH_AI_ENDPOINTS_ACCESS_TOKEN,
-            temperature=0.1,
         )
         logger.info(f"[CV SERVICE] Réponse IA → {raw[:150]}...")
 
