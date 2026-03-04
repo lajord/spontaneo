@@ -1,17 +1,27 @@
+import base64
+import io
 import logging
+import re
+from copy import deepcopy
+from pathlib import Path
 from typing import Optional
+
+from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.core.config import settings
-from app.utils.ai_caller import call_ai_gemini
 from app.generation_lm.prompts import SYSTEM_PROMPT
 from app.generation_mail.router import _parse_response
+from app.utils.ai_caller import call_ai_gemini
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MODEL = settings.GEMINI_MODEL
+TEMPLATE_PATH = Path(__file__).parent / "Lettre de motivation template.docx"
 
 
 # ── Schémas ────────────────────────────────────────────────────────────────────
@@ -56,9 +66,10 @@ class LmStructured(BaseModel):
 class GenerateLmResponse(BaseModel):
     lm_adapted:    str
     lm_structured: Optional[LmStructured] = None
+    lm_docx_b64:   Optional[str] = None   # DOCX bytes encodés en base64
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
+# ── Helpers texte brut ─────────────────────────────────────────────────────────
 
 def _structured_to_plain(s: LmStructured) -> str:
     """Reconstruit un texte brut depuis les champs structurés (pour affichage UI)."""
@@ -84,13 +95,114 @@ def _structured_to_plain(s: LmStructured) -> str:
     return "\n\n".join(parts)
 
 
+# ── Helpers DOCX template ──────────────────────────────────────────────────────
+
+def _para_full_text(para) -> str:
+    return "".join(run.text for run in para.runs)
+
+
+def _replace_in_para(para, vals: dict) -> None:
+    """Merge all runs into the first one and apply balise replacements."""
+    full = _para_full_text(para)
+    for key, val in vals.items():
+        full = full.replace(f"{{{{ {key} }}}}", val)
+    if para.runs:
+        para.runs[0].text = full
+        for run in para.runs[1:]:
+            run.text = ""
+
+
+def _insert_para_before(ref_para, text: str) -> None:
+    """Insert a new paragraph with text immediately before ref_para, copying its formatting."""
+    new_p = OxmlElement('w:p')
+    pPr = ref_para._element.find(qn('w:pPr'))
+    if pPr is not None:
+        new_p.append(deepcopy(pPr))
+    new_r = OxmlElement('w:r')
+    orig_r = ref_para._element.find(qn('w:r'))
+    if orig_r is not None:
+        rPr = orig_r.find(qn('w:rPr'))
+        if rPr is not None:
+            new_r.append(deepcopy(rPr))
+    new_t = OxmlElement('w:t')
+    new_t.text = text
+    new_t.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+    new_r.append(new_t)
+    new_p.append(new_r)
+    ref_para._element.addprevious(new_p)
+
+
+def build_docx_from_template(structured: LmStructured) -> bytes:
+    """
+    Ouvre le template DOCX, remplace les {{ balises }} par les données structurées.
+    Les balises vides → ligne supprimée.
+    {{ corps }} → expansion en plusieurs paragraphes.
+    Retourne les bytes DOCX.
+    """
+    doc = Document(TEMPLATE_PATH)
+
+    # Correspondance balise template → valeur (les noms du template peuvent différer du modèle)
+    vals: dict[str, str] = {
+        "exp_prenom_nom": structured.exp_prenom_nom or "",
+        "exp_adresse":    structured.exp_adresse or "",
+        "exp_ville":      structured.exp_ville or "",
+        "exp_telephone":  structured.exp_telephone or "",
+        "exp_mail":       structured.exp_email or "",      # template: exp_mail ≠ exp_email
+        "dest_nom":       structured.dest_nom or "",
+        "dest_services":  structured.dest_service or "",  # template: dest_services ≠ dest_service
+        "dest_adresse":   structured.dest_adresse or "",
+        "dest_ville":     structured.dest_ville or "",
+        "date":           structured.date or "",
+        "objet":          structured.objet or "",
+        "salution":       structured.salutation or "",     # template: salution (typo)
+        "prenom_nom":     structured.prenom_nom or "",
+    }
+
+    corps_text = structured.corps or ""
+    all_paras = list(doc.paragraphs)
+    to_remove: list = []
+    corps_para = None
+
+    for para in all_paras:
+        raw = _para_full_text(para)
+
+        # Placeholder corps → expansion spéciale
+        if re.search(r'\{\{\s*corps\s*\}\}', raw):
+            corps_para = para
+            continue
+
+        # Paragraphe ne contenant QU'UNE balise avec valeur vide → supprimer la ligne
+        stripped = raw.strip()
+        m = re.fullmatch(r'\{\{\s*(\w+)\s*\}\}', stripped)
+        if m and m.group(1) in vals and not vals[m.group(1)]:
+            to_remove.append(para)
+            continue
+
+        _replace_in_para(para, vals)
+
+    # Suppression des lignes vides
+    for para in to_remove:
+        para._element.getparent().remove(para._element)
+
+    # Expansion du corps
+    if corps_para is not None:
+        corps_paragraphs = [p.strip() for p in corps_text.split('\n\n') if p.strip()]
+        for cp_text in corps_paragraphs:
+            _insert_para_before(corps_para, cp_text)
+        corps_para._element.getparent().remove(corps_para._element)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
 # ── Endpoint ───────────────────────────────────────────────────────────────────
 
 @router.post("/generate", response_model=GenerateLmResponse)
 async def generate_lm(request: GenerateLmRequest):
     """
     Adapte une lettre de motivation existante à une entreprise et un destinataire spécifiques.
-    Retourne la LM en texte brut (pour l'UI) ET en JSON structuré (pour le DOCX formaté).
+    Retourne la LM en texte brut (pour l'UI) ET en DOCX base64 (généré depuis le template).
     """
     ent = request.entreprise
     logger.info(f"[GENERATION LM] Adaptation pour '{ent.nom}'")
@@ -136,7 +248,17 @@ Secteur / activité : {request.secteur or "Non précisé"}
             structured = LmStructured(**{k: v for k, v in parsed.items() if v is not None and v != ""})
             plain = _structured_to_plain(structured)
             logger.info(f"[GENERATION LM] LM structurée pour '{ent.nom}' ({len(plain)} caractères)")
-            return GenerateLmResponse(lm_adapted=plain, lm_structured=structured)
+
+            # Génération DOCX depuis le template
+            lm_docx_b64: Optional[str] = None
+            try:
+                docx_bytes = build_docx_from_template(structured)
+                lm_docx_b64 = base64.b64encode(docx_bytes).decode('utf-8')
+                logger.info(f"[GENERATION LM] DOCX généré pour '{ent.nom}' ({len(docx_bytes)} bytes)")
+            except Exception as docx_err:
+                logger.warning(f"[GENERATION LM] Erreur DOCX pour '{ent.nom}': {docx_err}")
+
+            return GenerateLmResponse(lm_adapted=plain, lm_structured=structured, lm_docx_b64=lm_docx_b64)
 
         # Fallback : l'IA a renvoyé du texte brut (non JSON)
         logger.warning(f"[GENERATION LM] Réponse non structurée pour '{ent.nom}', fallback texte brut")
