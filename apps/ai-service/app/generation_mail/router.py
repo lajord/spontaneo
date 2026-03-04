@@ -6,13 +6,13 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.core.config import settings
-from app.utils.ai_caller import call_ai
+from app.utils.ai_caller import call_ai_gemini
 from app.generation_mail.prompts import SYSTEM_PROMPT, USER_PROMPT
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-MODEL = "gpt-4o-mini"
+MODEL = settings.GEMINI_MODEL
 
 
 # ── Schémas ────────────────────────────────────────────────────────────────────
@@ -38,18 +38,24 @@ class CampagneData(BaseModel):
 class EntrepriseData(BaseModel):
     nom: str
     adresse: Optional[str] = None
-    # Contacts enrichis (optionnels)
-    dirigeant_nom: Optional[str] = None
-    dirigeant_prenom: Optional[str] = None
-    rh_nom: Optional[str] = None
-    rh_prenom: Optional[str] = None
-    rh_role: Optional[str] = None
+    site_web: Optional[str] = None
+    secteur: Optional[str] = None
+
+
+class ContactPrincipal(BaseModel):
+    civilite: Optional[str] = None   # "Monsieur" | "Madame" | None
+    prenom: Optional[str] = None
+    nom: Optional[str] = None
+    role: Optional[str] = None
 
 
 class GenerateMailRequest(BaseModel):
     candidat: CvData
     campagne: CampagneData
     entreprise: EntrepriseData
+    contact_principal: Optional[ContactPrincipal] = None
+    user_mail_template: Optional[str] = None   # None = utiliser le template bullet-point par défaut
+    template_prompt: Optional[str] = None      # consignes supplémentaires
     has_lm: bool = False
 
 
@@ -87,25 +93,14 @@ def _list_to_str(items: list[str], fallback: str = "Non précisé") -> str:
     return ", ".join(items) if items else fallback
 
 
-def _build_contact_line(entreprise: EntrepriseData) -> str:
-    # Priorité : RH > Dirigeant
-    if entreprise.rh_nom or entreprise.rh_prenom:
-        name = " ".join(filter(None, [entreprise.rh_prenom, entreprise.rh_nom]))
-        role = entreprise.rh_role or "Responsable RH"
-        return f"Contact RH connu : {name} ({role})"
-    if entreprise.dirigeant_nom or entreprise.dirigeant_prenom:
-        name = " ".join(filter(None, [entreprise.dirigeant_prenom, entreprise.dirigeant_nom]))
-        return f"Dirigeant connu : {name}"
-    return "Aucun contact identifié"
-
-
 # ── Endpoint ───────────────────────────────────────────────────────────────────
 
 @router.post("/generate", response_model=GenerateMailResponse)
 async def generate_mail(request: GenerateMailRequest):
     """
     Génère un email de candidature spontanée personnalisé.
-    Utilise GPT-4o-mini avec les données CV, campagne et entreprise.
+    Reçoit toute la data (CV, campagne, entreprise, contact, template optionnel).
+    Utilise Gemini Flash — rapide et économique.
     """
     logger.info(f"[GENERATION MAIL] Entreprise='{request.entreprise.nom}' | Poste='{request.campagne.jobTitle}'")
 
@@ -113,11 +108,35 @@ async def generate_mail(request: GenerateMailRequest):
     camp = request.campagne
     ent = request.entreprise
 
-    # Construction des lignes optionnelles
+    # Blocs optionnels campagne
     startDate_line = f"Disponible à partir du : {camp.startDate}" if camp.startDate else ""
     duration_line = f"Durée recherchée : {camp.duration}" if camp.duration else ""
-    contact_line = _build_contact_line(ent)
-    attachments_line = "CV + Lettre de motivation en pièce jointe" if request.has_lm else "CV en pièce jointe"
+
+    # Bloc entreprise
+    site_line = f"Site web : {ent.site_web}" if ent.site_web else ""
+    secteur_line = f"Secteur : {ent.secteur}" if ent.secteur else ""
+
+    # Bloc destinataire
+    if request.contact_principal:
+        cp = request.contact_principal
+        parts = [p for p in [cp.civilite, cp.prenom, cp.nom] if p]
+        contact_block = " ".join(parts)
+        if cp.role:
+            contact_block += f" ({cp.role})"
+    else:
+        contact_block = "Aucun contact identifié — utiliser 'Madame, Monsieur'"
+
+    # Bloc template
+    if request.user_mail_template:
+        template_block = f"=== TEMPLATE UTILISATEUR (à personnaliser) ===\n{request.user_mail_template}"
+    else:
+        template_block = "=== TEMPLATE === Utiliser le template bullet-point par défaut."
+
+    # Bloc consignes supplémentaires
+    template_prompt_block = (
+        f"\n=== CONSIGNES SUPPLÉMENTAIRES ===\n{request.template_prompt}"
+        if request.template_prompt else ""
+    )
 
     prompt = USER_PROMPT.format(
         nom=c.nom or "Le/La candidat(e)",
@@ -134,16 +153,19 @@ async def generate_mail(request: GenerateMailRequest):
         prompt=camp.prompt or "Non précisé",
         company_name=ent.nom,
         company_address=ent.adresse or "Non précisée",
-        contact_line=contact_line,
-        attachments_line=attachments_line,
+        site_line=site_line,
+        secteur_line=secteur_line,
+        contact_block=contact_block,
+        template_block=template_block,
+        template_prompt_block=template_prompt_block,
     )
 
     try:
-        raw = await call_ai(
+        raw = await call_ai_gemini(
             model=MODEL,
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT,
-            api_key=settings.CHATGPT_API,
+            api_key=settings.GEMINI_API_KEY,
             temperature=0.4,
         )
         logger.info(f"[GENERATION MAIL] Réponse [{ent.nom}] → {raw[:100]}...")
@@ -154,7 +176,6 @@ async def generate_mail(request: GenerateMailRequest):
 
     except Exception as e:
         logger.error(f"[GENERATION MAIL] Erreur [{ent.nom}]: {e}")
-        # Fallback basique
         result = {
             "subject": f"Candidature spontanée – {camp.jobTitle}",
             "body": (

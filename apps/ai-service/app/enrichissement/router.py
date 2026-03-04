@@ -12,8 +12,6 @@ from app.enrichissement.prompts import SYSTEM_PROMPT, USER_PROMPT_WITH_SITE, USE
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-CHATGPT_MODEL = "gpt-5"
-
 
 def _parse_response(raw: str) -> dict:
     """Parse la réponse JSON de l'IA d'enrichissement."""
@@ -48,10 +46,9 @@ def _to_contact(data) -> Optional[Contact]:
 @router.post("/company", response_model=EnrichedCompany)
 async def enrich_company(request: CompanyRequest):
     """
-    Enrichit une entreprise avec ses contacts (dirigeant, RH, emails) via IA.
-    Utilise le site web quand disponible pour une recherche plus ciblée.
+    Enrichit une entreprise avec ses contacts (dirigeant, RH, emails) via GPT-5 + web search.
     """
-    logger.info(f"[ENRICHISSEMENT]  nom='{request.nom}'  site_web={request.site_web}")
+    logger.info(f"[ENRICHISSEMENT] {settings.OPENAI_MODEL} | nom='{request.nom}'  site_web={request.site_web}")
 
     # Choix du prompt selon disponibilité du site web
     if request.site_web:
@@ -75,12 +72,12 @@ async def enrich_company(request: CompanyRequest):
 
     try:
         raw = await call_ai_with_web_search(
-            model=CHATGPT_MODEL,
+            model=settings.OPENAI_MODEL,
             prompt=prompt,
             instructions=SYSTEM_PROMPT,
             api_key=settings.CHATGPT_API,
         )
-        logger.info(f"[ENRICHISSEMENT] ChatGPT [{request.nom}] → {raw[:120]}...")
+        logger.info(f"[ENRICHISSEMENT] GPT-5 [{request.nom}] → {raw[:120]}...")
         contacts = _parse_response(raw)
 
     except Exception as e:

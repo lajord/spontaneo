@@ -1,7 +1,56 @@
+import asyncio
 import logging
 from openai import AsyncOpenAI
+from google import genai
+from google.genai import types
 
 logger = logging.getLogger(__name__)
+
+# Sémaphore global : max 3 appels Gemini simultanés (évite le rate limit free tier)
+_GEMINI_SEMAPHORE = asyncio.Semaphore(3)
+
+
+async def call_ai_gemini(
+    model: str,
+    prompt: str,
+    system_prompt: str = "",
+    api_key: str | None = None,
+    temperature: float = 0.3,
+    max_retries: int = 4,
+) -> str:
+    """Google Gemini via google-genai SDK (async) avec retry + backoff sur 429."""
+    client = genai.Client(api_key=api_key)
+
+    config = types.GenerateContentConfig(
+        temperature=temperature,
+        system_instruction=system_prompt if system_prompt else None,
+    )
+
+    async with _GEMINI_SEMAPHORE:
+        for attempt in range(max_retries):
+            try:
+                response = await client.aio.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config,
+                )
+                return response.text or ""
+
+            except Exception as e:
+                err_str = str(e)
+                is_rate_limit = "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
+                if is_rate_limit and attempt < max_retries - 1:
+                    # Backoff : 20s, 40s, 60s (aligné sur la fenêtre Gemini free tier)
+                    wait = 20 * (attempt + 1)
+                    logger.warning(
+                        f"[GEMINI] 429 rate limit — tentative {attempt + 1}/{max_retries}, "
+                        f"retry dans {wait}s..."
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    raise
+
+    return ""
 
 
 async def call_ai_with_web_search(
@@ -15,7 +64,7 @@ async def call_ai_with_web_search(
 
     kwargs: dict = {
         "model": model,
-        "tools": [{"type": "web_search_preview"}],
+        "tools": [{"type": "web_search"}],
         "input": prompt,
     }
     if instructions:
@@ -84,7 +133,7 @@ async def call_ai(
     api_key: str | None = None,
     temperature: float = 0.3,
 ) -> str:
-    """chat.completions générique (Perplexity, modèles custom)."""
+    """chat.completions générique (OpenAI, modèles custom)."""
     client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
     messages = []

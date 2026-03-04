@@ -21,7 +21,7 @@ async def search_companies(request: SearchRequest):
     logger.info(
         f"[PIPELINE]  secteur='{request.secteur}'  "
         f"localisation='{request.localisation}'  "
-        f"granularite={request.granularite}  radius={request.radius}km"
+        f"radius={request.radius}km"
     )
 
     # 1. Géocodage
@@ -30,12 +30,21 @@ async def search_companies(request: SearchRequest):
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    # 2. Mots-clés via IA
-    kws = await keywords_service.get_keywords(request.secteur, request.granularite)
+    # 2. Mots-clés via IA + jobTitle de l'utilisateur toujours inclus en premier
+    kws_ia = await keywords_service.get_keywords(request.secteur, request.prompt)
+    # Le jobTitle saisi par l'user est garanti dans la liste (sans doublon)
+    kws_ia_lower = {k.lower() for k in kws_ia}
+    kws = (
+        [request.secteur] if request.secteur.lower() not in kws_ia_lower else []
+    ) + kws_ia
 
-    # 3. Google Places
+    # 3. Google Places — on ajoute la ville dans chaque query pour forcer Google
+    #    à cibler la zone textuellement (le radius seul n'est qu'un biais)
+    localisation_label = request.localisation.split(",")[0].strip()  # "Pau, France" → "Pau"
+    kws_with_city = [f"{kw} {localisation_label}" for kw in kws]
+
     places = await google_places_service.search_multi_keywords(
-        keywords=kws,
+        keywords=kws_with_city,
         lat=lat,
         lng=lng,
         radius_m=request.radius * 1000,

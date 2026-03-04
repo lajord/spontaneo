@@ -1,12 +1,5 @@
 from pydantic import BaseModel
 from typing import Optional
-from enum import Enum
-
-
-class GranularityLevel(str, Enum):
-    faible = "faible"   # Précis : mots-clés exacts du secteur
-    moyen  = "moyen"    # Équilibré : activités liées
-    fort   = "fort"     # Large : secteurs connexes, sous-traitants
 
 
 class Contact(BaseModel):
@@ -35,8 +28,8 @@ class EnrichedCompany(Company):
 class SearchRequest(BaseModel):
     secteur: str
     localisation: str
-    granularite: GranularityLevel = GranularityLevel.moyen
     radius: int = 20
+    prompt: Optional[str] = None  # Objectifs / remarques libres de l'utilisateur
 
 
 class SearchResponse(BaseModel):

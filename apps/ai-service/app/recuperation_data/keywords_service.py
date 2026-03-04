@@ -3,59 +3,48 @@ import json
 import logging
 
 from app.core.config import settings
-from app.models.schemas import GranularityLevel
 from app.utils.ai_caller import call_ai
 
 logger = logging.getLogger(__name__)
 
+# GPT-4o-mini — rapide et peu coûteux pour de la génération courte (liste de mots-clés)
+_KEYWORDS_MODEL = "gpt-4o-mini"
+
 SYSTEM_PROMPT = (
-    "Tu es un expert du marché du travail français et de la recherche d'entreprises dans Google Maps.\n\n"
-    "Ta mission : générer des mots-clés recherchables via Google Places API pour trouver des entreprises\n"
-    "susceptibles d'embaucher le profil demandé.\n\n"
-    "Tu dois générer UN MIX de deux catégories :\n"
-    "1. MÉTIERS / POSTES : intitulés de poste courts et courants (ex: 'Développeur web', 'Ingénieur data')\n"
-    "   → Ces termes remontent les grandes entreprises (Total, Capgemini, Terega...) qui ont ces postes\n"
-    "2. TYPES D'ENSEIGNES : types d'établissements employeurs (ex: 'Agence informatique', 'ESN', 'Cabinet comptable')\n"
-    "   → Ces termes remontent les PME et structures spécialisées\n\n"
+    "Tu es un expert de la recherche Google Maps appliquée à la recherche d'emploi en France.\n\n"
+    "CONTEXTE : un candidat cherche un emploi et veut trouver des entreprises à qui envoyer une candidature spontanée.\n"
+    "Ta mission : à partir de sa recherche, c'est de renvoyer une liste de keywords pour google place API \n"
+    "qui retourneront des entreprises susceptibles de recruter ce profil.\n\n"
     "RÈGLES :\n"
-    "→ Chaque terme doit fonctionner seul comme requête dans Google Maps\n"
-    "→ Mélange les deux catégories pour couvrir un maximum d'entreprises\n"
-    "→ Termes courts et courants, pas de phrases\n\n"
-    "Exemples pour 'développeur web' :\n"
-    "  Métiers : 'Développeur web', 'Ingénieur logiciel', 'Ingénieur informatique'\n"
-    "  Enseignes : 'Agence informatique', 'ESN', 'Agence web', 'SSII'\n"
-    "Exemples pour 'Data / IA' :\n"
-    "  Métiers : 'Ingénieur data', 'Data scientist', 'Data analyst', 'Ingénieur informatique'\n"
-    "  Enseignes : 'Agence digitale', 'ESN', 'Cabinet conseil informatique'\n"
-    "Exemples pour 'comptable' :\n"
-    "  Métiers : 'Comptable', 'Expert-comptable', 'Contrôleur de gestion'\n"
-    "  Enseignes : 'Cabinet comptable', 'Cabinet expertise comptable'\n"
+    "→ Inclure TOUJOURS la spécialité / l'intitulé professionnel lui-même (ex: 'Développeur web', 'Data scientist')\n"
+    "  Google Maps trouve aussi les entreprises qui se décrivent avec ces termes dans leur fiche.\n"
+    "→ Ajouter autant de termes de type d'entreprise ou secteur d'activité en lien avec la Recherche du candidat (ex: 'Agence web', 'ESN', 'Cabinet comptable')\n"
+    "→ Reste au plus proche de la recherche de l'utilisateur — ne dérive pas vers des secteurs non demandés\n"
+    "→ autant de keywords — précis et ciblés valent mieux que beaucoup de termes vagues\n"
+    "→ Termes courts (1-3 mots), qui fonctionnent seuls dans Google Maps\n\n"
+    "INTERDIT :\n"
+    "✗ Écoles, universités, lycées, IUT, centres de formation\n"
+    "✗ Pôle emploi, agences d'intérim, cabinets de recrutement\n"
+    "✗ Administrations, mairies, préfectures\n\n"
+    "Exemples :\n"
+    "  'développeur web' → ['Développeur web','Developpeur', 'Agence web', 'ESN']\n"
+    "  'data scientist' → ['Data scientist', 'Agence data', 'ESN']\n"
+    "  'comptable' → ['Comptable', 'Cabinet comptable']\n"
+    "  'avocat droit des affaires' → ['Avocat', 'Cabinet d\\'avocats']\n"
+    "  'infirmier' → ['Infirmier', 'Clinique', 'Cabinet médical']\n"
 )
 
-PROMPTS = {
-    GranularityLevel.faible: (
-        'Profil / secteur recherché : "{secteur}".\n\n'
-        "Génère entre 5 et 8 mots-clés Google Maps : mix de métiers courants ET types d'enseignes employeurs.\n"
-        "Reste centré sur les termes les plus évidents et efficaces.\n"
-        "Réponds UNIQUEMENT avec ce JSON :\n"
-        '{{"keywords":["terme 1","terme 2",...]}}'
-    ),
-    GranularityLevel.moyen: (
-        'Profil / secteur recherché : "{secteur}".\n\n'
-        "Génère entre 8 et 14 mots-clés Google Maps : mix de métiers ET types d'enseignes employeurs.\n"
-        "Couvre les termes principaux + leurs variantes pour toucher PME et grandes entreprises.\n"
-        "Réponds UNIQUEMENT avec ce JSON :\n"
-        '{{"keywords":["terme 1","terme 2",...]}}'
-    ),
-    GranularityLevel.fort: (
-        'Profil / secteur recherché : "{secteur}".\n\n'
-        "Génère entre 14 et 20 mots-clés Google Maps : mix de métiers ET types d'enseignes employeurs.\n"
-        "Inclure : métiers directs, variantes, postes connexes, types d'enseignes spécialisées et génériques.\n"
-        "Maximise la couverture pour trouver PME, start-ups et grands groupes.\n"
-        "Réponds UNIQUEMENT avec ce JSON :\n"
-        '{{"keywords":["terme 1","terme 2",...]}}'
-    ),
-}
+_USER_PROMPT = (
+    'Recherche du candidat : "{secteur}".\n'
+    '{contexte_utilisateur}'
+    "Donne 2 à 4 requêtes Google Maps ciblées : l'intitulé métier + 1-2 types d'entreprises qui recrutent ce profil.\n"
+    "Réponds UNIQUEMENT avec ce JSON :\n"
+    '{{"keywords":["terme 1","terme 2","terme 3"]}}'
+)
+
+_CONTEXTE_TEMPLATE = (
+    "Contexte supplémentaire du candidat : « {prompt} »\n"
+)
 
 
 def _parse_keywords(raw: str) -> list[str]:
@@ -88,40 +77,33 @@ def _parse_keywords(raw: str) -> list[str]:
     return []
 
 
-# Fallbacks par domaine si l'IA échoue
-_FALLBACKS: dict[str, list[str]] = {
-    "dev": ["Développeur web", "Ingénieur informatique", "Agence informatique", "ESN", "Agence web"],
-    "data": ["Ingénieur data", "Data scientist", "Ingénieur informatique", "ESN", "Cabinet conseil informatique"],
-    "compta": ["Comptable", "Expert-comptable", "Cabinet comptable", "Cabinet expertise comptable"],
-    "marketing": ["Chargé de marketing", "Responsable marketing", "Agence marketing", "Agence de communication"],
-    "design": ["Designer", "Graphiste", "UX designer", "Agence web", "Studio graphique"],
-}
-
-
-async def get_keywords(secteur: str, granularite: GranularityLevel) -> list[str]:
+async def get_keywords(secteur: str, user_prompt: str | None = None) -> list[str]:
     """
-    Génère les mots-clés de métiers/postes pour Google Places,
-    basé sur le profil/secteur recherché et la granularité.
+    Reformule la recherche du candidat en 1-3 requêtes Google Maps ciblées.
+    Utilise GPT-4o-mini (OpenAI) — économique pour des sorties JSON courtes.
     """
-    prompt = PROMPTS[granularite].format(secteur=secteur)
+    contexte_utilisateur = _CONTEXTE_TEMPLATE.format(prompt=user_prompt) if user_prompt else ""
+    prompt = _USER_PROMPT.format(
+        secteur=secteur,
+        contexte_utilisateur=contexte_utilisateur,
+    )
 
     try:
         logger.info(
-            f"[IA KEYWORDS] OVH  model={settings.OVH_AI_MODEL}  "
-            f"secteur='{secteur}'  granularite={granularite}"
+            f"[IA KEYWORDS] GPT-4o-mini  "
+            f"secteur='{secteur}'  user_prompt={'oui' if user_prompt else 'non'}"
         )
         raw = await call_ai(
-            model=settings.OVH_AI_MODEL,
+            model=_KEYWORDS_MODEL,
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT,
-            base_url=settings.OVH_AI_BASE_URL,
-            api_key=settings.OVH_AI_ENDPOINTS_ACCESS_TOKEN,
+            api_key=settings.CHATGPT_API,
             temperature=0,
         )
         keywords = _parse_keywords(raw)
 
         if not keywords:
-            logger.warning(f"[IA KEYWORDS] Aucun keyword retourné pour '{secteur}', utilisation du fallback")
+            logger.warning(f"[IA KEYWORDS] Aucun keyword retourné pour '{secteur}', fallback sur secteur brut")
             return [secteur]
 
         logger.info(f"[IA KEYWORDS] {len(keywords)} keywords générés : {keywords}")

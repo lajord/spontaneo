@@ -7,6 +7,7 @@ from app.creation_campagne.router import router as creation_campagne_router
 from app.recuperation_data.router import router as recuperation_data_router
 from app.enrichissement.router import router as enrichissement_router
 from app.generation_mail.router import router as generation_mail_router
+from app.generation_lm.router import router as generation_lm_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,6 +50,11 @@ app.include_router(
     generation_mail_router,
     prefix="/api/v1/generation-mail",
     tags=["generation-mail"],
+)
+app.include_router(
+    generation_lm_router,
+    prefix="/api/v1/generation-lm",
+    tags=["generation-lm"],
 )
 
 

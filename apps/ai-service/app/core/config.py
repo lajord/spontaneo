@@ -21,11 +21,18 @@ class Settings(BaseSettings):
     # Google Places API
     GOOGLE_PLACE_API: str = ""
 
-    # ChatGPT API
+    # OpenAI API
     CHATGPT_API: str = ""
+    OPENAI_MODEL: str = "gpt-4o-mini"
+
+    # Google Gemini API
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-3-flash-preview"
 
     # Perplexity API
     PERPLEXITY_API_KEY: str = ""
+    PERPLEXITY_BASE_URL: str = "https://api.perplexity.ai"
+    PERPLEXITY_MODEL: str = "sonar-pro"
 
     # Nominatim (géocodage OpenStreetMap)
     NOMINATIM_USER_AGENT: str = "spontaneo/1.0"
