@@ -146,11 +146,12 @@ async def _firecrawl_agent(
 
     instructions = (
         "Tu es un agent d'enrichissement de données B2B. "
-        "Utilise les outils Firecrawl pour scraper les sites web et trouver les contacts. "
-        "IMPORTANT : quand tu appelles un outil Firecrawl (scrape, crawl, ou autre), "
-        "utilise TOUJOURS formats=['markdown'] et UNIQUEMENT markdown. "
-        "N'utilise JAMAIS json, html, rawHtml, screenshot, ou le paramètre extract — "
-        "le paramètre extract est extrêmement coûteux et strictement interdit. "
+        "Utilise les outils Firecrawl pour trouver les contacts d'une entreprise. "
+        "Privilégie l'outil /search pour découvrir les pages pertinentes (page contact, équipe, LinkedIn, etc.), "
+        "puis scrape les pages trouvées. "
+        "N'utilise JAMAIS /crawl — strictement interdit. "
+        "Pour tout appel scrape ou search, utilise TOUJOURS formats=['markdown'] uniquement. "
+        "N'utilise JAMAIS les formats json, html, rawHtml, screenshot, ni le paramètre extract. "
         "Réponds UNIQUEMENT avec un objet JSON valide au format : "
         '{"resultats": [{"type": "generique" ou "specialise", "nom": "...", "prenom": "...", "role": "...", "mail": "...", "genre": "Monsieur" ou "Madame" ou null}]} '
         "Sans texte supplémentaire, sans markdown, sans bloc de code."

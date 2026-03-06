@@ -1,5 +1,5 @@
 # ─── docker-compose.yml ───────────────────────────────────────────────────────
-# Prérequis sur le VPS dans /apps/spontaneo/ :
+# Prérequis sur le VPS dans ~/apps/spontaneo/ :
 #   .env                      → GITHUB_REPOSITORY_OWNER, CRON_SECRET
 #   apps/web/.env             → DATABASE_URL, BETTER_AUTH_SECRET, RESEND_API_KEY…
 #   apps/worker/.env          → DATABASE_URL, WORKER_SECRET, WORKER_PORT…

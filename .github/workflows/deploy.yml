@@ -93,7 +93,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Copie le docker-compose.yml vers /apps/spontaneo/ sur le VPS
+      # S'assure que le dossier existe sur le VPS
+      - name: Prepare target directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key:      ${{ secrets.VPS_SSH_KEY }}
+          script: mkdir -p ~/apps/spontaneo
+
+      # Copie le docker-compose.yml vers ~/apps/spontaneo/ sur le VPS
       - name: Copy docker-compose.yml to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -101,7 +110,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key:      ${{ secrets.VPS_SSH_KEY }}
           source:   "docker-compose.yml"
-          target:   "/apps/spontaneo"
+          target:   "~/apps/spontaneo"
 
       # Se connecte en SSH et redémarre les services
       - name: Deploy via SSH
@@ -111,7 +120,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key:      ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd /apps/spontaneo
+            cd ~/apps/spontaneo
 
             # Authentification GHCR (PAT avec scope read:packages)
             echo "${{ secrets.GHCR_TOKEN }}" | \
