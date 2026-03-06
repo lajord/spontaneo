@@ -12,7 +12,7 @@ services:
   web:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/spontaneo-web:latest
     ports:
-      - "3000:3000"
+      - "4000:3000"
     env_file: ./apps/web/.env
     environment:
       # URLs internes (réseau Docker) — pas besoin de les mettre dans .env
