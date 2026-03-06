@@ -103,3 +103,35 @@ Retourne un JSON avec TOUS les contacts trouvés :
 }}
 
 RAPPEL : si rien de trouvé → liste vide. Jamais d'inventions."""
+
+FIRECRAWL_PROMPT_WITH_SITE = """Trouve tous les contacts et emails professionnels publics de l'entreprise française "{nom}" (adresse : {adresse}).
+
+Cherche dans cet ordre :
+1. Site officiel {site_web} — pages /contact, /equipe, /a-propos, /recrutement, /mentions-legales, pied de page
+2. LinkedIn — page entreprise + profils DRH / directeur / PDG / responsable recrutement
+3. Annuaires — Pappers.fr, Societe.com, Infogreffe (dirigeants légaux), Pages Jaunes
+4. Presse et communiqués mentionnant l'entreprise
+
+RÈGLES STRICTES :
+- Ne retourne QUE des informations trouvées explicitement dans des sources publiques
+- N'invente aucun email, même si tu connais le pattern de nommage
+- N'invente aucun nom de personne
+- type "generique" = email générique (contact@, rh@, recrutement@...) sans nom/prenom/role
+- type "specialise" = personne identifiée avec son rôle (mail peut être null si non trouvé)
+- genre : déduis du prénom ("M" / "F"), null si ambigu"""
+
+FIRECRAWL_PROMPT_WITHOUT_SITE = """Trouve tous les contacts et emails professionnels publics de l'entreprise française "{nom}" (adresse : {adresse}).
+
+Cherche dans cet ordre :
+1. Trouve d'abord le site officiel via Google ou Pappers.fr / Societe.com, puis explore ses pages /contact, /equipe, /recrutement, /mentions-legales
+2. LinkedIn — page entreprise + profils DRH / directeur / PDG / responsable recrutement
+3. Annuaires — Pappers.fr, Societe.com, Infogreffe (dirigeants légaux), Pages Jaunes
+4. Presse et communiqués mentionnant l'entreprise
+
+RÈGLES STRICTES :
+- Ne retourne QUE des informations trouvées explicitement dans des sources publiques
+- N'invente aucun email, même si tu connais le pattern de nommage
+- N'invente aucun nom de personne
+- type "generique" = email générique (contact@, rh@, recrutement@...) sans nom/prenom/role
+- type "specialise" = personne identifiée avec son rôle (mail peut être null si non trouvé)
+- genre : déduis du prénom ("M" / "F"), null si ambigu"""

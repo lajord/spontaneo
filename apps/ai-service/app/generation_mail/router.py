@@ -102,7 +102,6 @@ async def generate_mail(request: GenerateMailRequest):
     Reçoit toute la data (CV, campagne, entreprise, contact, template optionnel).
     Utilise Gemini Flash — rapide et économique.
     """
-    logger.info(f"[GENERATION MAIL] Entreprise='{request.entreprise.nom}' | Poste='{request.campagne.jobTitle}'")
 
     c = request.candidat
     camp = request.campagne
@@ -167,14 +166,13 @@ async def generate_mail(request: GenerateMailRequest):
             system_prompt=SYSTEM_PROMPT,
             temperature=0.4,
         )
-        logger.info(f"[GENERATION MAIL] Réponse [{ent.nom}] → {raw[:100]}...")
         result = _parse_response(raw)
 
         if not result.get("subject") or not result.get("body"):
             raise ValueError("Réponse IA incomplète")
 
     except Exception as e:
-        logger.error(f"[GENERATION MAIL] Erreur [{ent.nom}]: {e}")
+        logger.error(f"[GENERATION MAIL] Erreur [{ent.nom}]: {e.__class__.__name__}")
         result = {
             "subject": f"Candidature spontanée – {camp.jobTitle}",
             "body": (

@@ -116,15 +116,45 @@ def _replace_in_para(para, vals: dict) -> None:
             run.text = ""
 
 
+def _set_para_right_align(para) -> None:
+    """Force l'alignement à droite sur un paragraphe via w:jc right."""
+    pPr = para._element.find(qn('w:pPr'))
+    if pPr is None:
+        pPr = OxmlElement('w:pPr')
+        para._element.insert(0, pPr)
+    for jc in pPr.findall(qn('w:jc')):
+        pPr.remove(jc)
+    jc = OxmlElement('w:jc')
+    jc.set(qn('w:val'), 'right')
+    pPr.append(jc)
+
+
+def _clean_tabs_from_para(para) -> None:
+    """Supprime tous les éléments <w:tab/> des runs d'un paragraphe (héritage template)."""
+    for r in para._element.findall('.//' + qn('w:r')):
+        for tab in r.findall(qn('w:tab')):
+            r.remove(tab)
+
+
 def _insert_para_before(ref_para, text: str) -> None:
     """Insert a new paragraph with text immediately before ref_para, copying its formatting.
     Les \\n dans text deviennent des w:br (sauts de ligne dans Word) pour respecter
     la mise en forme originale de la lettre de motivation.
+    Un espacement après le paragraphe est appliqué pour séparer visuellement les blocs.
     """
     new_p = OxmlElement('w:p')
     pPr = ref_para._element.find(qn('w:pPr'))
     if pPr is not None:
-        new_p.append(deepcopy(pPr))
+        new_pPr = deepcopy(pPr)
+    else:
+        new_pPr = OxmlElement('w:pPr')
+    # Espacement après chaque paragraphe du corps (~11pt) pour séparation visuelle
+    for sp in new_pPr.findall(qn('w:spacing')):
+        new_pPr.remove(sp)
+    spacing = OxmlElement('w:spacing')
+    spacing.set(qn('w:after'), '160')
+    new_pPr.append(spacing)
+    new_p.append(new_pPr)
 
     orig_r = ref_para._element.find(qn('w:r'))
     rPr = None
@@ -177,6 +207,9 @@ def build_docx_from_template(structured: LmStructured) -> bytes:
         "prenom_nom":     structured.prenom_nom or "",
     }
 
+    # Balises du bloc destinataire → alignement à droite + nettoyage tabs
+    DEST_KEYS = {"dest_nom", "dest_services", "dest_adresse", "dest_ville"}
+
     corps_text = structured.corps or ""
     all_paras = list(doc.paragraphs)
     to_remove: list = []
@@ -190,12 +223,19 @@ def build_docx_from_template(structured: LmStructured) -> bytes:
             corps_para = para
             continue
 
-        # Paragraphe ne contenant QU'UNE balise avec valeur vide → supprimer la ligne
+        # Paragraphe ne contenant QU'UNE balise → vérif alignement + suppression si vide
         stripped = raw.strip()
         m = re.fullmatch(r'\{\{\s*(\w+)\s*\}\}', stripped)
-        if m and m.group(1) in vals and not vals[m.group(1)]:
-            to_remove.append(para)
-            continue
+        if m:
+            key = m.group(1)
+            # Bloc destinataire : aligner à droite et nettoyer les tabs hérités du template
+            if key in DEST_KEYS:
+                _set_para_right_align(para)
+                _clean_tabs_from_para(para)
+            # Balise vide → supprimer la ligne
+            if key in vals and not vals[key]:
+                to_remove.append(para)
+                continue
 
         _replace_in_para(para, vals)
 

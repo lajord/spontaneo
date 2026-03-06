@@ -1,0 +1,183 @@
+// Schéma Prisma dédié au worker.
+// Même modèles que apps/web/prisma/schema.prisma, mais avec output
+// pointant vers node_modules du worker (pas celui de la web app).
+// À maintenir en sync avec le schéma web lors des migrations.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── BetterAuth tables ─────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  campaigns    Campaign[]
+  sessions     Session[]
+  accounts     Account[]
+  emailConfig  EmailConfig?
+  jobs         Job[]
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+}
+
+// ── App tables ────────────────────────────────────────────────────────────────
+
+model Campaign {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  jobTitle    String
+  granularity String    @default("moyen")
+  location    String
+  radius      Int       @default(20)
+  cvUrl       String?
+  cvData      Json?
+  lmText      String?
+  startDate   String?
+  duration    String?
+  prompt      String?
+  status        String    @default("draft")
+  dailyLimit    Int?
+  launchedAt    DateTime?
+  sendStartHour Int?      @default(8)
+  sendEndHour   Int?      @default(18)
+  totalEmails   Int?
+  sentCount     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  companies Company[]
+  emails    Email[]
+  jobs      Job[]
+}
+
+model Company {
+  id         String    @id @default(cuid())
+  campaignId String
+  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name       String
+  address    String?
+  website    String?
+  phone      String?
+  sector     String?
+  siren      String?
+  codeNaf    String?
+  source     String?
+  enriched   Json?
+  status     String    @default("scraped")
+  scrapedAt  DateTime  @default(now())
+
+  emails Email[]
+}
+
+model Email {
+  id            String    @id @default(cuid())
+  campaignId    String
+  campaign      Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subject       String
+  body          String
+  to            String?
+  recipientName String?
+  generatedLm   String?
+  status        String    @default("draft")
+  sentAt        DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+// ── Background jobs ───────────────────────────────────────────────────────────
+
+model Job {
+  id             String    @id @default(cuid())
+  pgbossId       String?   @unique
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId     String
+  campaign       Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  status         String    @default("pending")
+  totalCompanies Int       @default(0)
+  processedCount Int       @default(0)
+  failedCount    Int       @default(0)
+  payload        Json?
+  error          String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  events JobEvent[]
+}
+
+model JobEvent {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  seq       Int
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@index([jobId, seq])
+}
+
+model EmailConfig {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     String
+  accessToken  String?
+  refreshToken String?
+  tokenExpiry  DateTime?
+  oauthEmail   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}

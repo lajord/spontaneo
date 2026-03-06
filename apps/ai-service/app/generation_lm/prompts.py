@@ -32,6 +32,6 @@ Retourne UNIQUEMENT un objet JSON valide, sans commentaire ni texte autour. Stru
   "date": "Ville, le JJ mois AAAA (ou null si absent de la lettre originale)",
   "objet": "Objet de la lettre",
   "salutation": "Madame, Monsieur, (ou civilité + nom si contact connu)",
-  "corps": "Corps complet de la lettre, SANS salutation ni signature. Respecte EXACTEMENT les sauts de ligne de la lettre originale : \\n sépare les lignes au sein d'un même paragraphe, \\n\\n sépare deux paragraphes distincts. Ne fusionne jamais deux paragraphes en un seul.",
+  "corps": "Corps complet de la lettre, SANS salutation ni signature.\\nRÈGLE ABSOLUE DES SAUTS DE LIGNE :\\n- \\\\n (simple) = saut de ligne dans le MÊME paragraphe (ex : liste, adresse sur 2 lignes dans le même bloc)\\n- \\\\n\\\\n (double) = NOUVEAU PARAGRAPHE DISTINCT — obligatoire entre chaque bloc logique\\nLa lettre originale a N paragraphes distincts → le corps doit contenir exactement N-1 occurrences de \\\\n\\\\n.\\nNE JAMAIS remplacer un \\\\n\\\\n par un \\\\n. Ne jamais fusionner deux paragraphes en un seul.",
   "prenom_nom": "Prénom Nom du candidat (pour la signature)"
 }"""

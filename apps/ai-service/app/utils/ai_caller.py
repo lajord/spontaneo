@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from openai import AsyncOpenAI
 from google import genai
@@ -127,6 +128,56 @@ async def _openai_with_search(
     return response.output_text or ""
 
 
+async def _firecrawl_agent(
+    prompt: str,
+    firecrawl_model: str = "spark-1-mini",
+    urls: list[str] | None = None,
+) -> str:
+    import os
+    from agents import Agent, Runner
+    from agents.mcp import MCPServerStreamableHttp
+
+    os.environ.setdefault("OPENAI_API_KEY", settings.CHATGPT_API)
+
+    mcp = MCPServerStreamableHttp(
+        params={"url": f"https://mcp.firecrawl.dev/{settings.FIRECRAWL_API_KEY}/v2/mcp"},
+        client_session_timeout_seconds=300,  # 5 min pour les ops de scraping
+    )
+
+    instructions = (
+        "Tu es un agent d'enrichissement de données B2B. "
+        "Utilise les outils Firecrawl pour scraper les sites web et trouver les contacts. "
+        "IMPORTANT : quand tu appelles un outil Firecrawl (scrape, crawl, ou autre), "
+        "utilise TOUJOURS formats=['markdown'] et UNIQUEMENT markdown. "
+        "N'utilise JAMAIS json, html, rawHtml, screenshot, ou le paramètre extract — "
+        "le paramètre extract est extrêmement coûteux et strictement interdit. "
+        "Réponds UNIQUEMENT avec un objet JSON valide au format : "
+        '{"resultats": [{"type": "generique" ou "specialise", "nom": "...", "prenom": "...", "role": "...", "mail": "...", "genre": "Monsieur" ou "Madame" ou null}]} '
+        "Sans texte supplémentaire, sans markdown, sans bloc de code."
+    )
+
+    full_prompt = prompt
+    if urls:
+        full_prompt = f"URLs à scraper en priorité : {', '.join(urls)}\n\n{prompt}"
+
+    agent = Agent(
+        name="enrichissement-agent",
+        instructions=instructions,
+        mcp_servers=[mcp],
+    )
+
+    logger.info("[FIRECRAWL BROWSER] Agent démarré...")
+    try:
+        async with mcp:
+            result = await Runner.run(agent, full_prompt)
+        result_text = result.final_output or ""
+        logger.info(f"[FIRECRAWL BROWSER] Résultat reçu ({len(result_text)} chars)")
+        return result_text if result_text else '{"resultats": []}'
+    except Exception as e:
+        logger.error(f"[FIRECRAWL BROWSER] Exception : {e.__class__.__name__}: {e}")
+        return '{"resultats": []}'
+
+
 async def _ovh_vision(
     model: str,
     images_b64: list[str],
@@ -174,8 +225,11 @@ async def call_ai_with_search(
     prompt: str,
     system_prompt: str = "",
     temperature: float = 0.3,
+    urls: list[str] | None = None,
 ) -> str:
-    """Dispatcher avec web search — route vers Gemini Search ou OpenAI web_search."""
+    """Dispatcher avec web search — route vers Firecrawl Agent, Gemini Search ou OpenAI web_search."""
+    if model.startswith("spark"):
+        return await _firecrawl_agent(prompt, model, urls)
     if _is_gemini(model):
         return await _gemini_with_search(model, prompt, system_prompt, temperature)
     return await _openai_with_search(model, prompt, system_prompt)

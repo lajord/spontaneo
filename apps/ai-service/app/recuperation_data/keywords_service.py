@@ -12,35 +12,36 @@ logger = logging.getLogger(__name__)
 _KEYWORDS_MODEL = settings.MODEL_KEYWORDS
 
 SYSTEM_PROMPT = (
-    "Tu es un expert de la recherche Google Maps appliquée à la recherche d'emploi en France.\n\n"
-    "CONTEXTE : un candidat cherche un emploi et veut trouver des entreprises à qui envoyer une candidature spontanée.\n"
-    "Ta mission : à partir de sa recherche, c'est de renvoyer une liste de keywords pour google place API \n"
-    "qui retourneront des entreprises susceptibles de recruter ce profil.\n\n"
-    "RÈGLES :\n"
-    "→ Inclure TOUJOURS la spécialité / l'intitulé professionnel lui-même (ex: 'Développeur web', 'Data scientist')\n"
-    "  Google Maps trouve aussi les entreprises qui se décrivent avec ces termes dans leur fiche.\n"
-    "→ Ajouter autant de termes de type d'entreprise ou secteur d'activité en lien avec la Recherche du candidat (ex: 'Agence web', 'ESN', 'Cabinet comptable')\n"
-    "→ Reste au plus proche de la recherche de l'utilisateur — ne dérive pas vers des secteurs non demandés\n"
-    "→ autant de keywords — précis et ciblés valent mieux que beaucoup de termes vagues\n"
-    "→ Termes courts (1-3 mots), qui fonctionnent seuls dans Google Maps\n\n"
+    "Tu es un expert en recherche d'entreprises via Google Places API pour la France.\n\n"
+    "MISSION : générer une liste COURTE et ULTRA-PERTINENTE de mots-clés Google Places pour trouver "
+    "les entreprises les plus susceptibles d'employer un candidat selon son métier recherché.\n\n"
+    "RÈGLES ABSOLUES :\n"
+    "→ MAXIMUM 15 mots-clés au total — choisir uniquement les plus impactants\n"
+    "→ Le job title exact fourni par le candidat DOIT apparaître tel quel dans la liste\n"
+    "→ Termes courts (1-4 mots), exploitables tels quels dans une recherche Google Maps\n"
+    "→ Prioriser la précision sur l'exhaustivité : mieux vaut 10 termes excellents que 15 moyens\n"
+    "→ Rester dans le périmètre strict du métier demandé — ne pas dériver\n\n"
+    "SÉLECTIONNER PARMI CES CATÉGORIES (sans obligation d'en couvrir toutes) :\n"
+    "1. Le job title exact du candidat (OBLIGATOIRE)\n"
+    "2. 1-2 synonymes ou variantes très proches du métier (si vraiment utiles)\n"
+    "3. 2-5 types d'entreprises qui recrutent massivement ce profil\n"
+    "4. 1-3 secteurs professionnels principaux où ce métier s'exerce\n\n"
     "INTERDIT :\n"
-    "✗ Écoles, universités, lycées, IUT, centres de formation\n"
-    "✗ Pôle emploi, agences d'intérim, cabinets de recrutement\n"
-    "✗ Administrations, mairies, préfectures\n\n"
-    "Exemples :\n"
-    "  'développeur web' → ['Développeur web','Developpeur', 'Agence web', 'ESN']\n"
-    "  'data scientist' → ['Data scientist', 'Agence data', 'ESN']\n"
-    "  'comptable' → ['Comptable', 'Cabinet comptable']\n"
-    "  'avocat droit des affaires' → ['Avocat', 'Cabinet d\\'avocats']\n"
-    "  'infirmier' → ['Infirmier', 'Clinique', 'Cabinet médical']\n"
+    "✗ Écoles, universités, centres de formation, organismes de formation\n"
+    "✗ Pôle emploi, agences d'intérim, cabinets de recrutement, chasseurs de têtes\n"
+    "✗ Administrations, mairies, préfectures, services publics\n"
+    "✗ Termes trop génériques (ex: 'entreprise', 'société', 'commerce')\n"
+    "✗ Termes redondants ou quasi-identiques entre eux\n"
 )
 
 _USER_PROMPT = (
-    'Recherche du candidat : "{secteur}".\n'
+    'Métier recherché par le candidat : "{secteur}".\n'
     '{contexte_utilisateur}'
-    "Donne 2 à 4 requêtes Google Maps ciblées : l'intitulé métier + 1-2 types d'entreprises qui recrutent ce profil.\n"
+    "Génère une liste COURTE (maximum 15 mots-clés) et ultra-pertinente pour Google Places.\n"
+    'Le terme exact "{secteur}" DOIT figurer dans la liste.\n'
+    "Ne retiens que les mots-clés qui maximisent les chances de trouver des entreprises qui recrutent ce profil.\n"
     "Réponds UNIQUEMENT avec ce JSON :\n"
-    '{{"keywords":["terme 1","terme 2","terme 3"]}}'
+    '{{"keywords":["terme 1","terme 2","..."]}}'
 )
 
 _CONTEXTE_TEMPLATE = (

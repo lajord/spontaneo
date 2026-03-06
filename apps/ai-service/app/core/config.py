@@ -26,16 +26,20 @@ class Settings(BaseSettings):
     # Google Gemini API
     GEMINI_API_KEY: str = ""
 
+    # Firecrawl API
+    FIRECRAWL_API_KEY: str = ""
+
     # Perplexity API
     PERPLEXITY_API_KEY: str = ""
     PERPLEXITY_BASE_URL: str = "https://api.perplexity.ai"
     PERPLEXITY_MODEL: str = "sonar-pro"
 
     # Modèles IA par service
-    MODEL_ENRICHISSEMENT: str = "gpt-5"
-    MODEL_CREATION_MAIL: str = "gemini-3-flash-preview"
-    MODEL_CREATION_LM: str = "gemini-3-flash-preview"
-    MODEL_KEYWORDS: str = "gpt-4o-mini"
+    MODEL_ENRICHISSEMENT: str = "spark-1-mini"
+    MODEL_ENRICHISSEMENT_2: str = "gemini-3.1-pro-preview"
+    MODEL_CREATION_MAIL: str = "gemini-3.1-pro-preview"
+    MODEL_CREATION_LM: str = "gemini-3.1-pro-preview"
+    MODEL_KEYWORDS: str = "gemini-3.1-pro-preview"
     MODEL_CV_READER: str = "Qwen2.5-VL-72B-Instruct"
 
     # Nominatim (géocodage OpenStreetMap)
