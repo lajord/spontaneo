@@ -18,6 +18,10 @@ RUN mkdir -p public
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# URL bidon pour que next build puisse importer prisma.ts sans crasher
+# (la vraie DATABASE_URL est fournie au runtime via env_file dans docker-compose)
+ENV DATABASE_URL=postgresql://localhost/build-placeholder
+
 RUN npx prisma generate
 RUN npm run build
 
