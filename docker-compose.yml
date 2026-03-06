@@ -1,0 +1,61 @@
+# ─── docker-compose.yml ───────────────────────────────────────────────────────
+# Prérequis sur le VPS dans /apps/spontaneo/ :
+#   .env                      → GITHUB_REPOSITORY_OWNER, CRON_SECRET
+#   apps/web/.env             → DATABASE_URL, BETTER_AUTH_SECRET, RESEND_API_KEY…
+#   apps/worker/.env          → DATABASE_URL, WORKER_SECRET, WORKER_PORT…
+#   apps/ai-service/.env      → CHATGPT_API, GEMINI_API_KEY, GOOGLE_PLACE_API…
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Frontend + API routes ─────────────────────────────────────────────────
+  web:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/spontaneo-web:latest
+    ports:
+      - "3000:3000"
+    env_file: ./apps/web/.env
+    environment:
+      # URLs internes (réseau Docker) — pas besoin de les mettre dans .env
+      AI_SERVICE_URL: http://ai-service:8000
+      WORKER_URL: http://worker:3001
+      UPLOADS_ROOT: /srv/uploads
+    volumes:
+      - uploads:/srv/uploads
+    restart: unless-stopped
+    depends_on:
+      - worker
+      - ai-service
+
+  # ── Worker d'enrichissement + génération mail ─────────────────────────────
+  worker:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/spontaneo-worker:latest
+    env_file: ./apps/worker/.env
+    environment:
+      AI_SERVICE_URL: http://ai-service:8000
+      UPLOADS_ROOT: /srv/uploads
+    volumes:
+      - uploads:/srv/uploads
+    restart: unless-stopped
+    depends_on:
+      - ai-service
+
+  # ── Service IA (FastAPI Python) ───────────────────────────────────────────
+  ai-service:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/spontaneo-ai:latest
+    env_file: ./apps/ai-service/.env
+    restart: unless-stopped
+
+  # ── Scheduler : appelle /api/cron/send-emails toutes les 60s ─────────────
+  cron:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/spontaneo-cron:latest
+    environment:
+      CRON_SECRET: ${CRON_SECRET}
+      CRON_URL: http://web:3000/api/cron/send-emails
+    restart: unless-stopped
+    depends_on:
+      - web
+
+# ── Volume partagé web ↔ worker (CVs, lettres de motivation) ─────────────────
+volumes:
+  uploads:
+    driver: local
