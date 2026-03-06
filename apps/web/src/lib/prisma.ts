@@ -15,7 +15,8 @@ function createPrismaClient() {
   const pool = new Pool({
     connectionString: url.toString(),
     ssl: { rejectUnauthorized: false },
-  })
+    family: 4,
+  } as ConstructorParameters<typeof Pool>[0])
   const adapter = new PrismaPg(pool)
   return new PrismaClient({ adapter })
 }
