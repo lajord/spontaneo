@@ -1,0 +1,36 @@
+{
+  "name": "spontaneo-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.4.1",
+    "@prisma/client": "^7.4.1",
+    "@supabase/supabase-js": "^2.97.0",
+    "autoprefixer": "^10.4.24",
+    "better-auth": "^1.4.19",
+    "docx": "^9.6.0",
+    "docx-preview": "^0.3.7",
+    "next": "^14.2.0",
+    "pg": "^8.18.0",
+    "pg-boss": "^10.4.2",
+    "postcss": "^8.5.6",
+    "prisma": "^7.4.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "resend": "^6.9.2",
+    "tailwindcss": "^3.4.19"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.16.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0"
+  }
+}
