@@ -2,7 +2,9 @@ import re
 import json
 import asyncio
 import logging
+from typing import Optional
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from app.core.config import settings
 from app.models.schemas import CompanyRequest, EnrichedContact, EnrichedCompany
@@ -10,6 +12,12 @@ from app.utils.ai_caller import call_ai_with_search
 from app.enrichissement.prompts import (
     SYSTEM_PROMPT,
     USER_PROMPT_WITH_SITE, USER_PROMPT_WITHOUT_SITE,
+)
+from app.apollo import (
+    ApolloClient,
+    rank_contacts,
+    adapt_person_to_contact,
+    ApolloEnrichedContact,
 )
 
 logger = logging.getLogger(__name__)
@@ -144,12 +152,16 @@ async def enrich_company(request: CompanyRequest):
 
     if isinstance(raw1, Exception):
         logger.error(f"[ENRICHISSEMENT] [{request.nom}] {settings.MODEL_ENRICHISSEMENT} échoué: {raw1.__class__.__name__}")
+    else:
+        logger.info(f"[ENRICHISSEMENT] [{request.nom}] {settings.MODEL_ENRICHISSEMENT} → {len(list1)} contact(s)")
     if isinstance(raw2, Exception):
         logger.error(f"[ENRICHISSEMENT] [{request.nom}] {settings.MODEL_ENRICHISSEMENT_2} échoué: {raw2.__class__.__name__}")
+    else:
+        logger.info(f"[ENRICHISSEMENT] [{request.nom}] {settings.MODEL_ENRICHISSEMENT_2} → {len(list2)} contact(s)")
 
     merged = _merge_raw_contacts(list1, list2)
     resultats = _to_enriched_contacts(merged)
-    logger.info(f"[ENRICHISSEMENT] [{request.nom}] → {len(list1)} + {len(list2)} contacts → {len(resultats)} après merge")
+    logger.info(f"[ENRICHISSEMENT] [{request.nom}] Total après merge : {len(resultats)} contact(s) uniques")
 
     return EnrichedCompany(
         nom=request.nom,
@@ -157,3 +169,152 @@ async def enrich_company(request: CompanyRequest):
         site_web=request.site_web,
         resultats=resultats,
     )
+
+
+# ── Pipeline complet : Firecrawl+Gemini → Ranking → Apollo ───────────────────
+
+class CompanyFullRequest(CompanyRequest):
+    """Requête pour le pipeline complet avec paramètres de ranking et Apollo."""
+    job_title: Optional[str] = ""
+    max_contacts: int = 3
+    min_score: int = 40
+    reveal_personal_emails: bool = False
+    reveal_phone_number: bool = False
+
+
+def _extract_domain(site_web: str | None) -> str | None:
+    if not site_web:
+        return None
+    return (
+        site_web
+        .replace("https://", "")
+        .replace("http://", "")
+        .split("/")[0]
+    )
+
+
+@router.post("/company-full")
+async def enrich_company_full(request: CompanyFullRequest):
+    """Pipeline complet : enrichissement Firecrawl+Gemini → ranking Gemini → Apollo.
+
+    1. Appelle l'enrichissement existant (Firecrawl + Gemini)
+    2. Classe les contacts par pertinence recrutement (Gemini ranking)
+    3. Envoie les top N contacts à Apollo pour vérification email/téléphone
+    4. Retourne tous les contacts avec scores + données Apollo pour les tops
+    """
+    # ── Étape 1 : Enrichissement classique ────────────────────────────────
+    base_request = CompanyRequest(
+        nom=request.nom,
+        site_web=request.site_web,
+        adresse=request.adresse,
+    )
+    base_result = await enrich_company(base_request)
+    contacts = base_result.resultats
+
+    logger.info(f"[COMPANY-FULL] [{request.nom}] Étape 1 → {len(contacts)} contacts bruts")
+
+    if not contacts:
+        return {
+            "nom": request.nom,
+            "adresse": request.adresse,
+            "site_web": request.site_web,
+            "resultats": [],
+            "rankings": [],
+        }
+
+    # ── Étape 2 : Ranking Gemini ──────────────────────────────────────────
+    ranked = await rank_contacts(
+        contacts=contacts,
+        company_name=request.nom,
+        job_title=request.job_title or "",
+    )
+
+    logger.info(
+        f"[COMPANY-FULL] [{request.nom}] Étape 2 → {len(ranked)} contacts classés, "
+        f"scores: {[r.score for r in ranked[:5]]}"
+    )
+
+    # ── Étape 3 : Apollo enrichissement des top contacts ──────────────────
+    top_contacts = [r for r in ranked if r.score >= request.min_score][:request.max_contacts]
+
+    apollo_results: list[ApolloEnrichedContact] = []
+    non_apollo_results: list[dict] = []
+
+    if settings.APOLLO_API_KEY and top_contacts:
+        domain = _extract_domain(request.site_web)
+        client = ApolloClient(api_key=settings.APOLLO_API_KEY)
+
+        try:
+            apollo_tasks = []
+            for rc in top_contacts:
+                c = rc.contact
+                if c.type == "specialise" and (c.prenom or c.nom):
+                    apollo_tasks.append((rc, client.match_person(
+                        first_name=c.prenom or "",
+                        last_name=c.nom or "",
+                        domain=domain,
+                        email=c.mail,
+                        organization_name=request.nom,
+                        reveal_personal_emails=request.reveal_personal_emails,
+                        reveal_phone_number=request.reveal_phone_number,
+                    )))
+
+            # Exécuter les appels Apollo en parallèle
+            if apollo_tasks:
+                results = await asyncio.gather(
+                    *[task for _, task in apollo_tasks],
+                    return_exceptions=True,
+                )
+                for (rc, _), result in zip(apollo_tasks, results):
+                    if isinstance(result, Exception):
+                        logger.error(f"[COMPANY-FULL] Apollo échoué pour {rc.contact.prenom} {rc.contact.nom}: {result}")
+                        enriched = ApolloEnrichedContact(
+                            **rc.contact.model_dump(),
+                            ranking_score=rc.score,
+                        )
+                    else:
+                        enriched = adapt_person_to_contact(result, rc.contact)
+                        enriched.ranking_score = rc.score
+                    apollo_results.append(enriched)
+        finally:
+            await client.close()
+
+        logger.info(f"[COMPANY-FULL] [{request.nom}] Étape 3 → {len(apollo_results)} contacts enrichis Apollo")
+    else:
+        if not settings.APOLLO_API_KEY:
+            logger.info(f"[COMPANY-FULL] [{request.nom}] Apollo désactivé (pas de clé API)")
+
+    # Construire les résultats finaux : Apollo enrichis + reste avec score
+    apollo_ids = {id(rc.contact) for rc in top_contacts if any(
+        a.nom == rc.contact.nom and a.prenom == rc.contact.prenom for a in apollo_results
+    )}
+
+    final_resultats = []
+
+    # D'abord les contacts enrichis Apollo
+    for ac in apollo_results:
+        final_resultats.append(ac.model_dump())
+
+    # Puis les contacts non-Apollo avec leur score
+    for rc in ranked:
+        already_in = any(
+            r.get("nom") == rc.contact.nom
+            and r.get("prenom") == rc.contact.prenom
+            and r.get("mail") == rc.contact.mail
+            for r in final_resultats
+        )
+        if not already_in:
+            contact_dict = rc.contact.model_dump()
+            contact_dict["ranking_score"] = rc.score
+            final_resultats.append(contact_dict)
+
+    return {
+        "nom": request.nom,
+        "adresse": request.adresse,
+        "site_web": request.site_web,
+        "resultats": final_resultats,
+        "rankings": [
+            {"index": i, "score": r.score, "reason": r.reason}
+            for i, r in enumerate(ranked)
+        ],
+    }

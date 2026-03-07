@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     MODEL_KEYWORDS: str = "gemini-3.1-pro-preview"
     MODEL_CV_READER: str = "Qwen2.5-VL-72B-Instruct"
 
+    # Apollo.io
+    APOLLO_API_KEY: str = ""
+
+    # Modèle IA pour le ranking des contacts
+    MODEL_RANKING: str = "gemini-2.5-flash"
+
     # Nominatim (géocodage OpenStreetMap)
     NOMINATIM_USER_AGENT: str = "spontaneo/1.0"
 

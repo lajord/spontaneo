@@ -19,6 +19,10 @@ def _is_gemini(model: str) -> bool:
     return model.lower().startswith("gemini")
 
 
+def _is_perplexity(model: str) -> bool:
+    return model.lower().startswith("sonar")
+
+
 # ─── Implémentations internes ─────────────────────────────────────────────────
 
 async def _gemini(
@@ -103,11 +107,11 @@ async def _openai(
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
-    response = await client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=temperature,
-    )
+    kwargs: dict = {"model": model, "messages": messages}
+    # gpt-5 ne supporte que temperature=1 (défaut)
+    if not model.startswith("gpt-5"):
+        kwargs["temperature"] = temperature
+    response = await client.chat.completions.create(**kwargs)
     return response.choices[0].message.content or ""
 
 
@@ -167,16 +171,42 @@ async def _firecrawl_agent(
         mcp_servers=[mcp],
     )
 
-    logger.info("[FIRECRAWL BROWSER] Agent démarré...")
+    logger.info("[FIRECRAWL] Agent démarré...")
     try:
         async with mcp:
             result = await Runner.run(agent, full_prompt)
         result_text = result.final_output or ""
-        logger.info(f"[FIRECRAWL BROWSER] Résultat reçu ({len(result_text)} chars)")
+        logger.info(f"[FIRECRAWL] Résultat reçu ({len(result_text)} chars)")
         return result_text if result_text else '{"resultats": []}'
     except Exception as e:
-        logger.error(f"[FIRECRAWL BROWSER] Exception : {e.__class__.__name__}: {e}")
-        return '{"resultats": []}'
+        logger.error(f"[FIRECRAWL] Erreur : {e.__class__.__name__}: {e}")
+        raise
+
+
+async def _perplexity(
+    model: str,
+    prompt: str,
+    system_prompt: str = "",
+    temperature: float = 0.3,
+) -> str:
+    try:
+        client = AsyncOpenAI(
+            api_key=settings.PERPLEXITY_API_KEY,
+            base_url=settings.PERPLEXITY_BASE_URL,
+        )
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        response = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+        )
+        return response.choices[0].message.content or ""
+    except Exception as e:
+        logger.error(f"[PERPLEXITY] Erreur : {e.__class__.__name__}: {e}")
+        raise
 
 
 async def _ovh_vision(
@@ -215,7 +245,9 @@ async def call_ai(
     system_prompt: str = "",
     temperature: float = 0.3,
 ) -> str:
-    """Dispatcher texte — route vers Gemini ou OpenAI selon le modèle."""
+    """Dispatcher texte — route vers Perplexity, Gemini ou OpenAI selon le modèle."""
+    if _is_perplexity(model):
+        return await _perplexity(model, prompt, system_prompt, temperature)
     if _is_gemini(model):
         return await _gemini(model, prompt, system_prompt, temperature)
     return await _openai(model, prompt, system_prompt, temperature)
@@ -228,9 +260,11 @@ async def call_ai_with_search(
     temperature: float = 0.3,
     urls: list[str] | None = None,
 ) -> str:
-    """Dispatcher avec web search — route vers Firecrawl Agent, Gemini Search ou OpenAI web_search."""
+    """Dispatcher avec web search — route vers Firecrawl Agent, Perplexity, Gemini Search ou OpenAI web_search."""
     if model.startswith("spark"):
         return await _firecrawl_agent(prompt, model, urls)
+    if _is_perplexity(model):
+        return await _perplexity(model, prompt, system_prompt, temperature)
     if _is_gemini(model):
         return await _gemini_with_search(model, prompt, system_prompt, temperature)
     return await _openai_with_search(model, prompt, system_prompt)

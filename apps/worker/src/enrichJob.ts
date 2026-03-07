@@ -22,10 +22,16 @@ type EnrichedContact = {
   role?: string | null
   mail?: string | null
   genre?: 'M' | 'F' | null
+  email_verified?: boolean
+  phone?: string | null
+  linkedin_url?: string | null
+  apollo_id?: string | null
+  ranking_score?: number | null
 }
 
 type EnrichedData = {
   resultats?: EnrichedContact[]
+  rankings?: { index: number; score: number; reason: string }[]
 }
 
 type Recipient = {
@@ -57,7 +63,12 @@ function buildRecipients(enriched: EnrichedData): Recipient[] {
   const recipients: Recipient[] = []
   const usedMails = new Set<string>()
 
-  for (const r of enriched.resultats ?? []) {
+  // Trier par ranking_score décroissant (les contacts les plus pertinents d'abord)
+  const sorted = [...(enriched.resultats ?? [])].sort((a, b) =>
+    (b.ranking_score ?? 0) - (a.ranking_score ?? 0)
+  )
+
+  for (const r of sorted) {
     if (!r.mail || usedMails.has(r.mail)) continue
 
     if (r.type === 'specialise' && (r.nom || r.prenom)) {
@@ -118,11 +129,7 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
     throw new Error(`Campaign ${campaignId} not found`)
   }
 
-  // Update job status → running
-  await prisma.job.update({
-    where: { id: jobId },
-    data: { status: 'running', startedAt: new Date() },
-  })
+  // Le status 'running' + startedAt est déjà set par claimNextJob() dans index.ts
 
   // Determine which companies still need processing
   const alreadyProcessed = await prisma.email.findMany({
@@ -183,7 +190,10 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
 
     let bodyCore = ''
     let subject = userMailSubject || `Candidature spontanée – ${campaign.jobTitle}`
-    const mainContact = enriched.resultats?.find(r => r.type === 'specialise') ?? null
+    // Prendre le contact spécialisé avec le meilleur ranking_score
+    const mainContact = [...(enriched.resultats ?? [])]
+      .filter(r => r.type === 'specialise')
+      .sort((a, b) => (b.ranking_score ?? 0) - (a.ranking_score ?? 0))[0] ?? null
 
     try {
       const genRes = await fetch(`${AI_SERVICE_URL}/api/v1/generation-mail/generate`, {
@@ -342,9 +352,17 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
     })
   }
 
-  // ── Traitement séquentiel ──────────────────────────────────────────────────
-  for (const company of companiesToProcess) {
-    await processCompany(company).catch(() => { })
+  // ── Traitement parallèle (3 entreprises simultanées) ────────────────────────
+  const BATCH_SIZE = 3
+  for (let i = 0; i < companiesToProcess.length; i += BATCH_SIZE) {
+    const batch = companiesToProcess.slice(i, i + BATCH_SIZE)
+    await Promise.all(
+      batch.map(company =>
+        processCompany(company).catch(err => {
+          console.error(`[WORKER] Error processing ${company.name}:`, err)
+        })
+      )
+    )
   }
 
   await prisma.campaign.update({

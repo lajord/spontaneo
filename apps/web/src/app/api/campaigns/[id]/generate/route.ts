@@ -44,10 +44,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   })
 
   if (existingJob) {
+    nudgeWorker()
     return NextResponse.json({ jobId: existingJob.id })
   }
 
-  // ── Créer un nouveau Job en DB ─────────────────────────────────────────────
+  // ── Créer un nouveau Job en DB — le worker le découvrira via polling ───────
   const job = await prisma.job.create({
     data: {
       userId: session.user.id,
@@ -57,21 +58,18 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     },
   })
 
-  // ── Notifier le worker via HTTP ───────────────────────────────────────────
-  fetch(`${WORKER_URL}/process`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(WORKER_SECRET ? { 'x-worker-secret': WORKER_SECRET } : {}),
-    },
-    body: JSON.stringify({
-      jobId: job.id,
-      campaignId: id,
-      links,
-      userMailTemplate,
-      userMailSubject,
-    }),
-  }).catch(err => console.error('[generate] Worker notification failed:', err))
+  nudgeWorker()
 
   return NextResponse.json({ jobId: job.id })
+}
+
+function nudgeWorker(): void {
+  fetch(`${WORKER_URL}/nudge`, {
+    method: 'POST',
+    headers: {
+      ...(WORKER_SECRET ? { 'x-worker-secret': WORKER_SECRET } : {}),
+    },
+  }).catch(() => {
+    // Worker down — pas grave, il trouvera le job au prochain poll
+  })
 }
