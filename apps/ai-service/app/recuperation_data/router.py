@@ -38,13 +38,13 @@ async def search_companies(request: SearchRequest):
         [request.secteur] if request.secteur.lower() not in kws_ia_lower else []
     ) + kws_ia
 
-    # 3. Google Places — on ajoute la ville dans chaque query pour forcer Google
-    #    à cibler la zone textuellement (le radius seul n'est qu'un biais)
-    localisation_label = request.localisation.split(",")[0].strip()  # "Pau, France" → "Pau"
-    kws_with_city = [f"{kw} {localisation_label}" for kw in kws]
-
+    # 3. Google Places — on ne met PAS le nom de ville dans la query.
+    #    Le paramètre location+radius guide déjà Google vers la zone.
+    #    Ajouter le nom de ville (ex: "Paris") fait que Google retourne
+    #    des résultats de toute la ville, rendant le filtre par rayon
+    #    et le grid search inefficaces.
     places = await google_places_service.search_multi_keywords(
-        keywords=kws_with_city,
+        keywords=kws,
         lat=lat,
         lng=lng,
         radius_m=request.radius * 1000,

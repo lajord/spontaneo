@@ -8,9 +8,9 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # ── Configuration grid search ──────────────────────────────────────
-MAX_GRID_DEPTH = 4              # Profondeur max de subdivision
+MAX_GRID_DEPTH = 3              # Profondeur max de subdivision (réduite pour limiter les requêtes)
 SATURATED_THRESHOLD = 60        # 3 pages × 20 résultats = zone saturée
-MAX_CONCURRENT_REQUESTS = 5     # Requêtes Google simultanées max
+MAX_CONCURRENT_REQUESTS = 3     # Requêtes Google simultanées max (réduit pour éviter l'erreur 429)
 
 # Types Google Places correspondant à des structures non-employeuses
 _EXCLUDED_TYPES = {
@@ -77,48 +77,16 @@ def _subdivide_bbox(
     ]
 
 
-def _bbox_center_radius(
-    south: float, west: float, north: float, east: float,
-) -> tuple[float, float, int]:
-    """Retourne le centre et le rayon (en mètres) couvrant la bounding box."""
-    center_lat = (south + north) / 2
-    center_lng = (west + east) / 2
-    radius_km = _haversine_km(center_lat, center_lng, north, east)
-    return center_lat, center_lng, int(radius_km * 1000)
-
-
 class GooglePlacesService:
-    """Service pour rechercher des entreprises via Google Places API avec grid search adaptatif."""
+    """Service pour rechercher des entreprises via Google Places API (New) avec grid search adaptatif."""
 
-    TEXT_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
-    DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
+    SEARCH_TEXT_URL = "https://places.googleapis.com/v1/places:searchText"
 
     def __init__(self):
         self.api_key = settings.GOOGLE_PLACE_API
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
 
-    # ── Détails d'un lieu ──────────────────────────────────────────
 
-    async def _get_place_details(
-        self,
-        client: httpx.AsyncClient,
-        place_id: str,
-    ) -> dict:
-        """Récupère les détails d'un lieu (site web, téléphone)."""
-        try:
-            async with self._semaphore:
-                params = {
-                    "place_id": place_id,
-                    "fields": "website,formatted_phone_number,url",
-                    "key": self.api_key,
-                }
-                response = await client.get(self.DETAILS_URL, params=params)
-                data = response.json()
-                if data.get("status") == "OK":
-                    return data.get("result", {})
-        except Exception as e:
-            logger.error(f"Erreur détails place {place_id}: {e}")
-        return {}
 
     # ── Recherche brute sur une zone ───────────────────────────────
 
@@ -126,64 +94,110 @@ class GooglePlacesService:
         self,
         client: httpx.AsyncClient,
         query: str,
-        center_lat: float,
-        center_lng: float,
-        radius_m: int,
+        bbox: tuple[float, float, float, float],
     ) -> tuple[list[dict], bool]:
         """
-        Recherche brute sur une zone (centre + rayon).
+        Recherche brute sur une zone stricte (bounding box).
         Retourne (résultats bruts, zone_saturée).
         La zone est considérée saturée si on atteint SATURATED_THRESHOLD résultats.
         """
         raw_places: list[dict] = []
         total_count = 0
+        south, west, north, east = bbox
 
-        search_params = {
-            "query": query,
-            "location": f"{center_lat},{center_lng}",
-            "radius": min(radius_m, 50000),
-            "key": self.api_key,
-            "language": "fr",
+        # https://developers.google.com/maps/documentation/places/web-service/text-search
+        payload = {
+            "textQuery": query,
+            "languageCode": "fr",
+            "locationRestriction": {
+                "rectangle": {
+                    "low": {
+                        "latitude": south,
+                        "longitude": west
+                    },
+                    "high": {
+                        "latitude": north,
+                        "longitude": east
+                    }
+                }
+            },
+            "pageSize": 20
+        }
+
+        # Demander uniquement les champs nécessaires pour limiter le coût (~ Places API New)
+        field_mask = "nextPageToken,places.id,places.displayName.text,places.formattedAddress,places.location,places.rating,places.types,places.websiteUri,places.nationalPhoneNumber"
+
+        headers = {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": self.api_key,
+            "X-Goog-FieldMask": field_mask
         }
 
         page = 1
+        next_page_token = None
+        
         while page <= 3:
-            async with self._semaphore:
-                response = await client.get(
-                    self.TEXT_SEARCH_URL, params=search_params
-                )
-                data = response.json()
+            if next_page_token:
+                payload["pageToken"] = next_page_token
 
-            status = data.get("status")
-            if status not in ("OK", "ZERO_RESULTS"):
-                logger.warning(
-                    f"[GRID] Status={status}  query='{query}'  "
-                    f"center=({center_lat:.4f}, {center_lng:.4f})"
+            max_attempts = 1 if page == 1 else 3
+            data = None
+            response_status = None
+
+            for attempt in range(max_attempts):
+                async with self._semaphore:
+                    response = await client.post(
+                        self.SEARCH_TEXT_URL, json=payload, headers=headers
+                    )
+                    response_status = response.status_code
+                    if response_status == 200:
+                        data = response.json()
+                        break
+                    elif response_status == 429:
+                        wait_429 = 3 * (attempt + 1)
+                        logger.warning(f"[GRID] Erreur 429 (Quota atteint) ! Retry {attempt+1}/{max_attempts} dans {wait_429}s...")
+                        await asyncio.sleep(wait_429)
+                        continue # Re-tenter après avoir dormi
+                    else:
+                        logger.error(f"[GRID] Erreur HTTP {response_status} : {response.text}")
+                
+                if response_status != 400 or page == 1: 
+                    break
+                
+                wait = 2 * (attempt + 1)
+                logger.debug(
+                    f"[GRID] Erreur 400 page {page}, "
+                    f"retry {attempt + 1}/{max_attempts} dans {wait}s"
                 )
+                await asyncio.sleep(wait)
+
+            if response_status != 200 or not data:
+                if page > 1:
+                    logger.debug(
+                        f"[GRID] Pagination arrêtée page {page} "
+                        f"(HTTP={response_status})  query='{query}'"
+                    )
+                else:
+                    logger.warning(
+                        f"[GRID] HTTP={response_status}  query='{query}'  "
+                        f"bbox={bbox}"
+                    )
                 break
 
-            places = data.get("results", [])
+            places = data.get("places", [])
             total_count += len(places)
 
             for place in places:
-                place_id = place.get("place_id")
+                place_id = place.get("id")
                 if not place_id:
                     continue
-                raw_places.append({
-                    "place_id": place_id,
-                    "name": place.get("name", ""),
-                    "formatted_address": place.get("formatted_address", ""),
-                    "geometry": place.get("geometry", {}),
-                    "rating": place.get("rating"),
-                    "types": place.get("types", []),
-                })
+                raw_places.append(place)
 
-            next_token = data.get("next_page_token")
-            if not next_token:
+            next_page_token = data.get("nextPageToken")
+            if not next_page_token:
                 break
 
-            await asyncio.sleep(2)
-            search_params = {"pagetoken": next_token, "key": self.api_key}
+            await asyncio.sleep(3)
             page += 1
 
         is_saturated = total_count >= SATURATED_THRESHOLD
@@ -203,15 +217,13 @@ class GooglePlacesService:
         Si une zone retourne ~60 résultats (saturée), elle est divisée en 4 quadrants
         et chaque quadrant est recherché indépendamment.
         """
-        center_lat, center_lng, radius_m = _bbox_center_radius(*bbox)
-
+        south, west, north, east = bbox
         logger.info(
-            f"[GRID] depth={depth}  center=({center_lat:.4f}, {center_lng:.4f})  "
-            f"radius={radius_m // 1000}km  query='{query}'"
+            f"[GRID] depth={depth}  bbox=({south:.4f}, {west:.4f}) -> ({north:.4f}, {east:.4f})  query='{query}'"
         )
 
         places, is_saturated = await self._search_area(
-            client, query, center_lat, center_lng, radius_m,
+            client, query, bbox,
         )
 
         if is_saturated and depth < MAX_GRID_DEPTH:
@@ -226,12 +238,13 @@ class GooglePlacesService:
             ]
             sub_results = await asyncio.gather(*sub_tasks)
 
-            # Fusionner les sous-résultats en dédupliquant par place_id
-            seen_ids = {p["place_id"] for p in places}
+            # Fusionner les sous-résultats en dédupliquant par place_id (id dans la nouvelle API)
+            seen_ids = {p.get("id") for p in places if p.get("id")}
             for sub_places in sub_results:
                 for p in sub_places:
-                    if p["place_id"] not in seen_ids:
-                        seen_ids.add(p["place_id"])
+                    pid = p.get("id")
+                    if pid and pid not in seen_ids:
+                        seen_ids.add(pid)
                         places.append(p)
 
         elif is_saturated:
@@ -286,41 +299,39 @@ class GooglePlacesService:
 
                 for place in raw_places:
                     # ── Filtre strict par distance réelle (centre original) ──
-                    geometry = place.get("geometry", {}).get("location", {})
-                    place_lat = geometry.get("lat")
-                    place_lng = geometry.get("lng")
+                    location = place.get("location", {})
+                    place_lat = location.get("latitude")
+                    place_lng = location.get("longitude")
+                    place_name = place.get("displayName", {}).get("text", "")
 
                     if place_lat is not None and place_lng is not None:
                         dist_km = _haversine_km(lat, lng, place_lat, place_lng)
                         if dist_km > radius_km:
                             skipped_outside += 1
                             logger.debug(
-                                f"[GOOGLE PLACES] '{place.get('name')}' "
+                                f"[GOOGLE PLACES] '{place_name}' "
                                 f"à {dist_km:.1f}km > {radius_km}km → ignoré"
                             )
                             continue
 
                     # ── Filtre structures non-employeuses ──
                     place_types = place.get("types", [])
-                    place_name_lower = place.get("name", "").lower()
+                    place_name_lower = place_name.lower()
                     if _is_excluded_place(place_types, place_name_lower):
                         logger.debug(
-                            f"[GOOGLE PLACES] '{place.get('name')}' "
+                            f"[GOOGLE PLACES] '{place_name}' "
                             f"(types={place_types}) → structure non-employeuse ignorée"
                         )
                         continue
 
-                    # ── Récupération des détails ──
-                    details = await self._get_place_details(
-                        client, place["place_id"],
-                    )
+                    # Plus besoin de récupérer les détails séparément !
                     results.append({
                         "source": "google_places",
-                        "place_id": place["place_id"],
-                        "nom": place.get("name", ""),
-                        "adresse": place.get("formatted_address", ""),
-                        "site_web": details.get("website"),
-                        "telephone": details.get("formatted_phone_number"),
+                        "place_id": place.get("id"),
+                        "nom": place_name,
+                        "adresse": place.get("formattedAddress", ""),
+                        "site_web": place.get("websiteUri"),
+                        "telephone": place.get("nationalPhoneNumber"),
                         "rating": place.get("rating"),
                         "types": place.get("types", []),
                     })
@@ -356,7 +367,11 @@ class GooglePlacesService:
         if not keywords:
             return []
 
-        tasks = [self.search_with_radius(kw, lat, lng, radius_m) for kw in keywords]
+        tasks = []
+        for kw in keywords:
+            tasks.append(self.search_with_radius(kw, lat, lng, radius_m))
+            await asyncio.sleep(0.5) # Léger délai pour étaler l'envoi des requêtes parallèles
+
         all_batches = await asyncio.gather(*tasks)
 
         seen_ids: set[str] = set()
