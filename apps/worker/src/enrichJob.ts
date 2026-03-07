@@ -352,10 +352,14 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
     })
   }
 
-  // ── Traitement parallèle (3 entreprises simultanées) ────────────────────────
-  const BATCH_SIZE = 3
-  for (let i = 0; i < companiesToProcess.length; i += BATCH_SIZE) {
-    const batch = companiesToProcess.slice(i, i + BATCH_SIZE)
+  // ── Traitement parallèle (taille de batch configurable depuis AppConfig) ────
+  let batchSize = 3
+  try {
+    const config = await prisma.appConfig.findUnique({ where: { id: 'singleton' } })
+    if (config) batchSize = config.batchSize
+  } catch {}
+  for (let i = 0; i < companiesToProcess.length; i += batchSize) {
+    const batch = companiesToProcess.slice(i, i + batchSize)
     await Promise.all(
       batch.map(company =>
         processCompany(company).catch(err => {

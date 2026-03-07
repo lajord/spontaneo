@@ -15,6 +15,7 @@ model User {
   email         String    @unique
   emailVerified Boolean   @default(false)
   image         String?
+  role          String    @default("user") // "user" | "admin"
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -176,4 +177,24 @@ model EmailConfig {
   oauthEmail   String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+}
+
+// ── Admin config (singleton) ────────────────────────────────────────────────
+
+model AppConfig {
+  id             String   @id @default("singleton")
+  maxConcurrent  Int      @default(2)   // jobs paralleles max
+  batchSize      Int      @default(3)   // entreprises traitees en parallele par job
+  pollIntervalMs Int      @default(15000) // intervalle de polling du worker (ms)
+
+  // Modeles IA par service
+  modelEnrichissement  String @default("spark-1-mini")
+  modelEnrichissement2 String @default("sonar-pro")
+  modelCreationMail    String @default("gpt-5")
+  modelCreationLm      String @default("gpt-5")
+  modelKeywords        String @default("gpt-5")
+  modelCvReader        String @default("Qwen2.5-VL-72B-Instruct")
+  modelRanking         String @default("gemini-2.5-flash")
+
+  updatedAt      DateTime @updatedAt
 }

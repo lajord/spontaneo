@@ -12,15 +12,13 @@ from docx.oxml.ns import qn
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.core.config import settings
+from app.core.model_config import get_models
 from app.generation_lm.prompts import SYSTEM_PROMPT
 from app.generation_mail.router import _parse_response
 from app.utils.ai_caller import call_ai
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-MODEL = settings.MODEL_CREATION_LM
 TEMPLATE_PATH = Path(__file__).parent / "Lettre de motivation template.docx"
 
 
@@ -294,8 +292,9 @@ Secteur / activité : {request.secteur or "Non précisé"}
 {request.lm_text}"""
 
     try:
+        models = await get_models()
         raw = await call_ai(
-            model=MODEL,
+            model=models.MODEL_CREATION_LM,
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT,
             temperature=0.4,

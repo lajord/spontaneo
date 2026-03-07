@@ -5,14 +5,12 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.core.config import settings
+from app.core.model_config import get_models
 from app.utils.ai_caller import call_ai
 from app.generation_mail.prompts import SYSTEM_PROMPT, USER_PROMPT
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-MODEL = settings.MODEL_CREATION_MAIL
 
 
 # ── Schémas ────────────────────────────────────────────────────────────────────
@@ -160,8 +158,9 @@ async def generate_mail(request: GenerateMailRequest):
     )
 
     try:
+        models = await get_models()
         raw = await call_ai(
-            model=MODEL,
+            model=models.MODEL_CREATION_MAIL,
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT,
             temperature=0.4,

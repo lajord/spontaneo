@@ -5,7 +5,7 @@ import logging
 from app.models.schemas import EnrichedContact
 from app.apollo.schemas import RankedContact
 from app.utils.ai_caller import call_ai
-from app.core.config import settings
+from app.core.model_config import get_models
 
 logger = logging.getLogger(__name__)
 
@@ -105,8 +105,9 @@ async def rank_contacts(
     prompt = _build_ranking_prompt(contacts, company_name, job_title)
 
     try:
+        models = await get_models()
         raw = await call_ai(
-            model=settings.MODEL_RANKING,
+            model=models.MODEL_RANKING,
             prompt=prompt,
             system_prompt=RANKING_SYSTEM_PROMPT,
             temperature=0.2,

@@ -34,19 +34,20 @@ class Settings(BaseSettings):
     PERPLEXITY_BASE_URL: str = "https://api.perplexity.ai"
     PERPLEXITY_MODEL: str = "sonar-pro"
 
-    # Modèles IA par service
+    # Modeles IA — valeurs par defaut (overrides par AppConfig en DB)
     MODEL_ENRICHISSEMENT: str = "spark-1-mini"
-    MODEL_ENRICHISSEMENT_2: str = "gemini-3.1-pro-preview"
-    MODEL_CREATION_MAIL: str = "gemini-3.1-pro-preview"
-    MODEL_CREATION_LM: str = "gemini-3.1-pro-preview"
-    MODEL_KEYWORDS: str = "gemini-3.1-pro-preview"
+    MODEL_ENRICHISSEMENT_2: str = "sonar-pro"
+    MODEL_CREATION_MAIL: str = "gpt-5"
+    MODEL_CREATION_LM: str = "gpt-5"
+    MODEL_KEYWORDS: str = "gpt-5"
     MODEL_CV_READER: str = "Qwen2.5-VL-72B-Instruct"
+    MODEL_RANKING: str = "gemini-2.5-flash"
 
     # Apollo.io
     APOLLO_API_KEY: str = ""
 
-    # Modèle IA pour le ranking des contacts
-    MODEL_RANKING: str = "gemini-2.5-flash"
+    # Database (pour lire AppConfig)
+    DATABASE_URL: str = ""
 
     # Nominatim (géocodage OpenStreetMap)
     NOMINATIM_USER_AGENT: str = "spontaneo/1.0"

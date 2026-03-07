@@ -2,14 +2,12 @@ import re
 import json
 import logging
 
-from app.core.config import settings
+from app.core.model_config import get_models
 from app.utils.ai_caller import call_ai
 
 
 
 logger = logging.getLogger(__name__)
-
-_KEYWORDS_MODEL = settings.MODEL_KEYWORDS
 
 SYSTEM_PROMPT = (
     "Tu es un expert en recherche d'entreprises via Google Places API pour la France.\n\n"
@@ -91,12 +89,13 @@ async def get_keywords(secteur: str, user_prompt: str | None = None) -> list[str
     )
 
     try:
+        models = await get_models()
         logger.info(
-            f"[IA KEYWORDS] {_KEYWORDS_MODEL}  "
+            f"[IA KEYWORDS] {models.MODEL_KEYWORDS}  "
             f"secteur='{secteur}'  user_prompt={'oui' if user_prompt else 'non'}"
         )
         raw = await call_ai(
-            model=_KEYWORDS_MODEL,
+            model=models.MODEL_KEYWORDS,
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT,
             temperature=0,

@@ -11,12 +11,28 @@ setGlobalDispatcher(new Agent({
 
 const PORT = parseInt(process.env.WORKER_PORT ?? '3001')
 const WORKER_SECRET = process.env.WORKER_SECRET ?? ''
-const MAX_CONCURRENT = 2
-const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS ?? '15000')
 const STALE_THRESHOLD_MS = 60 * 60 * 1000 // 1h
+
+// Defaults (overridden by AppConfig from DB)
+let maxConcurrent = 2
+let pollIntervalMs = 15000
 
 const activeJobIds = new Set<string>()
 let pollTimer: ReturnType<typeof setTimeout> | null = null
+
+// ── Chargement de la config depuis la DB ────────────────────────────────────
+
+async function loadConfig(): Promise<void> {
+  try {
+    const config = await prisma.appConfig.findUnique({ where: { id: 'singleton' } })
+    if (config) {
+      maxConcurrent = config.maxConcurrent
+      pollIntervalMs = config.pollIntervalMs
+    }
+  } catch (err) {
+    console.error('[worker] Failed to load config from DB, using defaults:', err)
+  }
+}
 
 // ── Récupération des jobs bloqués (crash du worker) ─────────────────────────
 
@@ -40,7 +56,7 @@ async function recoverStaleJobs(): Promise<void> {
 // ── Claim atomique du prochain job pending (FIFO) ───────────────────────────
 
 async function claimNextJob(): Promise<string | null> {
-  if (activeJobIds.size >= MAX_CONCURRENT) return null
+  if (activeJobIds.size >= maxConcurrent) return null
 
   const pendingJob = await prisma.job.findFirst({
     where: {
@@ -106,9 +122,10 @@ async function handleJob(jobId: string): Promise<void> {
 
 async function pollForJobs(): Promise<void> {
   try {
+    await loadConfig()
     await recoverStaleJobs()
 
-    while (activeJobIds.size < MAX_CONCURRENT) {
+    while (activeJobIds.size < maxConcurrent) {
       const jobId = await claimNextJob()
       if (!jobId) break
 
@@ -125,7 +142,7 @@ async function pollForJobs(): Promise<void> {
 
 function schedulePoll(): void {
   if (pollTimer) clearTimeout(pollTimer)
-  pollTimer = setTimeout(pollForJobs, POLL_INTERVAL_MS)
+  pollTimer = setTimeout(pollForJobs, pollIntervalMs)
 }
 
 function nudge(): void {
@@ -136,13 +153,14 @@ function nudge(): void {
 // ── Main ────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  console.log(`[worker] Starting — poll every ${POLL_INTERVAL_MS / 1000}s, max ${MAX_CONCURRENT} concurrent jobs`)
+  await loadConfig()
+  console.log(`[worker] Starting — poll every ${pollIntervalMs / 1000}s, max ${maxConcurrent} concurrent jobs`)
 
   // Serveur HTTP minimal : health check + nudge
   const server = http.createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ ok: true, activeJobs: activeJobIds.size, maxConcurrent: MAX_CONCURRENT }))
+      res.end(JSON.stringify({ ok: true, activeJobs: activeJobIds.size, maxConcurrent, pollIntervalMs }))
       return
     }
 

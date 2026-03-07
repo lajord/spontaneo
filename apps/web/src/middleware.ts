@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { betterFetch } from '@better-fetch/fetch'
 import type { Session } from '@/lib/auth'
 
-const PROTECTED = ['/dashboard', '/campaigns', '/settings']
+const PROTECTED = ['/dashboard', '/campaigns', '/settings', '/admin']
 const AUTH_PAGES = ['/login', '/register']
+const ADMIN_ONLY = ['/admin']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -26,9 +27,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
+  // Block non-admin users from admin routes
+  const isAdminRoute = ADMIN_ONLY.some((p) => pathname.startsWith(p))
+  if (isAdminRoute && session && (session.user as any).role !== 'admin') {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/campaigns/:path*', '/settings/:path*', '/login', '/register'],
+  matcher: ['/dashboard/:path*', '/campaigns/:path*', '/settings/:path*', '/admin/:path*', '/login', '/register'],
 }

@@ -8,3 +8,4 @@ python-dotenv>=1.0.1
 httpx
 pymupdf>=1.24.11
 python-docx>=1.1.2
+asyncpg>=0.30.0

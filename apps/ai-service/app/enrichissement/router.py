@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.core.config import settings
+from app.core.model_config import get_models
 from app.models.schemas import CompanyRequest, EnrichedContact, EnrichedCompany
 from app.utils.ai_caller import call_ai_with_search
 from app.enrichissement.prompts import (
@@ -108,7 +108,8 @@ def _merge_raw_contacts(list1: list[dict], list2: list[dict]) -> list[dict]:
 
 @router.post("/company", response_model=EnrichedCompany)
 async def enrich_company(request: CompanyRequest):
-    logger.info(f"[ENRICHISSEMENT] {settings.MODEL_ENRICHISSEMENT} + {settings.MODEL_ENRICHISSEMENT_2} | nom='{request.nom}'")
+    models = await get_models()
+    logger.info(f"[ENRICHISSEMENT] {models.MODEL_ENRICHISSEMENT} + {models.MODEL_ENRICHISSEMENT_2} | nom='{request.nom}'")
 
     if request.site_web:
         domain = (
@@ -129,18 +130,18 @@ async def enrich_company(request: CompanyRequest):
             adresse=request.adresse or "inconnue",
         )
 
-    is_firecrawl = settings.MODEL_ENRICHISSEMENT.startswith("spark")
+    is_firecrawl = models.MODEL_ENRICHISSEMENT.startswith("spark")
     urls = [request.site_web] if is_firecrawl and request.site_web else None
 
     raw1, raw2 = await asyncio.gather(
         call_ai_with_search(
-            model=settings.MODEL_ENRICHISSEMENT,
+            model=models.MODEL_ENRICHISSEMENT,
             prompt=prompt,
             system_prompt="" if is_firecrawl else SYSTEM_PROMPT,
             urls=urls,
         ),
         call_ai_with_search(
-            model=settings.MODEL_ENRICHISSEMENT_2,
+            model=models.MODEL_ENRICHISSEMENT_2,
             prompt=prompt,
             system_prompt=SYSTEM_PROMPT,
         ),
@@ -151,13 +152,13 @@ async def enrich_company(request: CompanyRequest):
     list2 = _parse_response(raw2) if not isinstance(raw2, Exception) else []
 
     if isinstance(raw1, Exception):
-        logger.error(f"[ENRICHISSEMENT] [{request.nom}] {settings.MODEL_ENRICHISSEMENT} échoué: {raw1.__class__.__name__}")
+        logger.error(f"[ENRICHISSEMENT] [{request.nom}] {models.MODEL_ENRICHISSEMENT} échoué: {raw1.__class__.__name__}")
     else:
-        logger.info(f"[ENRICHISSEMENT] [{request.nom}] {settings.MODEL_ENRICHISSEMENT} → {len(list1)} contact(s)")
+        logger.info(f"[ENRICHISSEMENT] [{request.nom}] {models.MODEL_ENRICHISSEMENT} → {len(list1)} contact(s)")
     if isinstance(raw2, Exception):
-        logger.error(f"[ENRICHISSEMENT] [{request.nom}] {settings.MODEL_ENRICHISSEMENT_2} échoué: {raw2.__class__.__name__}")
+        logger.error(f"[ENRICHISSEMENT] [{request.nom}] {models.MODEL_ENRICHISSEMENT_2} échoué: {raw2.__class__.__name__}")
     else:
-        logger.info(f"[ENRICHISSEMENT] [{request.nom}] {settings.MODEL_ENRICHISSEMENT_2} → {len(list2)} contact(s)")
+        logger.info(f"[ENRICHISSEMENT] [{request.nom}] {models.MODEL_ENRICHISSEMENT_2} → {len(list2)} contact(s)")
 
     merged = _merge_raw_contacts(list1, list2)
     resultats = _to_enriched_contacts(merged)
