@@ -81,9 +81,18 @@ async def _fetch_from_db() -> ModelConfig | None:
         defaults = _defaults()
         kwargs = {}
         for db_col, attr in _DB_TO_ATTR.items():
-            val = row.get(db_col)
+            val = row[db_col] if db_col in row.keys() else None
             kwargs[attr] = val if val else getattr(defaults, attr)
-        return ModelConfig(**kwargs)
+
+        config = ModelConfig(**kwargs)
+        logger.info(
+            f"[MODEL_CONFIG] Chargé depuis DB : "
+            f"mail={config.MODEL_CREATION_MAIL}, "
+            f"lm={config.MODEL_CREATION_LM}, "
+            f"keywords={config.MODEL_KEYWORDS}, "
+            f"ranking={config.MODEL_RANKING}"
+        )
+        return config
 
     except Exception as e:
         logger.warning(f"[MODEL_CONFIG] DB read failed, using defaults: {e}")
