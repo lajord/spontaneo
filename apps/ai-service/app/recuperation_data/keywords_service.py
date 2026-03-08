@@ -10,36 +10,42 @@ from app.utils.ai_caller import call_ai
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
-    "Tu es un expert en recherche d'entreprises via Google Places API pour la France.\n\n"
-    "MISSION : générer une liste COURTE et ULTRA-PERTINENTE de mots-clés Google Places pour trouver "
-    "les entreprises les plus susceptibles d'employer un candidat selon son métier recherché.\n\n"
-    "RÈGLES ABSOLUES :\n"
-    "→ MAXIMUM 15 mots-clés au total — choisir uniquement les plus impactants\n"
-    "→ Le job title exact fourni par le candidat DOIT apparaître tel quel dans la liste\n"
-    "→ Termes courts (1-4 mots), exploitables tels quels dans une recherche Google Maps\n"
-    "→ Prioriser la précision sur l'exhaustivité : mieux vaut 10 termes excellents que 15 moyens\n"
-    "→ Rester dans le périmètre strict du métier demandé — ne pas dériver\n\n"
-    "SÉLECTIONNER PARMI CES CATÉGORIES (sans obligation d'en couvrir toutes) :\n"
-    "1. Le job title exact du candidat (OBLIGATOIRE)\n"
-    "2. 1-2 synonymes ou variantes très proches du métier (si vraiment utiles)\n"
-    "3. 2-5 types d'entreprises qui recrutent massivement ce profil\n"
-    "4. 1-3 secteurs professionnels principaux où ce métier s'exerce\n\n"
+    "Tu es un expert en recrutement en France.\n\n"
+    "CONTEXTE : un candidat veut envoyer des CANDIDATURES SPONTANÉES à des entreprises "
+    "trouvées via Google Maps. On te donne son métier, et tu dois générer les mots-clés "
+    "pour trouver les bonnes structures.\n\n"
+    "RÈGLE FONDAMENTALE : ne retourne que des structures où ce métier est AU COEUR DE L'ACTIVITÉ, "
+    "pas une fonction support.\n"
+    "Demande-toi : « Est-ce qu'une candidature spontanée pour ce poste a du sens dans cette structure ? »\n\n"
+    "RAISONNEMENT À SUIVRE :\n"
+    "1. Ce métier est-il le coeur de métier de la structure ? Si oui → pertinent\n"
+    "2. Ce métier n'est qu'une fonction support dans cette structure ? Si oui → NON PERTINENT\n"
+    "3. Est-ce qu'on trouve ce type de structure sur Google Maps ? Si non → NON PERTINENT\n\n"
+    "Exemple de bon raisonnement :\n"
+    "→ Juriste : 'cabinet d'avocats' ✓ (le droit = coeur de métier), 'banque' ✗ (le juridique est une fonction support en banque)\n"
+    "→ Cuisinier : 'restaurant' ✓ (la cuisine = coeur de métier), 'hôpital' ✗ (la cuisine est un service annexe)\n"
+    "→ Comptable : 'cabinet comptable' ✓, 'expert-comptable' ✓, 'banque' ✗ (la compta est une fonction support)\n\n"
+    "RÈGLES :\n"
+    "→ Entre 3 et 6 mots-clés — seulement ceux qui sont vraiment pertinents\n"
+    "→ Chaque mot-clé = un type de structure visible sur Google Maps où une candidature spontanée a du sens\n"
+    "→ Zéro doublon, zéro synonyme inutile\n\n"
     "INTERDIT :\n"
-    "✗ Écoles, universités, centres de formation, organismes de formation\n"
-    "✗ Pôle emploi, agences d'intérim, cabinets de recrutement, chasseurs de têtes\n"
+    "✗ Écoles, universités, centres de formation\n"
+    "✗ Pôle emploi, agences d'intérim, cabinets de recrutement\n"
     "✗ Administrations, mairies, préfectures, services publics\n"
-    "✗ Termes trop génériques (ex: 'entreprise', 'société', 'commerce')\n"
-    "✗ Termes redondants ou quasi-identiques entre eux\n"
+    "✗ Termes abstraits ('numérique', 'tech', 'innovation', 'digital', 'industrie')\n"
+    "✗ Mots isolés trop vagues ('conseil', 'service', 'groupe', 'startup')\n"
+    "✗ Structures où le métier n'est qu'une fonction support (ex: 'banque' pour un juriste)\n"
 )
 
 _USER_PROMPT = (
-    'Métier recherché par le candidat : "{secteur}".\n'
+    'Le candidat veut envoyer des candidatures spontanées pour le poste de : "{secteur}".\n'
     '{contexte_utilisateur}'
-    "Génère une liste COURTE (maximum 15 mots-clés) et ultra-pertinente pour Google Places.\n"
-    'Le terme exact "{secteur}" DOIT figurer dans la liste.\n'
-    "Ne retiens que les mots-clés qui maximisent les chances de trouver des entreprises qui recrutent ce profil.\n"
+    "Dans quels types de structures ce métier est-il le COEUR DE L'ACTIVITÉ ? "
+    "Génère entre 3 et 6 mots-clés Google Maps. "
+    "3 bons mots-clés valent mieux que 6 moyens.\n"
     "Réponds UNIQUEMENT avec ce JSON :\n"
-    '{{"keywords":["terme 1","terme 2","..."]}}'
+    '{{"keywords":["structure 1","structure 2","..."]}}'
 )
 
 _CONTEXTE_TEMPLATE = (
