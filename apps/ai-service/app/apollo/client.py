@@ -162,10 +162,11 @@ class ApolloClient:
         organization_num_employees_ranges: list[str] | None = None,
         organization_industry_tag_ids: list[str] | None = None,
         q_organization_keyword_tags: list[str] | None = None,
+        q_organization_job_titles: list[str] | None = None,
         page: int = 1,
         per_page: int = 10,
     ) -> dict:
-        """POST /api/v1/mixed_companies/search — Rechercher des entreprises."""
+        """POST /api/v1/organizations/search — Rechercher des entreprises."""
         body: dict = {"page": page, "per_page": per_page}
         if q_organization_name:
             body["q_organization_name"] = q_organization_name
@@ -177,9 +178,12 @@ class ApolloClient:
             body["organization_industry_tag_ids"] = organization_industry_tag_ids
         if q_organization_keyword_tags:
             body["q_organization_keyword_tags"] = q_organization_keyword_tags
+        if q_organization_job_titles:
+            body["q_organization_job_titles"] = q_organization_job_titles
 
-        logger.info(f"[APOLLO] search_companies: {q_organization_name}, page={page}")
-        return await self._request("POST", "/api/v1/mixed_companies/search", json=body)
+        import json as _json
+        logger.info(f"[APOLLO] search_companies payload:\n{_json.dumps(body, indent=2, ensure_ascii=False)}")
+        return await self._request("POST", "/api/v1/organizations/search", json=body)
 
     # ── Job Postings ─────────────────────────────────────────────────────────
 

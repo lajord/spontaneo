@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import LaunchModal from './LaunchModal'
 import CompanyDetailView from './CompanyDetailView'
 import PreGenerateModal, { type PreGenerateOptions } from './PreGenerateModal'
+import SelectCompaniesModal from './SelectCompaniesModal'
 
 type EmailRecipient = {
   id: string
@@ -79,6 +80,8 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
   const [scraping, setScraping] = useState(false)
+  const [scrapePhase, setScrapePhase] = useState<'recherche' | 'filtrage'>('recherche')
+  const scrapePhaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [search, setSearch] = useState('')
@@ -99,6 +102,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
   const [hoveringStop, setHoveringStop] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
+  const [selectCompaniesOpen, setSelectCompaniesOpen] = useState(false)
   const [preGenerateOpen, setPreGenerateOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const router = useRouter()
@@ -251,8 +255,12 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
 
   async function handleScrape() {
     setScraping(true)
+    setScrapePhase('recherche')
     setMessage('')
+    // Après 20s, on passe en phase "filtrage" (le filtre IA prend le relais)
+    scrapePhaseTimer.current = setTimeout(() => setScrapePhase('filtrage'), 20_000)
     const res = await fetch(`/api/campaigns/${id}/scrape`, { method: 'POST' })
+    if (scrapePhaseTimer.current) clearTimeout(scrapePhaseTimer.current)
     const data = await res.json()
     if (res.ok) setCompanies(data.companies ?? [])
     else setMessage(data.error ?? 'Erreur lors de la recherche')
@@ -363,6 +371,10 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     (c.address ?? '').toLowerCase().includes(search.toLowerCase())
   )
+  const filteredHiringCompanies = filteredCompanies.filter(c => c.source === 'apollo_jobtitle')
+  const filteredPotentialCompanies = filteredCompanies.filter(c => c.source !== 'apollo_jobtitle')
+  const sortedFilteredCompanies = [...filteredHiringCompanies, ...filteredPotentialCompanies]
+  const hasHiringSplit = filteredHiringCompanies.length > 0 && filteredPotentialCompanies.length > 0
 
   // Calcul "temps avant prochain envoi"
   function nextSendLabel(): string {
@@ -477,7 +489,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                 {/* Bouton Étape suivante (pré-génération) */}
                 {!isGenerationView && companies.length > 0 && (
                   <button
-                    onClick={() => setPreGenerateOpen(true)}
+                    onClick={() => setSelectCompaniesOpen(true)}
                     disabled={scraping}
                     className="inline-flex items-center gap-1.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
                   >
@@ -687,7 +699,9 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                 {scraping ? (
                   <>
                     <span className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin mb-3" />
-                    <p className="text-sm text-slate-500 font-medium">Récupération des entreprises...</p>
+                    <p className="text-sm text-slate-500 font-medium">
+                      {scrapePhase === 'filtrage' ? 'Filtrage des entreprises...' : 'Récupération des entreprises...'}
+                    </p>
                     <p className="text-xs text-slate-400 mt-1">Cela peut prendre quelques minutes</p>
                   </>
                 ) : (
@@ -742,8 +756,19 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                 {/* Liste entreprises (pré-génération) */}
                 {!isGenerationView && viewMode === 'grid' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 px-8 py-6 bg-slate-50/50">
-                    {filteredCompanies.map(company => (
-                      <div key={company.id} className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-sm hover:shadow-md hover:border-brand-300 transition-all group flex flex-col justify-between gap-4 relative overflow-hidden">
+                    {hasHiringSplit && (
+                      <div className="col-span-full text-sm font-semibold text-slate-700 pt-1 pb-2 border-b border-slate-200">
+                        Ces entreprises seraient à la recherche d&apos;un {campaign?.jobTitle}
+                      </div>
+                    )}
+                    {sortedFilteredCompanies.map((company, idx) => (
+                      <Fragment key={company.id}>
+                        {hasHiringSplit && idx === filteredHiringCompanies.length && (
+                          <div className="col-span-full text-sm font-semibold text-slate-700 pt-3 pb-2 border-b border-slate-200">
+                            Ces entreprises seraient potentiellement intéressées par vous
+                          </div>
+                        )}
+                      <div className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-sm hover:shadow-md hover:border-brand-300 transition-all group flex flex-col justify-between gap-4 relative overflow-hidden">
 
                         {/* Status bar */}
                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-300 to-brand-500 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -800,14 +825,26 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                           )}
                         </div>
                       </div>
+                      </Fragment>
                     ))}
                   </div>
                 )}
 
                 {!isGenerationView && viewMode === 'list' && (
                   <div className="flex flex-col">
-                    {filteredCompanies.map(company => (
-                      <div key={company.id} className="px-8 py-3.5 border-b border-slate-50 hover:bg-slate-50/50 transition-colors group flex items-start justify-between gap-4">
+                    {hasHiringSplit && (
+                      <div className="px-8 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200">
+                        Ces entreprises seraient à la recherche d&apos;un {campaign?.jobTitle}
+                      </div>
+                    )}
+                    {sortedFilteredCompanies.map((company, idx) => (
+                      <Fragment key={company.id}>
+                        {hasHiringSplit && idx === filteredHiringCompanies.length && (
+                          <div className="px-8 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200">
+                            Ces entreprises seraient potentiellement intéressées par vous
+                          </div>
+                        )}
+                      <div className="px-8 py-3.5 border-b border-slate-50 hover:bg-slate-50/50 transition-colors group flex items-start justify-between gap-4">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-medium text-slate-900">{company.name}</p>
@@ -839,6 +876,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                           </button>
                         </div>
                       </div>
+                      </Fragment>
                     ))}
                   </div>
                 )}
@@ -1008,6 +1046,16 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
           onSuccess={handleLaunchSuccess}
         />
       )}
+
+      <SelectCompaniesModal
+        open={selectCompaniesOpen}
+        totalCompanies={companies.length}
+        onConfirm={() => {
+          setSelectCompaniesOpen(false)
+          setPreGenerateOpen(true)
+        }}
+        onCancel={() => setSelectCompaniesOpen(false)}
+      />
 
       <PreGenerateModal
         open={preGenerateOpen}

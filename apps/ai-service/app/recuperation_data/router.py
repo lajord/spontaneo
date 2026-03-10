@@ -4,9 +4,57 @@ from fastapi import APIRouter, HTTPException
 from app.models.schemas import Company, SearchRequest, SearchResponse
 from app.recuperation_data import geo, keywords_service
 from app.recuperation_data.google_places import google_places_service
+from app.recuperation_data.keywords_service import get_apollo_search_params
+from app.recuperation_data.location import normalize_location
+from app.apollo.company_search import search_companies_by_keywords
+from app.apollo.company_filter import filter_keyword_companies
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+@router.post("/search/apollo", response_model=SearchResponse)
+async def search_companies_apollo(request: SearchRequest):
+    """
+    Pipeline Apollo :
+    1. Normalisation localisation (ville ou CP) → "Ville, France"
+    2. IA → keyword_tags Apollo (secteurs en anglais)
+    3. Apollo Organization Search → nom + site web
+    """
+    logger.info(
+        f"[APOLLO PIPELINE]  secteur='{request.secteur}'  "
+        f"localisation='{request.localisation}'"
+    )
+
+    location = await normalize_location(request.localisation)
+    logger.info(f"[APOLLO PIPELINE] Localisation normalisée : '{location}'")
+
+    keyword_tags, job_title_en = await get_apollo_search_params(request.secteur, request.prompt)
+
+    entreprises = await search_companies_by_keywords(
+        keyword_tags=keyword_tags,
+        location=location,
+        job_titles=[job_title_en],
+    )
+
+    entreprises = await filter_keyword_companies(
+        companies=entreprises,
+        job_title=request.secteur,
+        user_prompt=request.prompt,
+    )
+
+    if not entreprises:
+        logger.warning(
+            f"[APOLLO PIPELINE] Aucune entreprise pour '{request.secteur}' à '{location}'"
+        )
+
+    return SearchResponse(
+        secteur=request.secteur,
+        localisation=location,
+        keywords=keyword_tags,
+        total=len(entreprises),
+        entreprises=entreprises,
+    )
 
 
 @router.post("/search", response_model=SearchResponse)

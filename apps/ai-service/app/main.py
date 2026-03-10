@@ -8,6 +8,7 @@ from app.recuperation_data.router import router as recuperation_data_router
 from app.enrichissement.router import router as enrichissement_router
 from app.generation_mail.router import router as generation_mail_router
 from app.generation_lm.router import router as generation_lm_router
+from app.apollo.router import router as apollo_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,6 +56,13 @@ app.include_router(
     generation_lm_router,
     prefix="/api/v1/generation-lm",
     tags=["generation-lm"],
+)
+
+
+app.include_router(
+    apollo_router,
+    prefix="/api/v1",
+    tags=["apollo-test"],
 )
 
 

@@ -15,8 +15,8 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   })
   if (!campaign) return NextResponse.json({ error: 'Campagne introuvable' }, { status: 404 })
 
-  // Appel Google Places via le service IA (pagination = peut prendre plusieurs minutes)
-  const response = await fetch(`${AI_SERVICE_URL}/api/v1/recuperation-data/search`, {
+  // Appel Apollo via le service IA
+  const response = await fetch(`${AI_SERVICE_URL}/api/v1/recuperation-data/search/apollo`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

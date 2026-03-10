@@ -1,6 +1,10 @@
+import dns from 'dns'
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
+
+// Force IPv4 — VPS sans IPv6 ne peut pas atteindre Supabase en IPv6
+dns.setDefaultResultOrder('ipv4first')
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
 
@@ -15,8 +19,7 @@ function createPrismaClient() {
   const pool = new Pool({
     connectionString: url.toString(),
     ssl: { rejectUnauthorized: false },
-    family: 4,
-  } as ConstructorParameters<typeof Pool>[0])
+  })
   const adapter = new PrismaPg(pool)
   return new PrismaClient({ adapter })
 }

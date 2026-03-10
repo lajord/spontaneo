@@ -255,15 +255,15 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
         const attachmentLine = `Je vous joins ${pjParts.join(' ainsi que ')}.`
 
         const linksItems = [
-          links.linkedin ? `[LinkedIn](${links.linkedin})` : '',
-          links.github ? `[GitHub](${links.github})` : '',
-          links.portfolio ? `[Portfolio](${links.portfolio})` : '',
-          ...customLinks.filter(c => c.label && c.url).map(c => `[${c.label}](${c.url})`),
+          links.linkedin ? `LinkedIn : ${links.linkedin}` : '',
+          links.github ? `GitHub : ${links.github}` : '',
+          links.portfolio ? `Portfolio : ${links.portfolio}` : '',
+          ...customLinks.filter(c => c.label && c.url).map(c => `${c.label} : ${c.url}`),
         ].filter(Boolean)
 
         const candidatNom = cvData.nom || 'Le candidat'
         const signatureParts = [`Cordialement,\n${candidatNom}`]
-        if (linksItems.length > 0) signatureParts.push(linksItems.join('   '))
+        if (linksItems.length > 0) signatureParts.push(linksItems.join('\n'))
         const signature = signatureParts.join('\n')
 
         const pitch = bodyCore || `Je vous adresse ce mail comme candidature spontanée pour rejoindre votre entreprise pour un poste de ${campaign.jobTitle}. Je serais ravi(e) d'échanger avec vous à ce sujet.`
