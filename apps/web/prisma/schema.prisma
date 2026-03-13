@@ -81,6 +81,7 @@ model Campaign {
   startDate   String?
   duration    String?
   prompt      String?
+  enrichMode  String    @default("basic")
   status        String    @default("draft")
   dailyLimit    Int?
   launchedAt    DateTime?

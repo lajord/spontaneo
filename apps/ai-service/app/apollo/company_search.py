@@ -6,7 +6,7 @@ from app.models.schemas import Company
 
 logger = logging.getLogger(__name__)
 
-_MAX_PAGES = 10  # cap à 1 000 entreprises par appel (100 * 10)
+_MAX_PAGES = 5  # cap à 500 entreprises par appel (100 * 5) — Apollo trie par pertinence, pages 6+ = bruit
 
 
 async def _fetch_all_pages(

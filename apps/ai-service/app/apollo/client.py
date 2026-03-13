@@ -185,6 +185,48 @@ class ApolloClient:
         logger.info(f"[APOLLO] search_companies payload:\n{_json.dumps(body, indent=2, ensure_ascii=False)}")
         return await self._request("POST", "/api/v1/organizations/search", json=body)
 
+    # ── People Bulk Match ─────────────────────────────────────────────────────
+
+    async def bulk_match(
+        self,
+        *,
+        details: list[dict],
+        reveal_personal_emails: bool = False,
+        reveal_phone_numbers: bool = False,
+    ) -> dict:
+        """POST /api/v1/people/bulk_match — Enrichir plusieurs personnes en un seul appel.
+
+        Chaque élément de `details` peut contenir :
+        first_name, last_name, domain, email, organization_name, linkedin_url.
+        Retourne {"matches": [{"person": {...}} | null, ...]}.
+        """
+        body: dict = {"details": details}
+        if reveal_personal_emails:
+            body["reveal_personal_emails"] = True
+        if reveal_phone_numbers:
+            body["reveal_phone_numbers"] = True
+
+        import json as _json
+        logger.info(
+            f"[APOLLO] bulk_match → {len(details)} personne(s)\n"
+            f"{_json.dumps(details, indent=2, ensure_ascii=False)}"
+        )
+        response = await self._request("POST", "/api/v1/people/bulk_match", json=body)
+        matches = response.get("matches") or []
+        for i, match in enumerate(matches):
+            person = (match or {}).get("person")
+            if person:
+                logger.info(
+                    f"[APOLLO] bulk_match match[{i}] → "
+                    f"{person.get('first_name')} {person.get('last_name')} "
+                    f"| {person.get('title')} "
+                    f"| email={person.get('email')} ({person.get('email_status')}) "
+                    f"| linkedin={person.get('linkedin_url')}"
+                )
+            else:
+                logger.info(f"[APOLLO] bulk_match match[{i}] → null (aucun match)")
+        return response
+
     # ── Job Postings ─────────────────────────────────────────────────────────
 
     async def get_job_postings(

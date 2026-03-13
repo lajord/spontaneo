@@ -84,46 +84,58 @@ def _parse_keywords(raw: str) -> list[str]:
 
 
 _APOLLO_SYSTEM_PROMPT = (
-    "Tu es un expert en recherche d'entreprises via l'API Apollo.io.\n\n"
-    "Tu dois générer deux choses pour optimiser la recherche Apollo :\n\n"
-    "1. `job_title_en` — traduction en anglais du titre de poste du candidat.\n"
-    "   C'est le titre exact utilisé pour `q_organization_job_titles[]`.\n"
-    "   Exemples : 'data analyst', 'software engineer', 'sales manager'\n\n"
-    "2. `keyword_tags` — valeurs pour `q_organization_keyword_tags[]`\n"
-    "   Mots-clés sectoriels associés aux entreprises susceptibles de recruter ce profil.\n"
-    "   Exemples Apollo : 'data analytics', 'business intelligence', 'consulting', 'fintech'\n\n"
-    "RÈGLES :\n"
-    "→ job_title_en : UN SEUL titre, traduction directe en anglais, sans variantes\n"
-    "→ keyword_tags : 5 à 10 tags, en anglais, secteurs/domaines d'activité pertinents\n"
-    "→ Exemple pour 'data analyst' :\n"
-    "  job_title_en: 'data analyst'\n"
-    "  keyword_tags: ['data analytics', 'business intelligence', 'consulting', 'fintech', 'saas']\n"
-    "→ Exemple pour 'commercial B2B' :\n"
-    "  job_title_en: 'b2b sales representative'\n"
-    "  keyword_tags: ['sales strategy', 'b2b', 'wholesale', 'distribution', 'consulting']\n\n"
+    "Tu es un expert en recherche Apollo.io d'entreprises françaises. Tu reçois un métier en français et tu dois retourner un JSON strict.\n\n"
+
+    "## CONTEXTE APOLLO\n"
+    "Apollo.io indexe les profils d'entreprises issus de LinkedIn et de ses propres bases.\n"
+    "Le paramètre `q_organization_keyword_tags` filtre sur les TAGS DE SECTEUR qu'une entreprise s'est attribuée "
+    "(ex : 'accounting', 'saas', 'legal services'). Ce ne sont PAS des mots-clés libres.\n"
+    "Le paramètre `q_organization_job_titles` filtre sur les OFFRES D'EMPLOI ACTIVES publiées par l'entreprise.\n\n"
+
+    "## RÈGLE 1 — job_titles_en (liste de 2 à 4 variantes)\n"
+    "Génère les variantes de titres de poste en anglais les plus utilisées sur les offres d'emploi anglo-saxonnes.\n"
+    "Ce sont les intitulés exacts que les RH et recruteurs tapent sur LinkedIn Jobs / Indeed EN.\n"
+    "- 'comptable' → ['accountant', 'accounting manager', 'financial accountant']\n"
+    "- 'développeur web' → ['web developer', 'frontend developer', 'fullstack developer']\n"
+    "- 'data analyst' → ['data analyst', 'business analyst', 'data scientist']\n"
+    "- 'commercial B2B' → ['sales representative', 'account executive', 'business development manager']\n"
+    "- 'juriste' → ['legal counsel', 'corporate lawyer', 'in-house counsel']\n"
+    "INTERDIT : inventer un titre sans rapport avec le métier demandé.\n\n"
+
+    "## RÈGLE 2 — keyword_tags (3 à 5 tags)\n"
+    "Tags de SECTEUR tels qu'ils apparaissent dans Apollo/LinkedIn Industry.\n"
+    "Choisis des tags spécifiques à l'industrie où ce métier est LE COEUR DE L'ACTIVITÉ.\n"
+    "Préfère les tags utilisés dans LinkedIn 'Industry' (ex: 'accounting', 'law practice', 'staffing and recruiting').\n\n"
+    "Exemples CORRECTS :\n"
+    "- 'comptable' → ['accounting', 'financial services', 'audit', 'tax']\n"
+    "- 'développeur web' → ['computer software', 'internet', 'information technology and services', 'saas']\n"
+    "- 'data analyst' → ['data analytics', 'business intelligence', 'computer software', 'management consulting']\n"
+    "- 'commercial B2B' → ['b2b', 'sales', 'marketing and advertising', 'business development']\n"
+    "- 'juriste' → ['law practice', 'legal services', 'corporate law']\n\n"
     "INTERDIT :\n"
-    "✗ keyword_tags trop vagues ('company', 'business', 'enterprise', 'service')\n"
-    "✗ Agences d'intérim, cabinets de recrutement dans les keyword_tags\n"
+    "✗ Tags trop génériques : 'technology', 'business', 'enterprise', 'services', 'consulting', 'company'\n"
+    "✗ Tags sans lien direct avec le secteur d'activité principal (pas les fonctions support)\n"
+    "✗ Agences d'intérim, cabinets de recrutement, écoles\n"
+    "✗ Plus de 5 tags\n"
 )
 
 _APOLLO_USER_PROMPT = (
-    'Métier recherché : "{secteur}".\n'
+    'Métier : "{secteur}".\n'
     '{contexte_utilisateur}'
-    "Génère la traduction anglaise du titre et les keyword_tags Apollo.\n"
-    "Réponds UNIQUEMENT avec ce JSON :\n"
-    '{{"job_title_en":"titre en anglais","keyword_tags":["tag1","tag2","..."]}}'
+    "Réponds UNIQUEMENT avec ce JSON (rien d'autre) :\n"
+    '{{"job_titles_en":["titre1","titre2","titre3"],"keyword_tags":["tag1","tag2","tag3"]}}'
 )
 
 
 async def get_apollo_search_params(
     secteur: str, user_prompt: str | None = None
-) -> tuple[list[str], str]:
+) -> tuple[list[str], list[str]]:
     """
     Génère en un seul appel IA :
-    - keyword_tags  : secteurs/domaines pour q_organization_keyword_tags[]
-    - job_title_en  : traduction anglaise du titre de poste (un seul titre)
+    - keyword_tags   : secteurs/domaines pour q_organization_keyword_tags[]
+    - job_titles_en  : variantes du titre de poste en anglais pour q_organization_job_titles[]
 
-    Retourne (keyword_tags, job_title_en).
+    Retourne (keyword_tags, job_titles_en).
     """
     contexte_utilisateur = _CONTEXTE_TEMPLATE.format(prompt=user_prompt) if user_prompt else ""
     prompt = _APOLLO_USER_PROMPT.format(
@@ -145,20 +157,21 @@ async def get_apollo_search_params(
             data = json.loads(raw)
             if isinstance(data, dict):
                 keyword_tags = [t for t in data.get("keyword_tags", []) if isinstance(t, str) and t.strip()]
-                job_title_en = data.get("job_title_en", "").strip()
-                if not job_title_en:
-                    job_title_en = secteur
-                logger.info(f"[IA APOLLO PARAMS] job_title_en='{job_title_en}'  keyword_tags={keyword_tags}")
-                return keyword_tags, job_title_en
+                job_titles_en = [t for t in data.get("job_titles_en", []) if isinstance(t, str) and t.strip()]
+                if not job_titles_en:
+                    job_titles_en = [secteur]
+
+                logger.info(f"[IA APOLLO PARAMS] job_titles_en={job_titles_en}  keyword_tags={keyword_tags}")
+                return keyword_tags, job_titles_en
         except json.JSONDecodeError:
             pass
 
         logger.warning(f"[IA APOLLO PARAMS] Parse échoué pour '{secteur}', fallback brut")
-        return [secteur], secteur
+        return [secteur], [secteur]
 
     except Exception as e:
         logger.error(f"[IA APOLLO PARAMS] Erreur [{secteur}]: {e}")
-        return [secteur], secteur
+        return [secteur], [secteur]
 
 
 # Alias conservé pour compatibilité

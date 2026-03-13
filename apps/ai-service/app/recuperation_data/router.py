@@ -29,12 +29,12 @@ async def search_companies_apollo(request: SearchRequest):
     location = await normalize_location(request.localisation)
     logger.info(f"[APOLLO PIPELINE] Localisation normalisée : '{location}'")
 
-    keyword_tags, job_title_en = await get_apollo_search_params(request.secteur, request.prompt)
+    keyword_tags, job_titles_en = await get_apollo_search_params(request.secteur, request.prompt)
 
     entreprises = await search_companies_by_keywords(
         keyword_tags=keyword_tags,
         location=location,
-        job_titles=[job_title_en],
+        job_titles=job_titles_en,
     )
 
     entreprises = await filter_keyword_companies(

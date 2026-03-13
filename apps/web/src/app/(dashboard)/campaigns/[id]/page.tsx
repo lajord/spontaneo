@@ -1050,7 +1050,12 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
       <SelectCompaniesModal
         open={selectCompaniesOpen}
         totalCompanies={companies.length}
-        onConfirm={() => {
+        onConfirm={async (_count, enrichMode) => {
+          await fetch(`/api/campaigns/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enrichMode }),
+          })
           setSelectCompaniesOpen(false)
           setPreGenerateOpen(true)
         }}

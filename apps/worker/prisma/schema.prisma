@@ -10,7 +10,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ── BetterAuth tables ─────────────────────────────────────────────────────────
@@ -93,6 +92,7 @@ model Campaign {
   sendStartHour Int?      @default(8)
   sendEndHour   Int?      @default(18)
   totalEmails   Int?
+  enrichMode    String    @default("basic")
   sentCount     Int       @default(0)
   createdAt     DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

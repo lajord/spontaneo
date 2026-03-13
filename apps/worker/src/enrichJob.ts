@@ -163,14 +163,18 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
     let enriched: EnrichedData = {}
 
     try {
-      const enrichRes = await fetch(`${AI_SERVICE_URL}/api/v1/enrichissement/company`, {
+      const isRanked = campaign.enrichMode === 'ranked'
+      const enrichEndpoint = isRanked
+        ? `${AI_SERVICE_URL}/api/v1/enrichissement/company-ranked`
+        : `${AI_SERVICE_URL}/api/v1/enrichissement/company`
+      const enrichBody = isRanked
+        ? { nom: company.name, site_web: company.website ?? undefined, adresse: company.address ?? undefined, job_title: campaign.jobTitle }
+        : { nom: company.name, site_web: company.website ?? undefined, adresse: company.address ?? undefined }
+
+      const enrichRes = await fetch(enrichEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nom: company.name,
-          site_web: company.website ?? undefined,
-          adresse: company.address ?? undefined,
-        }),
+        body: JSON.stringify(enrichBody),
         signal: AbortSignal.timeout(20 * 60 * 1000),
       })
 

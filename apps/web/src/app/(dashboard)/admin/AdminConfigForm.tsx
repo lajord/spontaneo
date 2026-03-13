@@ -22,7 +22,7 @@ const MODEL_FIELDS: { key: keyof ConfigValues; label: string; description: strin
   { key: 'modelCreationLm', label: 'Creation LM', description: 'Modele pour la generation des lettres de motivation' },
   { key: 'modelKeywords', label: 'Keywords', description: 'Modele pour l\'extraction de mots-cles de recherche' },
   { key: 'modelCvReader', label: 'Lecteur CV', description: 'Modele vision pour la lecture des CV (ex: Qwen2.5-VL-72B-Instruct)' },
-  { key: 'modelRanking', label: 'Ranking contacts', description: 'Modele pour le classement des contacts par pertinence' },
+  { key: 'modelRanking', label: 'Ranking / Filtre entreprises', description: 'Modele pour le classement des contacts et le filtrage des entreprises Apollo (ex: gemini-2.5-flash)' },
 ]
 
 export default function AdminConfigForm({ defaultValues }: { defaultValues: ConfigValues }) {

@@ -3,12 +3,12 @@ import json
 import logging
 import re
 
+from app.core.model_config import get_models
 from app.models.schemas import Company
 from app.utils.ai_caller import call_ai
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "gemini-3.1-pro-preview"
 _BATCH_SIZE = 500  # 2 appels pour 1 000 entreprises
 
 _FILTER_SYSTEM_PROMPT = (
@@ -76,10 +76,11 @@ async def _filter_batch(
     user_prompt: str | None,
 ) -> list[Company]:
     """Filtre un batch via un appel IA. Retourne le batch complet en cas d'échec."""
+    models = await get_models()
     prompt = _build_prompt(batch, job_title, user_prompt)
     try:
         raw = await call_ai(
-            model=_MODEL,
+            model=models.MODEL_RANKING,
             prompt=prompt,
             system_prompt=_FILTER_SYSTEM_PROMPT,
             temperature=0.1,

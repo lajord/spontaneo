@@ -1,13 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const CREDITS_PER_COMPANY = 2
+const APOLLO_EXTRA_CREDITS = 50
+
+type EnrichMode = 'basic' | 'ranked'
 
 type Props = {
     open: boolean
     totalCompanies: number
-    onConfirm: (count: number) => void
+    onConfirm: (count: number, enrichMode: EnrichMode) => void
     onCancel: () => void
 }
 
@@ -15,10 +18,19 @@ export default function SelectCompaniesModal({ open, totalCompanies, onConfirm, 
     const min = Math.min(10, totalCompanies)
     const max = totalCompanies
     const [count, setCount] = useState(Math.min(30, max))
+    const [enrichMode, setEnrichMode] = useState<EnrichMode>('basic')
+
+    // Recale le count à chaque ouverture du modal pour refléter le nombre actuel d'entreprises
+    useEffect(() => {
+        if (open) {
+            setCount(prev => Math.min(prev, totalCompanies))
+        }
+    }, [open, totalCompanies])
 
     if (!open) return null
 
-    const credits = count * CREDITS_PER_COMPANY
+    const baseCredits = count * CREDITS_PER_COMPANY
+    const totalCredits = enrichMode === 'ranked' ? baseCredits + APOLLO_EXTRA_CREDITS : baseCredits
     const pct = max <= min ? 100 : ((count - min) / (max - min)) * 100
 
     return (
@@ -76,6 +88,42 @@ export default function SelectCompaniesModal({ open, totalCompanies, onConfirm, 
                         </div>
                     </div>
 
+                    {/* Mode d'enrichissement */}
+                    <div className="space-y-3">
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Mode d&apos;enrichissement</p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setEnrichMode('basic')}
+                                className={`text-left p-4 rounded-xl border-2 transition-colors ${enrichMode === 'basic' ? 'border-brand-500 bg-brand-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                            >
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${enrichMode === 'basic' ? 'border-brand-500 bg-brand-500' : 'border-slate-300'}`}>
+                                        {enrichMode === 'basic' && <div className="w-1 h-1 rounded-full bg-white" />}
+                                    </div>
+                                    <p className={`text-sm font-semibold ${enrichMode === 'basic' ? 'text-brand-700' : 'text-slate-800'}`}>Standard</p>
+                                </div>
+                                <p className="text-xs text-slate-500 leading-relaxed pl-5">Enrichissement standard (plus rapide)</p>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setEnrichMode('ranked')}
+                                className={`text-left p-4 rounded-xl border-2 transition-colors ${enrichMode === 'ranked' ? 'border-brand-500 bg-brand-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                            >
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${enrichMode === 'ranked' ? 'border-brand-500 bg-brand-500' : 'border-slate-300'}`}>
+                                        {enrichMode === 'ranked' && <div className="w-1 h-1 rounded-full bg-white" />}
+                                    </div>
+                                    <p className={`text-sm font-semibold ${enrichMode === 'ranked' ? 'text-brand-700' : 'text-slate-800'}`}>
+                                        Avancé
+                                        <span className="ml-1.5 text-xs font-normal px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">+{APOLLO_EXTRA_CREDITS} crédits</span>
+                                    </p>
+                                </div>
+                                <p className="text-xs text-slate-500 leading-relaxed pl-5">Enrichissement avancé pour récupérer plus de mails de décideurs</p>
+                            </button>
+                        </div>
+                    </div>
+
                     {/* Coût en crédits */}
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-6 py-4 flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -86,11 +134,16 @@ export default function SelectCompaniesModal({ open, totalCompanies, onConfirm, 
                             </div>
                             <div>
                                 <p className="text-sm font-semibold text-slate-800">Crédits nécessaires</p>
-                                <p className="text-xs text-slate-500">{CREDITS_PER_COMPANY} crédits par entreprise</p>
+                                <p className="text-xs text-slate-500">
+                                    {count} × {CREDITS_PER_COMPANY} crédits
+                                    {enrichMode === 'ranked' && (
+                                        <span className="text-amber-600"> + {APOLLO_EXTRA_CREDITS} crédits Apollo</span>
+                                    )}
+                                </p>
                             </div>
                         </div>
                         <div className="text-right">
-                            <span className="text-2xl font-bold text-slate-900 tabular-nums">{credits}</span>
+                            <span className="text-2xl font-bold text-slate-900 tabular-nums">{totalCredits}</span>
                             <span className="text-sm text-slate-500 ml-1">crédits</span>
                         </div>
                     </div>
@@ -110,7 +163,7 @@ export default function SelectCompaniesModal({ open, totalCompanies, onConfirm, 
                         Annuler
                     </button>
                     <button
-                        onClick={() => onConfirm(count)}
+                        onClick={() => onConfirm(count, enrichMode)}
                         className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 shadow border border-brand-500 text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition-transform hover:-translate-y-px active:translate-y-0"
                     >
                         Suivant

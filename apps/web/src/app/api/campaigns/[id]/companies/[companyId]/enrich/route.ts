@@ -20,16 +20,23 @@ export async function POST(
       id: companyId,
       campaign: { id, userId: session.user.id },
     },
+    include: { campaign: { select: { enrichMode: true, jobTitle: true } } },
   })
   if (!company) return NextResponse.json({ error: 'Entreprise introuvable' }, { status: 404 })
 
-  const res = await fetch(`${AI_SERVICE_URL}/api/v1/enrichissement/company`, {
+  const isRanked = company.campaign.enrichMode === 'ranked'
+  const enrichEndpoint = isRanked
+    ? `${AI_SERVICE_URL}/api/v1/enrichissement/company-ranked`
+    : `${AI_SERVICE_URL}/api/v1/enrichissement/company`
+
+  const res = await fetch(enrichEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       nom: company.name,
       site_web: company.website ?? undefined,
       adresse: company.address ?? undefined,
+      ...(isRanked ? { job_title: company.campaign.jobTitle } : {}),
     }),
   })
 
