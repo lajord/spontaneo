@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     # Apollo.io
     APOLLO_API_KEY: str = ""
 
+    # Apify (Google Maps Scraper)
+    APIFY_API_KEY: str = ""
+
     # Database (pour lire AppConfig)
     DATABASE_URL: str = ""
 

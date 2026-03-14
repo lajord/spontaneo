@@ -38,6 +38,49 @@ _CONTEXTE_TEMPLATE = (
     "Contexte supplémentaire du candidat : « {prompt} »\n"
 )
 
+# ── Google Maps Keywords ────────────────────────────────────────────────────────
+
+_MAPS_SYSTEM_PROMPT = (
+    "Tu es un expert en recherche Google Maps d'entreprises françaises.\n"
+    "Tu reçois un métier et éventuellement des secteurs ciblés, et tu dois générer "
+    "les mots-clés de recherche Google Maps les plus pertinents.\n\n"
+
+    "RÈGLE FONDAMENTALE : QUALITÉ > QUANTITÉ.\n"
+    "Chaque mot-clé doit correspondre à un type de structure RÉEL et VISIBLE sur Google Maps "
+    "où une candidature spontanée pour ce poste a du sens.\n\n"
+
+    "SI des secteurs sont fournis par le candidat :\n"
+    "→ Utilise-les comme base pour générer des mots-clés précis.\n"
+    "→ Ex : Serveur + Restauration, Hôtellerie → ['restaurant', 'brasserie', 'hôtel restaurant']\n\n"
+
+    "SI AUCUN secteur n'est fourni :\n"
+    "→ Sois ULTRA CONSERVATEUR. Ne génère que des mots-clés hyper ciblés sur le cœur de métier.\n"
+    "→ Préfère 2 mots-clés parfaits plutôt que 5 moyens.\n"
+    "→ Ex : Data Analyst → ['cabinet data analytics', 'agence data science']\n"
+    "→ Ex : Comptable → ['cabinet comptable', 'expert-comptable']\n"
+    "→ Ex : Développeur web → ['agence web', 'agence digitale']\n\n"
+
+    "RÈGLES :\n"
+    "→ Entre 2 et 5 mots-clés maximum\n"
+    "→ En français (c'est une recherche Google Maps en France)\n"
+    "→ Chaque mot-clé = un type de structure visible sur Google Maps\n"
+    "→ Pas de doublons, pas de synonymes inutiles\n\n"
+
+    "INTERDIT :\n"
+    "✗ Termes vagues ('entreprise', 'société', 'bureau', 'service')\n"
+    "✗ Écoles, universités, centres de formation\n"
+    "✗ Administrations, mairies, préfectures\n"
+    "✗ Agences d'intérim, cabinets de recrutement\n"
+    "✗ Mots en anglais (sauf si c'est le terme courant en France)\n"
+)
+
+_MAPS_USER_PROMPT = (
+    'Métier : "{secteur}".\n'
+    '{contexte_utilisateur}'
+    "Réponds UNIQUEMENT avec ce JSON (rien d'autre) :\n"
+    '{{"keywords":["mot-clé 1","mot-clé 2"]}}'
+)
+
 
 async def get_job_titles(
     secteur: str, user_prompt: str | None = None, sectors: list[str] | None = None
@@ -80,4 +123,51 @@ async def get_job_titles(
 
     except Exception as e:
         logger.error(f"[IA JOB TITLES] Erreur [{secteur}]: {e}")
+        return [secteur]
+
+
+async def get_maps_keywords(
+    secteur: str, sectors: list[str] | None = None, user_prompt: str | None = None
+) -> list[str]:
+    """
+    Génère via IA des mots-clés Google Maps en français, ultra sélectifs.
+    Si des secteurs sont fournis, les utilise comme base.
+    Sinon, génère des keywords hyper ciblés sur le métier.
+    """
+    contexte_utilisateur = _CONTEXTE_TEMPLATE.format(prompt=user_prompt) if user_prompt else ""
+    if sectors:
+        contexte_utilisateur += f"Secteurs professionnels ciblés par le candidat : {', '.join(sectors)}\n"
+    else:
+        contexte_utilisateur += "AUCUN secteur fourni — sois ULTRA CONSERVATEUR, génère uniquement des keywords hyper ciblés.\n"
+
+    prompt = _MAPS_USER_PROMPT.format(
+        secteur=secteur,
+        contexte_utilisateur=contexte_utilisateur,
+    )
+
+    try:
+        models = await get_models()
+        logger.info(f"[IA MAPS KEYWORDS] {models.MODEL_KEYWORDS}  secteur='{secteur}'  sectors={sectors}")
+        raw = await call_ai(
+            model=models.MODEL_KEYWORDS,
+            prompt=prompt,
+            system_prompt=_MAPS_SYSTEM_PROMPT,
+            temperature=0,
+        )
+
+        try:
+            data = json.loads(raw)
+            if isinstance(data, dict) and "keywords" in data:
+                keywords = [k for k in data["keywords"] if isinstance(k, str) and k.strip()]
+                if keywords:
+                    logger.info(f"[IA MAPS KEYWORDS] keywords={keywords}")
+                    return keywords
+        except json.JSONDecodeError:
+            pass
+
+        logger.warning(f"[IA MAPS KEYWORDS] Parse échoué pour '{secteur}', fallback brut")
+        return [secteur]
+
+    except Exception as e:
+        logger.error(f"[IA MAPS KEYWORDS] Erreur [{secteur}]: {e}")
         return [secteur]

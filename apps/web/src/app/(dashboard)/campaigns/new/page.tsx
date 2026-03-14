@@ -1,31 +1,71 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-const SECTORS = [
-  'Restauration',
-  'Hôtellerie',
-  'Finance & Banque',
-  'Santé',
-  'Tech & Informatique',
-  'BTP & Construction',
-  'Commerce & Retail',
-  'Industrie',
-  'Transport & Logistique',
-  'Communication & Marketing',
-  'Immobilier',
-  'Juridique & Droit',
-  'Agriculture & Agroalimentaire',
-  'Énergie & Environnement',
-  'Art & Culture',
-  'Sport & Loisirs',
-  'Automobile',
-  'Beauté & Bien-être',
-  'Agences',
-  'Audit & Conseil',
-]
+const SECTOR_TREE: Record<string, { label: string; subs: string[] }> = {
+  technologie_numerique: {
+    label: 'Technologie & Numérique',
+    subs: ['ESN / services informatiques', 'éditeur de logiciel', 'startup tech', 'SaaS', 'cybersécurité', 'intelligence artificielle', 'cloud computing', 'data / big data', 'développement web', 'développement mobile', 'blockchain', 'fintech', 'legaltech', 'healthtech', 'insurtech', 'proptech', 'deeptech', 'devops', 'infrastructure IT', 'hébergement web', "éditeur d'applications", 'plateforme numérique'],
+  },
+  finance: {
+    label: 'Finance',
+    subs: ['banque', 'assurance', "gestion d'actifs", 'capital risque', 'private equity', 'fintech', 'courtage', 'audit', 'comptabilité', 'conseil financier', 'gestion de patrimoine', 'trading', 'paiement en ligne', 'néobanque', "fonds d'investissement", 'cabinet fiscal'],
+  },
+  conseil_services: {
+    label: 'Conseil & Services aux entreprises',
+    subs: ['cabinet de conseil', 'conseil en stratégie', 'conseil en management', 'conseil IT', 'conseil data', "cabinet d'audit", 'recrutement / RH', 'formation professionnelle', 'conseil juridique', "cabinet d'avocats", 'externalisation', 'BPO', 'conseil en innovation', 'conseil en transformation digitale', "coaching d'entreprise"],
+  },
+  marketing_communication: {
+    label: 'Marketing & Communication',
+    subs: ['agence marketing', 'agence digitale', 'agence SEO', 'publicité', 'relations publiques', 'média', 'production de contenu', "marketing d'influence", 'branding', 'communication corporate', 'agence événementielle', 'studio créatif', 'marketing automation', 'growth marketing'],
+  },
+  industrie: {
+    label: 'Industrie',
+    subs: ['industrie manufacturière', 'aéronautique', 'automobile', 'chimie', 'énergie', 'métallurgie', 'électronique', 'robotique', 'industrie pharmaceutique', 'plasturgie', 'textile', 'industrie lourde', 'fabrication de machines', 'équipements industriels', 'industrie du verre', 'industrie du bois'],
+  },
+  transport_logistique: {
+    label: 'Transport & Logistique',
+    subs: ['transport', 'logistique', 'supply chain', 'livraison', 'transport maritime', 'transport aérien', 'transport ferroviaire', 'transport routier', 'logistique e-commerce', 'entreposage', 'messagerie', 'transport international', 'gestion de flotte'],
+  },
+  commerce_distribution: {
+    label: 'Commerce & Distribution',
+    subs: ['e-commerce', 'grande distribution', 'retail', 'marketplace', 'commerce de gros', 'commerce de détail', 'supermarché', 'hypermarché', 'franchise', 'magasin spécialisé', 'vente en ligne', 'vente omnicanale'],
+  },
+  sante: {
+    label: 'Santé',
+    subs: ['hôpital', 'clinique', 'laboratoire', 'biotech', 'pharmaceutique', 'medtech', 'mutuelle', 'assurance santé', 'centre de recherche médical', 'télémédecine', 'dispositifs médicaux', 'centre de diagnostic', 'santé numérique'],
+  },
+  immobilier_construction: {
+    label: 'Immobilier & Construction',
+    subs: ['immobilier', 'promoteur immobilier', 'construction', 'BTP', 'architecture', 'urbanisme', 'agence immobilière', 'gestion immobilière', 'aménagement urbain', 'promotion immobilière', 'construction durable', 'ingénierie bâtiment'],
+  },
+  energie_environnement: {
+    label: 'Énergie & Environnement',
+    subs: ['énergie', 'pétrole', 'gaz', 'énergies renouvelables', 'nucléaire', 'environnement', 'recyclage', 'gestion des déchets', 'efficacité énergétique', 'énergie solaire', 'énergie éolienne', 'hydrogène', 'transition énergétique'],
+  },
+  agriculture_agroalimentaire: {
+    label: 'Agriculture & Agroalimentaire',
+    subs: ['agriculture', 'agroalimentaire', 'agritech', 'coopérative agricole', 'industrie alimentaire', 'production agricole', 'élevage', 'viticulture', 'distribution alimentaire', 'transformation alimentaire', 'agriculture biologique'],
+  },
+  tourisme_hotellerie: {
+    label: 'Tourisme & Hôtellerie',
+    subs: ['tourisme', 'agence de voyage', 'hôtel', 'hôtellerie', 'compagnie aérienne', 'événementiel', 'tour opérateur', 'location de vacances', 'parc de loisirs', 'croisière', "tourisme d'affaires"],
+  },
+  divertissement_medias: {
+    label: 'Divertissement & Médias',
+    subs: ['jeux vidéo', 'cinéma', 'production audiovisuelle', 'streaming', 'musique', 'médias', 'télévision', 'radio', 'édition', 'presse', 'plateforme de contenu', 'e-sport'],
+  },
+  education_recherche: {
+    label: 'Éducation & Recherche',
+    subs: ['université', 'école', 'edtech', 'formation', 'recherche', 'centre de recherche', 'formation en ligne', 'bootcamp', 'organisme de formation', 'institut académique'],
+  },
+  secteur_public: {
+    label: 'Secteur public & Organisations',
+    subs: ['administration', 'collectivité territoriale', 'ONG', 'association', 'organisation internationale', 'service public', 'organisation gouvernementale', 'institution publique', 'chambre de commerce'],
+  },
+}
 
 const STEPS = [
   { num: 1, label: 'Informations' },
@@ -65,11 +105,9 @@ export default function NewCampaignPage() {
   const [cvFile, setCvFile] = useState<File | null>(null)
   const [lmFile, setLmFile] = useState<File | null>(null)
   const [prompt, setPrompt] = useState('')
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [sectors, setSectors] = useState<string[]>([])
-  const [sectorSearch, setSectorSearch] = useState('')
-  const [sectorDropdownOpen, setSectorDropdownOpen] = useState(false)
-  const sectorInputRef = useRef<HTMLInputElement>(null)
-  const sectorContainerRef = useRef<HTMLDivElement>(null)
+  const [categorySearch, setCategorySearch] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
 
   // Step 2
@@ -78,43 +116,26 @@ export default function NewCampaignPage() {
   const [cvFilename, setCvFilename] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
-  // Close sector dropdown on click outside
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (sectorContainerRef.current && !sectorContainerRef.current.contains(e.target as Node)) {
-        setSectorDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const filteredSectors = SECTORS.filter(
-    (s) => !sectors.includes(s) && s.toLowerCase().includes(sectorSearch.toLowerCase())
+  const filteredCategories = Object.entries(SECTOR_TREE).filter(
+    ([, v]) => v.label.toLowerCase().includes(categorySearch.toLowerCase())
   )
 
-  function addSector(sector: string) {
-    const trimmed = sector.trim()
-    if (trimmed && !sectors.includes(trimmed)) {
-      setSectors([...sectors, trimmed])
+  function toggleCategory(key: string) {
+    if (selectedCategories.includes(key)) {
+      setSelectedCategories(selectedCategories.filter((k) => k !== key))
+      // Remove all sub-sectors of this category
+      const subs = SECTOR_TREE[key].subs
+      setSectors(sectors.filter((s) => !subs.includes(s)))
+    } else {
+      setSelectedCategories([...selectedCategories, key])
     }
-    setSectorSearch('')
-    setSectorDropdownOpen(false)
   }
 
-  function removeSector(sector: string) {
-    setSectors(sectors.filter((s) => s !== sector))
-  }
-
-  function handleSectorKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      if (sectorSearch.trim()) {
-        addSector(sectorSearch)
-      }
-    }
-    if (e.key === 'Backspace' && !sectorSearch && sectors.length > 0) {
-      removeSector(sectors[sectors.length - 1])
+  function toggleSubSector(sub: string) {
+    if (sectors.includes(sub)) {
+      setSectors(sectors.filter((s) => s !== sub))
+    } else {
+      setSectors([...sectors, sub])
     }
   }
 
@@ -251,78 +272,102 @@ export default function NewCampaignPage() {
                     />
                   </div>
 
-                  {/* Secteurs professionnels */}
-                  <div ref={sectorContainerRef} className="relative">
+                  {/* Secteurs professionnels — sélection hiérarchique */}
+                  <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-sm font-medium text-slate-700">
                         Secteurs visés
                       </label>
                       <span className="text-xs text-slate-400">Optionnel</span>
                     </div>
-                    <div
-                      className={`min-h-[42px] flex flex-wrap items-center gap-1.5 border rounded-lg px-2.5 py-1.5 cursor-text transition bg-white ${sectorDropdownOpen ? 'border-brand-500 ring-2 ring-brand-500' : 'border-slate-200'}`}
-                      onClick={() => {
-                        sectorInputRef.current?.focus()
-                        setSectorDropdownOpen(true)
-                      }}
-                    >
-                      {sectors.map((s) => (
-                        <span
-                          key={s}
-                          className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 text-xs font-medium rounded-md px-2 py-1 border border-brand-200"
-                        >
-                          {s}
+
+                    {/* Recherche catégories */}
+                    <input
+                      type="text"
+                      value={categorySearch}
+                      onChange={(e) => setCategorySearch(e.target.value)}
+                      placeholder="Rechercher un secteur..."
+                      className="w-full border border-slate-200 rounded-lg px-3.5 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition bg-white mb-3"
+                    />
+
+                    {/* Grille catégories */}
+                    <div className="flex flex-wrap gap-2">
+                      {filteredCategories.map(([key, { label }]) => {
+                        const isSelected = selectedCategories.includes(key)
+                        return (
                           <button
+                            key={key}
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); removeSector(s) }}
-                            className="text-brand-400 hover:text-brand-600 ml-0.5"
+                            onClick={() => toggleCategory(key)}
+                            className={`text-xs font-medium rounded-full px-3 py-1.5 border transition-colors ${
+                              isSelected
+                                ? 'bg-brand-500 text-white border-brand-500'
+                                : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300 hover:text-brand-600'
+                            }`}
                           >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                            {label}
                           </button>
-                        </span>
-                      ))}
-                      <input
-                        ref={sectorInputRef}
-                        type="text"
-                        value={sectorSearch}
-                        onChange={(e) => {
-                          setSectorSearch(e.target.value)
-                          setSectorDropdownOpen(true)
-                        }}
-                        onFocus={() => setSectorDropdownOpen(true)}
-                        onKeyDown={handleSectorKeyDown}
-                        placeholder={sectors.length === 0 ? 'Ex : Restauration, Hôtellerie...' : ''}
-                        className="flex-1 min-w-[120px] text-sm py-1 bg-transparent outline-none placeholder:text-slate-400"
-                      />
+                        )
+                      })}
                     </div>
 
-                    {/* Dropdown */}
-                    {sectorDropdownOpen && (sectorSearch || filteredSectors.length > 0) && (
-                      <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {filteredSectors.map((s) => (
-                          <button
+                    {/* Sous-secteurs pour chaque catégorie sélectionnée */}
+                    {selectedCategories.length > 0 && (
+                      <div className="mt-4 space-y-3">
+                        {selectedCategories.map((catKey) => {
+                          const cat = SECTOR_TREE[catKey]
+                          if (!cat) return null
+                          return (
+                            <div key={catKey} className="border border-slate-200 rounded-lg p-3 bg-slate-50/50">
+                              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                                {cat.label}
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {cat.subs.map((sub) => {
+                                  const isActive = sectors.includes(sub)
+                                  return (
+                                    <button
+                                      key={sub}
+                                      type="button"
+                                      onClick={() => toggleSubSector(sub)}
+                                      className={`text-xs rounded-md px-2.5 py-1 border transition-colors ${
+                                        isActive
+                                          ? 'bg-brand-50 text-brand-700 border-brand-200 font-medium'
+                                          : 'bg-white text-slate-600 border-slate-200 hover:border-brand-200 hover:text-brand-600'
+                                      }`}
+                                    >
+                                      {sub}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Résumé des sous-secteurs sélectionnés */}
+                    {sectors.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        <span className="text-xs text-slate-400 py-1 mr-1">{sectors.length} sélectionné{sectors.length > 1 ? 's' : ''} :</span>
+                        {sectors.map((s) => (
+                          <span
                             key={s}
-                            type="button"
-                            onClick={() => addSector(s)}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+                            className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 text-xs font-medium rounded-md px-2 py-1 border border-brand-200"
                           >
                             {s}
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleSubSector(s)}
+                              className="text-brand-400 hover:text-brand-600 ml-0.5"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </span>
                         ))}
-                        {sectorSearch.trim() && !SECTORS.some((s) => s.toLowerCase() === sectorSearch.trim().toLowerCase()) && !sectors.includes(sectorSearch.trim()) && (
-                          <button
-                            type="button"
-                            onClick={() => addSector(sectorSearch)}
-                            className="w-full text-left px-3 py-2 text-sm text-brand-600 hover:bg-brand-50 transition-colors border-t border-slate-100"
-                          >
-                            Ajouter &quot;{sectorSearch.trim()}&quot;
-                          </button>
-                        )}
-                        {filteredSectors.length === 0 && !sectorSearch.trim() && (
-                          <p className="px-3 py-2 text-sm text-slate-400">Tous les secteurs sont sélectionnés</p>
-                        )}
                       </div>
                     )}
                   </div>

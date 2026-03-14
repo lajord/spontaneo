@@ -29,10 +29,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Aucune boîte mail connectée' }, { status: 400 })
   }
 
-  // Snapshot du nombre de mails à envoyer au moment du lancement
+  // S'il y a un job d'enrichissement en cours, on permet quand même l'enregistrement
+  // mais on n'exige pas d'avoir des brouillons tout de suite.
+  const runningJob = await prisma.job.findFirst({
+    where: { campaignId: id, status: { in: ['pending', 'running'] } }
+  })
+
+  // Snapshot du nombre de mails à envoyer au moment du lancement (si pas de job en cours)
   const totalEmails = await prisma.email.count({ where: { campaignId: id, status: 'draft' } })
-  if (totalEmails === 0) {
+  if (!runningJob && totalEmails === 0) {
     return NextResponse.json({ error: 'Aucun mail en attente d\'envoi' }, { status: 400 })
+  }
+
+  if (runningJob) {
+    // On met à jour le Job pour qu'il lance la campagne automatiquement à la fin
+    const payload = (runningJob.payload as any) || {}
+    payload.autoStart = true
+
+    await prisma.job.update({
+      where: { id: runningJob.id },
+      data: { payload }
+    })
+
+    // On pré-enregistre les paramètres de la campagne
+    await prisma.campaign.update({
+      where: { id },
+      data: {
+        dailyLimit,
+        sendStartHour,
+        sendEndHour,
+      },
+    })
+
+    return NextResponse.json({ activated: true, pendingGeneration: true })
   }
 
   await prisma.campaign.update({

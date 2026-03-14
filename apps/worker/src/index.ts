@@ -101,6 +101,8 @@ async function handleJob(jobId: string): Promise<void> {
       links: (payload.links as JobPayload['links']) ?? {},
       userMailTemplate: (payload.userMailTemplate as string) ?? null,
       userMailSubject: (payload.userMailSubject as string) ?? null,
+      poolLimit: (payload.poolLimit as number) ?? null,
+      autoStart: (payload.autoStart as boolean) ?? false,
     }
 
     await runEnrichJob(jobPayload)

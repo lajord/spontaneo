@@ -10,20 +10,21 @@ datasource db {
 // ── BetterAuth tables ─────────────────────────────────────────────────────────
 
 model User {
-  id            String    @id
+  id            String   @id
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  email         String   @unique
+  emailVerified Boolean  @default(false)
   image         String?
-  role          String    @default("user") // "user" | "admin"
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  role          String   @default("user") // "user" | "admin"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  campaigns    Campaign[]
-  sessions     Session[]
-  accounts     Account[]
-  emailConfig  EmailConfig?
-  jobs         Job[]
+  campaigns          Campaign[]
+  sessions           Session[]
+  accounts           Account[]
+  emailConfig        EmailConfig?
+  jobs               Job[]
+  contactedCompanies ContactedCompany[]
 }
 
 model Session {
@@ -39,20 +40,20 @@ model Session {
 }
 
 model Account {
-  id                   String    @id
-  accountId            String
-  providerId           String
-  userId               String
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessToken          String?
-  refreshToken         String?
-  idToken              String?
-  accessTokenExpiresAt DateTime?
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
   refreshTokenExpiresAt DateTime?
-  scope                String?
-  password             String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 }
 
 model Verification {
@@ -67,22 +68,22 @@ model Verification {
 // ── App tables ────────────────────────────────────────────────────────────────
 
 model Campaign {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String
-  jobTitle    String
-  sectors     String[]  @default([])
-  granularity String    @default("moyen")
-  location    String
-  radius      Int       @default(20)
-  cvUrl       String?
-  cvData      Json?
-  lmText      String?
-  startDate   String?
-  duration    String?
-  prompt      String?
-  enrichMode  String    @default("basic")
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  jobTitle      String
+  sectors       String[]  @default([])
+  granularity   String    @default("moyen")
+  location      String
+  radius        Int       @default(20)
+  cvUrl         String?
+  cvData        Json?
+  lmText        String?
+  startDate     String?
+  duration      String?
+  prompt        String?
+  enrichMode    String    @default("basic")
   status        String    @default("draft")
   dailyLimit    Int?
   launchedAt    DateTime?
@@ -91,7 +92,7 @@ model Campaign {
   totalEmails   Int?
   sentCount     Int       @default(0)
   createdAt     DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt     DateTime  @updatedAt
 
   companies Company[]
   emails    Email[]
@@ -99,9 +100,9 @@ model Campaign {
 }
 
 model Company {
-  id         String    @id @default(cuid())
+  id         String   @id @default(cuid())
   campaignId String
-  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   name       String
   address    String?
   website    String?
@@ -111,8 +112,8 @@ model Company {
   codeNaf    String?
   source     String?
   enriched   Json?
-  status     String    @default("scraped")
-  scrapedAt  DateTime  @default(now())
+  status     String   @default("scraped")
+  scrapedAt  DateTime @default(now())
 
   emails Email[]
 }
@@ -125,12 +126,25 @@ model Email {
   company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   subject       String
   body          String
-  to            String?   // adresse email du destinataire (null si inconnue)
-  recipientName String?   // nom du destinataire (pour affichage)
-  generatedLm   String?   // LM personnalisée générée pour ce destinataire
+  to            String? // adresse email du destinataire (null si inconnue)
+  recipientName String? // nom du destinataire (pour affichage)
+  generatedLm   String? // LM personnalisée générée pour ce destinataire
   status        String    @default("draft")
   sentAt        DateTime?
   createdAt     DateTime  @default(now())
+}
+
+// ── Tracking des contacts (Anti-doublon global) ───────────────────────────────
+
+model ContactedCompany {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName String // Nom normalisé de l'entreprise
+  domain      String? // Domaine du site web pour vérification supplémentaire
+  contactedAt DateTime @default(now())
+
+  @@unique([userId, companyName])
 }
 
 // ── Background jobs ───────────────────────────────────────────────────────────
@@ -146,7 +160,7 @@ model Job {
   totalCompanies Int       @default(0)
   processedCount Int       @default(0)
   failedCount    Int       @default(0)
-  payload        Json?     // links, userMailTemplate, templatePrompt, etc.
+  payload        Json? // links, userMailTemplate, templatePrompt, etc.
   error          String?
   startedAt      DateTime?
   completedAt    DateTime?
@@ -161,8 +175,8 @@ model JobEvent {
   id        String   @id @default(cuid())
   jobId     String
   job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  seq       Int      // monotonically increasing per job
-  payload   Json     // raw SSE event (type, companyId, companyName, emails, ...)
+  seq       Int // monotonically increasing per job
+  payload   Json // raw SSE event (type, companyId, companyName, emails, ...)
   createdAt DateTime @default(now())
 
   @@index([jobId, seq])
@@ -172,7 +186,7 @@ model EmailConfig {
   id           String    @id @default(cuid())
   userId       String    @unique
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider     String    // 'gmail' | 'microsoft'
+  provider     String // 'gmail' | 'microsoft'
   accessToken  String?
   refreshToken String?
   tokenExpiry  DateTime?
@@ -184,10 +198,10 @@ model EmailConfig {
 // ── Admin config (singleton) ────────────────────────────────────────────────
 
 model AppConfig {
-  id             String   @id @default("singleton")
-  maxConcurrent  Int      @default(2)   // jobs paralleles max
-  batchSize      Int      @default(3)   // entreprises traitees en parallele par job
-  pollIntervalMs Int      @default(15000) // intervalle de polling du worker (ms)
+  id             String @id @default("singleton")
+  maxConcurrent  Int    @default(2) // jobs paralleles max
+  batchSize      Int    @default(3) // entreprises traitees en parallele par job
+  pollIntervalMs Int    @default(15000) // intervalle de polling du worker (ms)
 
   // Modeles IA par service
   modelEnrichissement  String @default("spark-1-mini")
@@ -198,5 +212,5 @@ model AppConfig {
   modelCvReader        String @default("Qwen2.5-VL-72B-Instruct")
   modelRanking         String @default("gemini-2.5-flash")
 
-  updatedAt      DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }

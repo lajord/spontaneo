@@ -12,6 +12,7 @@ export type PreGenerateOptions = {
         custom: { label: string; url: string }[]
     }
     extraFiles: File[]
+    poolLimit?: number
 }
 
 const DEFAULT_OPTIONS: PreGenerateOptions = {
@@ -30,11 +31,12 @@ const TAGS = [
 
 type Props = {
     open: boolean
+    poolLimit: number
     onConfirm: (opts: PreGenerateOptions) => void
     onCancel: () => void
 }
 
-export default function PreGenerateModal({ open, onConfirm, onCancel }: Props) {
+export default function PreGenerateModal({ open, poolLimit, onConfirm, onCancel }: Props) {
     const [opts, setOpts] = useState<PreGenerateOptions>(DEFAULT_OPTIONS)
     const [useCustom, setUseCustom] = useState(false)
     const [error, setError] = useState('')
@@ -422,7 +424,7 @@ export default function PreGenerateModal({ open, onConfirm, onCancel }: Props) {
                                     }
                                 }
                                 setError('')
-                                onConfirm(opts)
+                                onConfirm({ ...opts, poolLimit })
                             }}
                             className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 shadow border border-brand-500 text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition-transform hover:-translate-y-px active:translate-y-0"
                         >

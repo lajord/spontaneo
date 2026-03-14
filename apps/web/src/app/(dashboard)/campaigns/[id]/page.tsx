@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, Fragment } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import LaunchModal from './LaunchModal'
 import CompanyDetailView from './CompanyDetailView'
@@ -75,6 +75,95 @@ type FlatEmail = EmailRecipient & { companyName: string }
 
 type Tab = 'apercu' | 'en_cours' | 'en_attente' | 'envoyes'
 
+function CompanyCard({ company, deletingId, onDelete }: { company: Company; deletingId: string | null; onDelete: (id: string) => void }) {
+  return (
+    <div className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-sm hover:shadow-md hover:border-brand-300 transition-all group flex flex-col justify-between gap-4 relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-300 to-brand-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h3 className="text-[15px] font-bold text-slate-900 leading-tight pr-6">{company.name}</h3>
+          <button
+            onClick={() => onDelete(company.id)}
+            disabled={deletingId === company.id}
+            className="w-7 h-7 absolute top-3 right-3 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white shrink-0 disabled:opacity-50 z-10"
+            title="Supprimer"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {company.status === 'enriched' && <span className="text-[10px] uppercase tracking-wider font-bold bg-violet-50 text-violet-600 border border-violet-100 px-2 py-0.5 rounded-md">Enrichie</span>}
+        </div>
+        <div className="space-y-2.5">
+          {company.address && (
+            <div className="flex items-start gap-2 text-xs text-slate-500 group-hover:text-slate-700 transition-colors">
+              <svg className="w-4 h-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              <span className="line-clamp-2 leading-relaxed">{company.address}</span>
+            </div>
+          )}
+          {company.phone && (
+            <div className="flex items-center gap-2 text-xs text-slate-500 group-hover:text-slate-700 transition-colors">
+              <svg className="w-4 h-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+              <span>{company.phone}</span>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="pt-4 mt-auto border-t border-slate-100 flex items-center justify-between gap-3 relative z-10 bg-white">
+        <div className="flex flex-wrap gap-1">
+          {(company.enriched?.resultats ?? []).some(r => r.mail) && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/50 px-2.5 py-1 rounded-md">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              {(company.enriched?.resultats ?? []).filter(r => r.mail).length} contact{(company.enriched?.resultats ?? []).filter(r => r.mail).length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+        {company.website && (
+          <a href={company.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 hover:bg-brand-50 border border-slate-200 hover:border-brand-200 text-slate-500 hover:text-brand-600 transition-colors shrink-0" title="Visiter le site web">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CompanyListRow({ company, deletingId, onDelete }: { company: Company; deletingId: string | null; onDelete: (id: string) => void }) {
+  return (
+    <div className="px-8 py-3.5 border-b border-slate-50 hover:bg-slate-50/50 transition-colors group flex items-start justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-sm font-medium text-slate-900">{company.name}</p>
+          {company.status === 'enriched' && <span className="text-xs bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded font-medium">Enrichie</span>}
+        </div>
+        <div className="flex flex-wrap gap-x-3 mt-0.5">
+          {company.address && <span className="text-xs text-slate-400">{company.address}</span>}
+          {company.phone && <span className="text-xs text-slate-400">{company.phone}</span>}
+        </div>
+        {(company.enriched?.resultats ?? []).some(r => r.mail) && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {(company.enriched?.resultats ?? []).filter(r => r.mail).map(r => (
+              <span key={r.mail!} className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-mono">{r.mail}</span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {company.website && (
+          <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-500 hover:underline">Site →</a>
+        )}
+        <button
+          onClick={() => onDelete(company.id)}
+          disabled={deletingId === company.id}
+          className="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 disabled:opacity-50"
+        >
+          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function CampaignPage({ params }: { params: { id: string } }) {
   const { id } = params
   const [campaign, setCampaign] = useState<Campaign | null>(null)
@@ -91,6 +180,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
   const connectToJobRef = useRef<(jobId: string) => void>(() => { })
 
   const [generating, setGenerating] = useState(false)
+  const [launchPending, setLaunchPending] = useState(false)
   const [blocks, setBlocks] = useState<GeneratedBlock[]>([])
   const [processingMap, setProcessingMap] = useState<Map<string, CompanyProcessing>>(new Map())
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null)
@@ -103,6 +193,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
   const [deleting, setDeleting] = useState(false)
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [selectCompaniesOpen, setSelectCompaniesOpen] = useState(false)
+  const [selectedPoolLimit, setSelectedPoolLimit] = useState<number>(0)
   const [preGenerateOpen, setPreGenerateOpen] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const router = useRouter()
@@ -197,13 +288,16 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
           setBlocks(prev => [...prev, event as GeneratedBlock])
           setProcessingMap(prev => { const next = new Map(prev); next.delete(event.companyId); return next })
         } else if (event.type === 'complete') {
-          setCampaign(prev => prev ? { ...prev, status: 'emails_generated' } : prev)
           setGenerating(false)
           setProcessingMap(new Map())
+          setLaunchPending(false)
+          setMessage('')
           es.close()
           eventSourceRef.current = null
-          if (openTabs.has('en_attente')) setActiveTab('en_attente')
-          else setActiveTab('apercu')
+          // Re-fetch le vrai statut depuis le serveur (gère autoStart correctement)
+          fetch(`/api/campaigns/${id}`).then(r => r.json()).then(setCampaign)
+          fetch(`/api/campaigns/${id}/emails`).then(r => r.json()).then(loadEmails)
+          setActiveTab('apercu')
         } else if (event.type === 'error') {
           setMessage(event.message ?? 'Erreur')
           setGenerating(false)
@@ -230,6 +324,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.jobId) {
+          if (data.poolLimit) setSelectedPoolLimit(data.poolLimit)
           setGenerating(true)
           setOpenTabs(new Set<Tab>(['apercu', 'en_cours', 'en_attente', 'envoyes']))
           setActiveTab('en_cours')
@@ -276,9 +371,12 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     setDeletingId(null)
   }
 
+
+
   async function handleGenerate(opts: PreGenerateOptions) {
     setPreGenerateOpen(false)
     setGenerating(true)
+    setSelectedPoolLimit(opts.poolLimit || 0)
     setBlocks([])
     setMessage('')
     setProcessingMap(new Map())
@@ -300,6 +398,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         links: opts.links,
         userMailTemplate: opts.userMailTemplate || null,
         userMailSubject: opts.userMailSubject || null,
+        poolLimit: opts.poolLimit || null,
       }),
     })
     if (!res.ok) {
@@ -352,16 +451,31 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     }
   }
 
-  function handleLaunchSuccess() {
+  function handleLaunchSuccess(pending?: boolean) {
     setLaunchModalOpen(false)
-    // Recharge la campagne pour obtenir le nouveau statut + champs
-    fetch(`/api/campaigns/${id}`).then(r => r.json()).then(setCampaign)
+    if (pending) {
+      setLaunchPending(true)
+      setMessage('Lancement automatique programmé. Les emails partiront à la fin de l\'enrichissement.')
+    } else {
+      fetch(`/api/campaigns/${id}`).then(r => r.json()).then(setCampaign)
+    }
   }
 
   const isLaunched = campaign?.status === 'active' || campaign?.status === 'paused' || campaign?.status === 'finished'
   const isGenerationView = generating || blocks.length > 0
   const doneIds = new Set(blocks.map(b => b.companyId))
-  const queuedCompanies = companies.filter(c => !doneIds.has(c.id) && !processingMap.has(c.id))
+  
+  let poolToProcess = companies
+  if (selectedPoolLimit > 0) {
+    const sorted = [...companies].sort((a, b) => {
+      if (a.source === 'apollo_jobtitle' && b.source !== 'apollo_jobtitle') return -1
+      if (a.source !== 'apollo_jobtitle' && b.source === 'apollo_jobtitle') return 1
+      return 0
+    })
+    poolToProcess = sorted.slice(0, selectedPoolLimit)
+  }
+  
+  const queuedCompanies = poolToProcess.filter(c => !doneIds.has(c.id) && !processingMap.has(c.id))
   const allEmails: FlatEmail[] = blocks.flatMap(b => b.emails.map(e => ({ ...e, companyName: b.companyName })))
   const draftEmails = allEmails.filter(e => e.status === 'draft')
   const sentEmails = allEmails.filter(e => e.status === 'sent').sort((a, b) =>
@@ -373,8 +487,6 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
   )
   const filteredHiringCompanies = filteredCompanies.filter(c => c.source === 'apollo_jobtitle')
   const filteredPotentialCompanies = filteredCompanies.filter(c => c.source !== 'apollo_jobtitle')
-  const sortedFilteredCompanies = [...filteredHiringCompanies, ...filteredPotentialCompanies]
-  const hasHiringSplit = filteredHiringCompanies.length > 0 && filteredPotentialCompanies.length > 0
 
   // Calcul "temps avant prochain envoi"
   function nextSendLabel(): string {
@@ -466,10 +578,15 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                 <div className="flex items-center gap-2 mb-1">
                   <h1 className="text-lg font-bold text-slate-900">{campaign.name}</h1>
                   {/* Badge statut */}
-                  {campaign.status === 'active' && (
+                  {campaign.status === 'active' && !launchPending && (
                     <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       En cours
+                    </span>
+                  )}
+                  {launchPending && (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
+                      ⏳ Lancement en attente
                     </span>
                   )}
                   {campaign.status === 'paused' && (
@@ -487,7 +604,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {/* Bouton Étape suivante (pré-génération) */}
-                {!isGenerationView && companies.length > 0 && (
+                {!isGenerationView && !isLaunched && companies.length > 0 && (
                   <button
                     onClick={() => setSelectCompaniesOpen(true)}
                     disabled={scraping}
@@ -497,14 +614,14 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                   </button>
                 )}
 
-                {/* Bouton Lancer / Stopper / Relancer */}
+                {/* Bouton Lancer */}
                 {isGenerationView && campaign.status !== 'active' && campaign.status !== 'paused' && campaign.status !== 'finished' && (
                   <button
                     onClick={() => setLaunchModalOpen(true)}
-                    disabled={generating || draftEmails.length === 0}
+                    disabled={launchPending}
                     className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
                   >
-                    Lancer la campagne
+                    {launchPending ? 'Lancement programmé' : 'Lancer la campagne'}
                   </button>
                 )}
 
@@ -663,6 +780,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
               <div className="px-8 py-4 border-b border-slate-50 space-y-0">
                 {([
                   { label: 'Entreprises trouvées', value: companies.length, tab: null as Tab | null },
+                  { label: 'Entreprises sélectionnées/à traiter', value: selectedPoolLimit > 0 ? selectedPoolLimit : companies.length, tab: null as Tab | null },
                   { label: 'Enrichissements / Rédaction en cours', value: queuedCompanies.length + processingMap.size, tab: 'en_cours' as Tab },
                   { label: 'Mails en attente d\'envoi', value: draftEmails.length, tab: 'en_attente' as Tab },
                   { label: 'Mails envoyés', value: sentEmails.length, tab: 'envoyes' as Tab },
@@ -716,8 +834,8 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                 <div className="px-8 py-3 border-b border-slate-50 flex items-center justify-between gap-4 sticky top-0 bg-white z-10">
                   <p className="text-xs font-medium text-slate-500">
                     {isGenerationView
-                      ? `${blocks.length} / ${companies.length} entreprise${companies.length !== 1 ? 's' : ''} traitée${blocks.length !== 1 ? 's' : ''}`
-                      : `${companies.length} entreprise${companies.length !== 1 ? 's' : ''} trouvée${companies.length !== 1 ? 's' : ''}`
+                      ? `${blocks.length} / ${selectedPoolLimit > 0 ? selectedPoolLimit : companies.length} entreprise(s) traitée(s)`
+                      : `${companies.length} entreprise(s) trouvée(s)`
                     }
                   </p>
                   <div className="flex items-center gap-3">
@@ -753,131 +871,79 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                   </div>
                 </div>
 
-                {/* Liste entreprises (pré-génération) */}
+                {/* Liste entreprises (pré-génération) — grille */}
                 {!isGenerationView && viewMode === 'grid' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 px-8 py-6 bg-slate-50/50">
-                    {hasHiringSplit && (
-                      <div className="col-span-full text-sm font-semibold text-slate-700 pt-1 pb-2 border-b border-slate-200">
-                        Ces entreprises seraient à la recherche d&apos;un {campaign?.jobTitle}
-                      </div>
+                  <div className="px-8 py-6 bg-slate-50/50 space-y-6">
+                    {/* Section Apollo — entreprises qui recrutent */}
+                    {filteredHiringCompanies.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <p className="text-sm font-semibold text-slate-800">
+                              Ces entreprises rechercheraient un {campaign?.jobTitle}
+                            </p>
+                          </div>
+                          <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{filteredHiringCompanies.length}</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                          {filteredHiringCompanies.map(company => (
+                            <CompanyCard key={company.id} company={company} deletingId={deletingId} onDelete={handleDeleteCompany} />
+                          ))}
+                        </div>
+                      </>
                     )}
-                    {sortedFilteredCompanies.map((company, idx) => (
-                      <Fragment key={company.id}>
-                        {hasHiringSplit && idx === filteredHiringCompanies.length && (
-                          <div className="col-span-full text-sm font-semibold text-slate-700 pt-3 pb-2 border-b border-slate-200">
-                            Ces entreprises seraient potentiellement intéressées par vous
-                          </div>
-                        )}
-                      <div className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-sm hover:shadow-md hover:border-brand-300 transition-all group flex flex-col justify-between gap-4 relative overflow-hidden">
 
-                        {/* Status bar */}
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-300 to-brand-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <h3 className="text-[15px] font-bold text-slate-900 leading-tight pr-6">{company.name}</h3>
-                            <button
-                              onClick={() => handleDeleteCompany(company.id)}
-                              disabled={deletingId === company.id}
-                              className="w-7 h-7 absolute top-3 right-3 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white shrink-0 disabled:opacity-50 z-10"
-                              title="Supprimer"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
+                    {/* Section Google Maps — entreprises potentielles */}
+                    {filteredPotentialCompanies.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-brand-500" />
+                            <p className="text-sm font-semibold text-slate-800">
+                              Ces entreprises pourraient être intéressées par votre profil
+                            </p>
                           </div>
-
-                          <div className="flex flex-wrap gap-2 mb-4">
-                            {company.source === 'datagouv' && <span className="text-[10px] uppercase tracking-wider font-bold bg-sky-50 text-sky-600 border border-sky-100 px-2 py-0.5 rounded-md">Data.gouv</span>}
-                            {company.status === 'enriched' && <span className="text-[10px] uppercase tracking-wider font-bold bg-violet-50 text-violet-600 border border-violet-100 px-2 py-0.5 rounded-md">Enrichie</span>}
-                          </div>
-
-                          <div className="space-y-2.5">
-                            {company.address && (
-                              <div className="flex items-start gap-2 text-xs text-slate-500 group-hover:text-slate-700 transition-colors">
-                                <svg className="w-4 h-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                <span className="line-clamp-2 leading-relaxed">{company.address}</span>
-                              </div>
-                            )}
-                            {company.phone && (
-                              <div className="flex items-center gap-2 text-xs text-slate-500 group-hover:text-slate-700 transition-colors">
-                                <svg className="w-4 h-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                                <span>{company.phone}</span>
-                              </div>
-                            )}
-                          </div>
+                          <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{filteredPotentialCompanies.length}</span>
                         </div>
-
-                        {/* Footer card */}
-                        <div className="pt-4 mt-auto border-t border-slate-100 flex items-center justify-between gap-3 relative z-10 bg-white">
-                          <div className="flex flex-wrap gap-1">
-                            {(company.enriched?.resultats ?? []).some(r => r.mail) && (
-                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/50 px-2.5 py-1 rounded-md">
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                {(company.enriched?.resultats ?? []).filter(r => r.mail).length} contact{(company.enriched?.resultats ?? []).filter(r => r.mail).length > 1 ? 's' : ''}
-                              </span>
-                            )}
-                          </div>
-
-                          {company.website && (
-                            <a href={company.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 hover:bg-brand-50 border border-slate-200 hover:border-brand-200 text-slate-500 hover:text-brand-600 transition-colors shrink-0" title="Visiter le site web">
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                            </a>
-                          )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                          {filteredPotentialCompanies.map(company => (
+                            <CompanyCard key={company.id} company={company} deletingId={deletingId} onDelete={handleDeleteCompany} />
+                          ))}
                         </div>
-                      </div>
-                      </Fragment>
-                    ))}
+                      </>
+                    )}
                   </div>
                 )}
 
                 {!isGenerationView && viewMode === 'list' && (
                   <div className="flex flex-col">
-                    {hasHiringSplit && (
-                      <div className="px-8 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200">
-                        Ces entreprises seraient à la recherche d&apos;un {campaign?.jobTitle}
-                      </div>
+                    {/* Section Apollo — entreprises qui recrutent */}
+                    {filteredHiringCompanies.length > 0 && (
+                      <>
+                        <div className="px-8 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Ces entreprises rechercheraient un {campaign?.jobTitle}
+                          <span className="text-slate-400 font-normal">({filteredHiringCompanies.length})</span>
+                        </div>
+                        {filteredHiringCompanies.map(company => (
+                          <CompanyListRow key={company.id} company={company} deletingId={deletingId} onDelete={handleDeleteCompany} />
+                        ))}
+                      </>
                     )}
-                    {sortedFilteredCompanies.map((company, idx) => (
-                      <Fragment key={company.id}>
-                        {hasHiringSplit && idx === filteredHiringCompanies.length && (
-                          <div className="px-8 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200">
-                            Ces entreprises seraient potentiellement intéressées par vous
-                          </div>
-                        )}
-                      <div className="px-8 py-3.5 border-b border-slate-50 hover:bg-slate-50/50 transition-colors group flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-medium text-slate-900">{company.name}</p>
-                            {company.source === 'datagouv' && <span className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">data.gouv</span>}
-                            {company.status === 'enriched' && <span className="text-xs bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded font-medium">Enrichie</span>}
-                          </div>
-                          <div className="flex flex-wrap gap-x-3 mt-0.5">
-                            {company.address && <span className="text-xs text-slate-400">{company.address}</span>}
-                            {company.phone && <span className="text-xs text-slate-400">{company.phone}</span>}
-                          </div>
-                          {(company.enriched?.resultats ?? []).some(r => r.mail) && (
-                            <div className="mt-1.5 flex flex-wrap gap-1">
-                              {(company.enriched?.resultats ?? []).filter(r => r.mail).map(r => (
-                                <span key={r.mail!} className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-mono">{r.mail}</span>
-                              ))}
-                            </div>
-                          )}
+                    {/* Section Google Maps — entreprises potentielles */}
+                    {filteredPotentialCompanies.length > 0 && (
+                      <>
+                        <div className="px-8 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
+                          Ces entreprises pourraient être intéressées par votre profil
+                          <span className="text-slate-400 font-normal">({filteredPotentialCompanies.length})</span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {company.website && (
-                            <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-500 hover:underline">Site →</a>
-                          )}
-                          <button
-                            onClick={() => handleDeleteCompany(company.id)}
-                            disabled={deletingId === company.id}
-                            className="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 disabled:opacity-50"
-                          >
-                            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                          </button>
-                        </div>
-                      </div>
-                      </Fragment>
-                    ))}
+                        {filteredPotentialCompanies.map(company => (
+                          <CompanyListRow key={company.id} company={company} deletingId={deletingId} onDelete={handleDeleteCompany} />
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -1042,6 +1108,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         <LaunchModal
           campaignId={id}
           totalDraft={draftEmails.length}
+          isGenerating={isGenerationView}
           onClose={() => setLaunchModalOpen(false)}
           onSuccess={handleLaunchSuccess}
         />
@@ -1050,12 +1117,13 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
       <SelectCompaniesModal
         open={selectCompaniesOpen}
         totalCompanies={companies.length}
-        onConfirm={async (_count, enrichMode) => {
+        onConfirm={async (count, enrichMode) => {
           await fetch(`/api/campaigns/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enrichMode }),
           })
+          setSelectedPoolLimit(count)
           setSelectCompaniesOpen(false)
           setPreGenerateOpen(true)
         }}
@@ -1064,6 +1132,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
 
       <PreGenerateModal
         open={preGenerateOpen}
+        poolLimit={selectedPoolLimit}
         onConfirm={handleGenerate}
         onCancel={() => setPreGenerateOpen(false)}
       />

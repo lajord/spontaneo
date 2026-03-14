@@ -6,7 +6,8 @@ interface LaunchModalProps {
   campaignId: string
   totalDraft: number
   onClose: () => void
-  onSuccess: () => void
+  onSuccess: (pending?: boolean) => void
+  isGenerating?: boolean
 }
 
 interface EmailStatus {
@@ -17,9 +18,10 @@ interface EmailStatus {
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
-export default function LaunchModal({ campaignId, totalDraft, onClose, onSuccess }: LaunchModalProps) {
+export default function LaunchModal({ campaignId, totalDraft, onClose, onSuccess, isGenerating }: LaunchModalProps) {
   const [emailStatus, setEmailStatus] = useState<EmailStatus | null>(null)
-  const [dailyLimit, setDailyLimit] = useState(Math.min(50, totalDraft))
+  const defaultDailyLimit = isGenerating ? 120 : Math.min(50, Math.max(1, totalDraft))
+  const [dailyLimit, setDailyLimit] = useState(defaultDailyLimit)
   const [sendStartHour, setSendStartHour] = useState(8)
   const [sendEndHour, setSendEndHour] = useState(18)
   const [launching, setLaunching] = useState(false)
@@ -63,7 +65,7 @@ export default function LaunchModal({ campaignId, totalDraft, onClose, onSuccess
       setLaunching(false)
       return
     }
-    onSuccess()
+    onSuccess(data.pendingGeneration)
   }
 
   const providerLabel = emailStatus?.provider === 'gmail'
@@ -89,7 +91,7 @@ export default function LaunchModal({ campaignId, totalDraft, onClose, onSuccess
           <div>
             <h2 className="text-base font-bold text-slate-900">Activer la campagne</h2>
             <p className="text-sm text-slate-400 mt-0.5">
-              {totalDraft} mail{totalDraft !== 1 ? 's' : ''} prêt{totalDraft !== 1 ? 's' : ''} à envoyer automatiquement
+              {isGenerating ? "Une fois l'enrichissement terminé, votre campagne sera envoyée !" : `${totalDraft} mail${totalDraft !== 1 ? 's' : ''} prêt${totalDraft !== 1 ? 's' : ''} à envoyer automatiquement`}
             </p>
           </div>
           <button
@@ -122,6 +124,12 @@ export default function LaunchModal({ campaignId, totalDraft, onClose, onSuccess
               <span>1</span>
               <span>500</span>
             </div>
+            <p className="text-xs text-brand-600 font-medium mt-2 bg-brand-50 px-2.5 py-1.5 rounded-lg inline-flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Conseil : ~{Math.max(1, windowHours * 12)} mails par jour (soit 1 toutes les 5 minutes)
+            </p>
           </div>
 
           {/* ── Fenêtre horaire ──────────────────────────────────────────── */}
@@ -156,6 +164,7 @@ export default function LaunchModal({ campaignId, totalDraft, onClose, onSuccess
             {!isWindowValid && (
               <p className="text-xs text-red-500 mt-1.5">L&apos;heure de fin doit être après l&apos;heure de début</p>
             )}
+            <p className="text-xs text-slate-400 mt-2">Aucun mail n&apos;est envoy&eacute; le samedi et le dimanche.</p>
           </div>
 
           {/* ── Compte email d'envoi ─────────────────────────────────────── */}
@@ -207,11 +216,11 @@ export default function LaunchModal({ campaignId, totalDraft, onClose, onSuccess
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-500">Durée estimée</span>
               <span className="font-semibold text-slate-900">
-                {days <= 1 ? 'Tout envoyé aujourd\'hui' : `${days} jour${days !== 1 ? 's' : ''}`}
+                {isGenerating ? 'Variable' : days <= 1 ? 'Tout envoyé aujourd\'hui' : `${days} jour${days !== 1 ? 's' : ''}`}
               </span>
             </div>
             <p className="text-xs text-slate-400 pt-1 border-t border-slate-100">
-              Premier envoi dans les prochaines minutes après activation.
+              {isGenerating ? 'Le permier envoi aura lieu dès la fin de l\'enrichissement.' : 'Premier envoi dans les prochaines minutes après activation.'}
             </p>
           </div>
 
@@ -233,7 +242,7 @@ export default function LaunchModal({ campaignId, totalDraft, onClose, onSuccess
           </button>
           <button
             onClick={handleLaunch}
-            disabled={launching || !emailStatus?.connected || totalDraft === 0 || !isWindowValid}
+            disabled={launching || !emailStatus?.connected || (!isGenerating && totalDraft === 0) || !isWindowValid}
             className="flex-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-semibold text-sm rounded-xl py-2.5 transition-colors flex items-center justify-center gap-2"
           >
             {launching ? (

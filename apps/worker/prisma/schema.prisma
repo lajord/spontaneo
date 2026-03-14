@@ -10,6 +10,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ── BetterAuth tables ─────────────────────────────────────────────────────────
@@ -29,6 +30,7 @@ model User {
   accounts     Account[]
   emailConfig  EmailConfig?
   jobs         Job[]
+  contactedCompanies ContactedCompany[]
 }
 
 model Session {
@@ -136,6 +138,19 @@ model Email {
   status        String    @default("draft")
   sentAt        DateTime?
   createdAt     DateTime  @default(now())
+}
+
+// ── Tracking des contacts (Anti-doublon global) ───────────────────────────────
+
+model ContactedCompany {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName String   // Nom normalisé de l'entreprise
+  domain      String?  // Domaine du site web pour vérification supplémentaire
+  contactedAt DateTime @default(now())
+
+  @@unique([userId, companyName])
 }
 
 // ── Background jobs ───────────────────────────────────────────────────────────

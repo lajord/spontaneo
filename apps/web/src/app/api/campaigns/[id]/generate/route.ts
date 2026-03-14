@@ -17,11 +17,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   let links: { linkedin?: string; github?: string; portfolio?: string; custom?: { label: string; url: string }[] } = {}
   let userMailTemplate: string | null = null
   let userMailSubject: string | null = null
+  let poolLimit: number | null = null
   try {
     const body = await _req.json()
     links = body.links ?? {}
     userMailTemplate = body.userMailTemplate ?? null
     userMailSubject = body.userMailSubject ?? null
+    poolLimit = body.poolLimit ?? null
   } catch { /* body vide ou absent */ }
 
   const campaign = await prisma.campaign.findFirst({
@@ -39,13 +41,14 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       campaignId: id,
       status: { in: ['pending', 'running'] },
     },
-    select: { id: true },
+    select: { id: true, payload: true },
     orderBy: { createdAt: 'desc' },
   })
 
   if (existingJob) {
     nudgeWorker()
-    return NextResponse.json({ jobId: existingJob.id })
+    const payload = (existingJob.payload as any) || {}
+    return NextResponse.json({ jobId: existingJob.id, poolLimit: payload.poolLimit })
   }
 
   // ── Créer un nouveau Job en DB — le worker le découvrira via polling ───────
@@ -54,7 +57,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       userId: session.user.id,
       campaignId: id,
       status: 'pending',
-      payload: { links, userMailTemplate, userMailSubject },
+      payload: { links, userMailTemplate, userMailSubject, poolLimit },
     },
   })
 

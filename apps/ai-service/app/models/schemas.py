@@ -35,6 +35,7 @@ class SearchResponse(BaseModel):
     secteur: str
     localisation: str
     job_titles: list[str]
+    maps_keywords: list[str] = []
     total: int
     entreprises: list[Company]
 

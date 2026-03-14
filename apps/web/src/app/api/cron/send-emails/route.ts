@@ -21,7 +21,13 @@ export async function GET(req: NextRequest) {
   const midnightParis = new Date(nowParis)
   midnightParis.setHours(0, 0, 0, 0)
 
-  console.log(`[cron] ⏰ Heure Paris : ${currentHour}h`)
+  const dayOfWeek = nowParis.getDay() // 0 = dimanche, 6 = samedi
+  console.log(`[cron] ⏰ Heure Paris : ${currentHour}h | jour: ${dayOfWeek}`)
+
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    console.log(`[cron] 🚫 Weekend détecté — aucun envoi`)
+    return NextResponse.json({ processed: 0, skipped: 0, skipReasons: ['Weekend — aucun envoi'], timestamp: new Date().toISOString() })
+  }
 
   const activeCampaigns = await prisma.campaign.findMany({
     where: { status: 'active' },
@@ -136,12 +142,12 @@ export async function GET(req: NextRequest) {
       null
 
     if (!toEmail) {
-      const reason = `"${campaign.name}" — email ${nextEmail.id} sans destinataire → marqué sent et skippé`
+      const reason = `"${campaign.name}" — email ${nextEmail.id} sans destinataire → marqué failed`
       console.log(`[cron] ⚠️ ${reason}`)
       skipReasons.push(reason)
       await prisma.email.update({
         where: { id: nextEmail.id },
-        data: { status: 'sent', sentAt: new Date() },
+        data: { status: 'failed' },
       })
       skipped++
       continue

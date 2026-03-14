@@ -55,6 +55,8 @@ export type JobPayload = {
   }
   userMailTemplate: string | null
   userMailSubject: string | null
+  poolLimit: number | null
+  autoStart?: boolean
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -100,18 +102,6 @@ function buildRecipients(enriched: EnrichedData): Recipient[] {
     usedMails.add(r.mail)
   }
 
-  if (recipients.length === 0) {
-    recipients.push({
-      to: null,
-      salutation: 'Bonjour Madame, Monsieur,',
-      recipientName: 'Contact générique',
-      contactCivilite: null,
-      contactPrenom: null,
-      contactNom: null,
-      contactRole: null,
-    })
-  }
-
   return recipients
 }
 
@@ -138,7 +128,22 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
     distinct: ['companyId'],
   })
   const processedIds = new Set(alreadyProcessed.map(e => e.companyId))
-  const companiesToProcess = campaign.companies.filter(c => !processedIds.has(c.id))
+
+  // 1. Sort companies top-to-bottom: Apollo first, then Google Maps
+  const sortedCompanies = [...campaign.companies].sort((a, b) => {
+    // Apollo is higher priority
+    if (a.source === 'apollo_jobtitle' && b.source !== 'apollo_jobtitle') return -1;
+    if (b.source === 'apollo_jobtitle' && a.source !== 'apollo_jobtitle') return 1;
+    return 0;
+  });
+
+  // 2. Filter unprocessed
+  let companiesToProcess = sortedCompanies.filter(c => !processedIds.has(c.id))
+
+  // 3. Apply poolLimit
+  if (payload.poolLimit && payload.poolLimit > 0) {
+    companiesToProcess = companiesToProcess.slice(0, payload.poolLimit)
+  }
 
   const cvData = (campaign.cvData ?? {}) as CvData
   const hasLm = !!(campaign.lmText && campaign.lmText.trim().length > 0)
@@ -250,6 +255,25 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
     // ── 3. Destinataires + emails ──────────────────────────────────────────
     const recipients = buildRecipients(enriched)
 
+    // Si aucun contact email trouvé, on skip la création d'emails
+    if (recipients.length === 0) {
+      await emit({
+        type: 'done',
+        companyId: company.id,
+        companyName: company.name,
+        companyAddress: company.address,
+        enriched,
+        emails: [],
+      })
+
+      await prisma.job.update({
+        where: { id: jobId },
+        data: { processedCount: { increment: 1 } },
+      })
+
+      return
+    }
+
     const savedEmails = await Promise.all(
       recipients.map(async (recipient) => {
         const { to, salutation, recipientName } = recipient
@@ -354,6 +378,36 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
       where: { id: jobId },
       data: { processedCount: { increment: 1 } },
     })
+
+    // Track in ContactedCompany (global pool deduplication) & remove from campaign companies list
+    let domain: string | null = null
+    if (company.website) {
+      try {
+        const url = new URL(company.website)
+        domain = url.hostname.replace(/^www\./, '')
+      } catch {
+        // ignore
+      }
+    }
+    
+    await (prisma as any).contactedCompany.upsert({
+      where: {
+        userId_companyName: {
+          userId: campaign.userId,
+          companyName: company.name
+        }
+      },
+      update: { domain, contactedAt: new Date() },
+      create: {
+        userId: campaign.userId,
+        companyName: company.name,
+        domain
+      }
+    })
+
+    // NB: on ne supprime PAS la company pour éviter le onDelete:Cascade
+    // qui supprimait aussi les emails créés juste au-dessus.
+
   }
 
   // ── Traitement parallèle (taille de batch configurable depuis AppConfig) ────
@@ -373,10 +427,23 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
     )
   }
 
-  await prisma.campaign.update({
-    where: { id: campaignId },
-    data: { status: 'emails_generated' },
-  })
+  // Re-lire le payload depuis la DB car autoStart peut avoir été activé
+  // par l'API /launch pendant que le job tournait (preshot)
+  const freshJob = await prisma.job.findUnique({ where: { id: jobId }, select: { payload: true } })
+  const shouldAutoStart = (freshJob?.payload as any)?.autoStart === true
+  const totalEmails = await prisma.email.count({ where: { campaignId, status: 'draft' } })
+
+  if (shouldAutoStart && totalEmails > 0) {
+    await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { status: 'active', totalEmails, sentCount: 0, launchedAt: new Date() },
+    })
+  } else {
+    await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { status: 'emails_generated' },
+    })
+  }
 
   await emit({ type: 'complete' })
 

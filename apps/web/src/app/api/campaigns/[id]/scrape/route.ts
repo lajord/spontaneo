@@ -34,7 +34,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   }
 
   const data = await response.json()
-  const entreprises: Array<{
+  const rawEntreprises: Array<{
     nom: string
     adresse?: string
     site_web?: string
@@ -43,6 +43,30 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     code_naf?: string
     source?: string
   }> = data.entreprises ?? []
+
+  // Filtrer les entreprises déjà contactées par ce user
+  const contacted = await (prisma as any).contactedCompany.findMany({
+    where: { userId: session.user.id },
+    select: { companyName: true, domain: true }
+  })
+  const contactedNames = new Set(contacted.map((c: any) => c.companyName.toLowerCase().trim()))
+  const contactedDomains = new Set(contacted.map((c: any) => c.domain).filter(Boolean))
+
+  const entreprises = rawEntreprises.filter(e => {
+    const nameStr = e.nom.toLowerCase().trim()
+    if (contactedNames.has(nameStr)) return false
+    if (e.site_web) {
+      try {
+        const url = new URL(e.site_web)
+        // strip www. if present
+        const domain = url.hostname.replace(/^www\./, '')
+        if (contactedDomains.has(domain)) return false
+      } catch {
+        // ignore invalid urls
+      }
+    }
+    return true
+  })
 
   // Sauvegarde en base — createMany = 1 seul INSERT groupé, pas de timeout
   await prisma.company.createMany({
