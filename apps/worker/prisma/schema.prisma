@@ -77,6 +77,7 @@ model Campaign {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name        String
   jobTitle    String
+  sectors     String[]  @default([])
   granularity String    @default("moyen")
   location    String
   radius      Int       @default(20)

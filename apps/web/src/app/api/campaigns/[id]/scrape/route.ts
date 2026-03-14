@@ -24,6 +24,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       localisation: campaign.location,
       radius: campaign.radius,
       prompt: campaign.prompt ?? null,
+      sectors: campaign.sectors ?? [],
     }),
     signal: AbortSignal.timeout(300_000), // 5 minutes
   })

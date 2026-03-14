@@ -1,8 +1,31 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+
+const SECTORS = [
+  'Restauration',
+  'Hôtellerie',
+  'Finance & Banque',
+  'Santé',
+  'Tech & Informatique',
+  'BTP & Construction',
+  'Commerce & Retail',
+  'Industrie',
+  'Transport & Logistique',
+  'Communication & Marketing',
+  'Immobilier',
+  'Juridique & Droit',
+  'Agriculture & Agroalimentaire',
+  'Énergie & Environnement',
+  'Art & Culture',
+  'Sport & Loisirs',
+  'Automobile',
+  'Beauté & Bien-être',
+  'Agences',
+  'Audit & Conseil',
+]
 
 const STEPS = [
   { num: 1, label: 'Informations' },
@@ -42,6 +65,11 @@ export default function NewCampaignPage() {
   const [cvFile, setCvFile] = useState<File | null>(null)
   const [lmFile, setLmFile] = useState<File | null>(null)
   const [prompt, setPrompt] = useState('')
+  const [sectors, setSectors] = useState<string[]>([])
+  const [sectorSearch, setSectorSearch] = useState('')
+  const [sectorDropdownOpen, setSectorDropdownOpen] = useState(false)
+  const sectorInputRef = useRef<HTMLInputElement>(null)
+  const sectorContainerRef = useRef<HTMLDivElement>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
 
   // Step 2
@@ -49,6 +77,46 @@ export default function NewCampaignPage() {
   const [lmText, setLmText] = useState('')
   const [cvFilename, setCvFilename] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+
+  // Close sector dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (sectorContainerRef.current && !sectorContainerRef.current.contains(e.target as Node)) {
+        setSectorDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const filteredSectors = SECTORS.filter(
+    (s) => !sectors.includes(s) && s.toLowerCase().includes(sectorSearch.toLowerCase())
+  )
+
+  function addSector(sector: string) {
+    const trimmed = sector.trim()
+    if (trimmed && !sectors.includes(trimmed)) {
+      setSectors([...sectors, trimmed])
+    }
+    setSectorSearch('')
+    setSectorDropdownOpen(false)
+  }
+
+  function removeSector(sector: string) {
+    setSectors(sectors.filter((s) => s !== sector))
+  }
+
+  function handleSectorKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (sectorSearch.trim()) {
+        addSector(sectorSearch)
+      }
+    }
+    if (e.key === 'Backspace' && !sectorSearch && sectors.length > 0) {
+      removeSector(sectors[sectors.length - 1])
+    }
+  }
 
   function step1Valid() {
     return !!(name && jobTitle && location && cvFile)
@@ -98,6 +166,7 @@ export default function NewCampaignPage() {
         body: JSON.stringify({
           name,
           jobTitle,
+          sectors,
           location,
           radius,
           startDate: startDate || null,
@@ -180,6 +249,82 @@ export default function NewCampaignPage() {
                       placeholder="Ex : Développeur React, Agence marketing, Cabinet RH..."
                       className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition bg-white"
                     />
+                  </div>
+
+                  {/* Secteurs professionnels */}
+                  <div ref={sectorContainerRef} className="relative">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-sm font-medium text-slate-700">
+                        Secteurs visés
+                      </label>
+                      <span className="text-xs text-slate-400">Optionnel</span>
+                    </div>
+                    <div
+                      className={`min-h-[42px] flex flex-wrap items-center gap-1.5 border rounded-lg px-2.5 py-1.5 cursor-text transition bg-white ${sectorDropdownOpen ? 'border-brand-500 ring-2 ring-brand-500' : 'border-slate-200'}`}
+                      onClick={() => {
+                        sectorInputRef.current?.focus()
+                        setSectorDropdownOpen(true)
+                      }}
+                    >
+                      {sectors.map((s) => (
+                        <span
+                          key={s}
+                          className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 text-xs font-medium rounded-md px-2 py-1 border border-brand-200"
+                        >
+                          {s}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); removeSector(s) }}
+                            className="text-brand-400 hover:text-brand-600 ml-0.5"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        ref={sectorInputRef}
+                        type="text"
+                        value={sectorSearch}
+                        onChange={(e) => {
+                          setSectorSearch(e.target.value)
+                          setSectorDropdownOpen(true)
+                        }}
+                        onFocus={() => setSectorDropdownOpen(true)}
+                        onKeyDown={handleSectorKeyDown}
+                        placeholder={sectors.length === 0 ? 'Ex : Restauration, Hôtellerie...' : ''}
+                        className="flex-1 min-w-[120px] text-sm py-1 bg-transparent outline-none placeholder:text-slate-400"
+                      />
+                    </div>
+
+                    {/* Dropdown */}
+                    {sectorDropdownOpen && (sectorSearch || filteredSectors.length > 0) && (
+                      <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {filteredSectors.map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => addSector(s)}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+                          >
+                            {s}
+                          </button>
+                        ))}
+                        {sectorSearch.trim() && !SECTORS.some((s) => s.toLowerCase() === sectorSearch.trim().toLowerCase()) && !sectors.includes(sectorSearch.trim()) && (
+                          <button
+                            type="button"
+                            onClick={() => addSector(sectorSearch)}
+                            className="w-full text-left px-3 py-2 text-sm text-brand-600 hover:bg-brand-50 transition-colors border-t border-slate-100"
+                          >
+                            Ajouter &quot;{sectorSearch.trim()}&quot;
+                          </button>
+                        )}
+                        {filteredSectors.length === 0 && !sectorSearch.trim() && (
+                          <p className="px-3 py-2 text-sm text-slate-400">Tous les secteurs sont sélectionnés</p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">

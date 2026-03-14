@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 
 class EnrichedContact(BaseModel):
@@ -16,7 +16,7 @@ class Company(BaseModel):
     adresse: Optional[str] = None
     site_web: Optional[str] = None
     telephone: Optional[str] = None
-    source: Optional[str] = None    # "google_places"
+    source: Optional[str] = None
 
 
 class EnrichedCompany(Company):
@@ -28,12 +28,13 @@ class SearchRequest(BaseModel):
     localisation: str
     radius: int = 20
     prompt: Optional[str] = None  # Objectifs / remarques libres de l'utilisateur
+    sectors: Optional[List[str]] = None  # Secteurs professionnels ciblés (ex: Restauration, Hôtellerie)
 
 
 class SearchResponse(BaseModel):
     secteur: str
     localisation: str
-    keywords: list[str]
+    job_titles: list[str]
     total: int
     entreprises: list[Company]
 
