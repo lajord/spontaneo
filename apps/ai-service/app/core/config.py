@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     MODEL_KEYWORDS: str = "gpt-5"
     MODEL_CV_READER: str = "Qwen2.5-VL-72B-Instruct"
     MODEL_RANKING: str = "gemini-2.5-flash"
+    MODEL_FILTER: str = "sonar-pro"
 
     # Apollo.io
     APOLLO_API_KEY: str = ""

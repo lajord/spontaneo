@@ -129,7 +129,6 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
   const [activityLog, setActivityLog] = useState<ActivityEvent[]>([])
 
   // ── Refs ─────────────────────────────────────────
-  const scrapePhaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
   const connectToJobRef = useRef<(jobId: string) => void>(() => {})
   const hasAutoScraped = useRef(false)
@@ -324,27 +323,62 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     setScraping(true)
     setScrapePhase('recherche')
     setMessage('')
+    setCompanies([])
     setStep(1, 'active')
     setPipelineStep(1)
     addLog('info', 'Lancement du scraping...')
     addLog('progress', 'Recherche des entreprises en cours...')
 
-    scrapePhaseTimer.current = setTimeout(() => {
-      setScrapePhase('filtrage')
-      addLog('progress', 'Filtrage IA des entreprises...')
-    }, 20_000)
+    try {
+      const res = await fetch(`/api/campaigns/${id}/scrape`, { method: 'POST' })
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({ error: 'Erreur service' }))
+        setMessage(data.error ?? 'Erreur lors de la recherche')
+        addLog('error', data.error ?? 'Erreur lors du scraping')
+        setScraping(false)
+        return
+      }
 
-    const res = await fetch(`/api/campaigns/${id}/scrape`, { method: 'POST' })
-    if (scrapePhaseTimer.current) clearTimeout(scrapePhaseTimer.current)
-    const data = await res.json()
-    if (res.ok) {
-      const found = data.companies ?? []
-      setCompanies(found)
-      setStep(1, 'completed')
-      addLog('success', `${found.length} entreprise${found.length > 1 ? 's' : ''} trouvée${found.length > 1 ? 's' : ''}`)
-    } else {
-      setMessage(data.error ?? 'Erreur lors de la recherche')
-      addLog('error', data.error ?? 'Erreur lors du scraping')
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let filterStarted = false
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const jsonStr = line.slice(6).trim()
+          if (!jsonStr) continue
+
+          try {
+            const event = JSON.parse(jsonStr)
+
+            if (event.type === 'company' && event.company) {
+              if (!filterStarted) {
+                filterStarted = true
+                setScrapePhase('filtrage')
+                addLog('progress', 'Filtrage IA des entreprises...')
+              }
+              setCompanies(prev => [...prev, event.company])
+            } else if (event.type === 'done') {
+              setStep(1, 'completed')
+              addLog('success', `${event.total} entreprise${event.total > 1 ? 's' : ''} trouvée${event.total > 1 ? 's' : ''}`)
+            } else if (event.type === 'error') {
+              addLog('error', event.error ?? 'Erreur lors du scraping')
+            }
+          } catch { /* ignorer events mal formés */ }
+        }
+      }
+    } catch (err) {
+      setMessage('Erreur lors de la recherche')
+      addLog('error', 'Erreur lors du scraping')
     }
     setScraping(false)
   }

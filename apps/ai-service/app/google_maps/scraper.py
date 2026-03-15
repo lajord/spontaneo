@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from apify_client import ApifyClientAsync
@@ -10,25 +11,17 @@ logger = logging.getLogger(__name__)
 _ACTOR_ID = "nwua9Gu5YrADL7ZDj"  # Google Maps Scraper
 
 
-async def search_google_maps(
-    keywords: list[str],
+async def _search_single_keyword(
+    client: ApifyClientAsync,
+    keyword: str,
     location: str,
-    max_per_keyword: int = 50,
+    max_results: int,
 ) -> list[Company]:
-    """
-    Recherche d'entreprises via Apify Google Maps Scraper.
-    Ne retourne que les entreprises ayant un site web.
-    """
-    if not settings.APIFY_API_KEY:
-        logger.warning("[GOOGLE MAPS] APIFY_API_KEY manquante — skip")
-        return []
-
-    client = ApifyClientAsync(settings.APIFY_API_KEY)
-
+    """Un appel Apify pour UN seul keyword."""
     run_input = {
-        "searchStringsArray": keywords,
+        "searchStringsArray": [keyword],
         "locationQuery": location,
-        "maxCrawledPlacesPerSearch": max_per_keyword,
+        "maxCrawledPlacesPerSearch": max_results,
         "language": "fr",
         "website": "withWebsite",
         "skipClosedPlaces": False,
@@ -51,37 +44,71 @@ async def search_google_maps(
         "scrapeReviewsPersonalData": False,
     }
 
-    logger.info(
-        f"[GOOGLE MAPS] Lancement scraper — keywords={keywords}  "
-        f"location='{location}'  max_per_keyword={max_per_keyword}"
-    )
+    logger.info(f"[GOOGLE MAPS] Recherche '{keyword}' à '{location}'")
 
     try:
         run = await client.actor(_ACTOR_ID).call(run_input=run_input)
-
-        seen: dict[str, Company] = {}
         dataset_items = await client.dataset(run["defaultDatasetId"]).list_items()
 
+        companies = []
         for item in dataset_items.items:
             title = item.get("title")
             website = item.get("website")
             if not title or not website:
                 continue
+            companies.append(Company(
+                nom=title,
+                site_web=website,
+                adresse=item.get("address"),
+                telephone=item.get("phone"),
+                source="google_maps",
+            ))
 
-            key = title.lower().strip()
-            if key not in seen:
-                seen[key] = Company(
-                    nom=title,
-                    site_web=website,
-                    adresse=item.get("address"),
-                    telephone=item.get("phone"),
-                    source="google_maps",
-                )
-
-        result = list(seen.values())
-        logger.info(f"[GOOGLE MAPS] {len(result)} entreprises trouvées (avec site web)")
-        return result
+        logger.info(f"[GOOGLE MAPS] '{keyword}' → {len(companies)} résultats")
+        return companies
 
     except Exception as e:
-        logger.error(f"[GOOGLE MAPS] Erreur scraper : {e}")
+        logger.error(f"[GOOGLE MAPS] Erreur pour '{keyword}' : {e}")
         return []
+
+
+async def search_google_maps(
+    keywords: list[str],
+    location: str,
+    max_per_keyword: int = 50,
+) -> list[Company]:
+    """
+    Recherche d'entreprises via Apify Google Maps Scraper.
+    1 appel API par keyword, exécutés en parallèle.
+    Dédoublonne les résultats par nom.
+    """
+    if not settings.APIFY_API_KEY:
+        logger.warning("[GOOGLE MAPS] APIFY_API_KEY manquante — skip")
+        return []
+
+    if not keywords:
+        return []
+
+    client = ApifyClientAsync(settings.APIFY_API_KEY)
+
+    logger.info(
+        f"[GOOGLE MAPS] Lancement de {len(keywords)} recherches — "
+        f"keywords={keywords}  location='{location}'"
+    )
+
+    results = await asyncio.gather(*[
+        _search_single_keyword(client, kw, location, max_per_keyword)
+        for kw in keywords
+    ])
+
+    # Dédup par nom
+    seen: dict[str, Company] = {}
+    for company_list in results:
+        for company in company_list:
+            key = company.nom.lower().strip()
+            if key not in seen:
+                seen[key] = company
+
+    result = list(seen.values())
+    logger.info(f"[GOOGLE MAPS] Total : {len(result)} entreprises uniques (avec site web)")
+    return result

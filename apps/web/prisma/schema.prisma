@@ -212,6 +212,10 @@ model AppConfig {
   modelKeywords        String @default("gpt-5")
   modelCvReader        String @default("Qwen2.5-VL-72B-Instruct")
   modelRanking         String @default("gemini-2.5-flash")
+  modelFilter          String @default("sonar-pro")
+
+  // Filtrage IA post-extraction
+  filterBatchSize Int @default(1) // entreprises par appel IA filter
 
   updatedAt DateTime @updatedAt
 }

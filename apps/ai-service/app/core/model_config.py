@@ -25,6 +25,7 @@ class ModelConfig:
     MODEL_KEYWORDS: str
     MODEL_CV_READER: str
     MODEL_RANKING: str
+    MODEL_FILTER: str
 
 
 # ── Cache interne ────────────────────────────────────────────────────────────
@@ -43,6 +44,7 @@ def _defaults() -> ModelConfig:
         MODEL_KEYWORDS=settings.MODEL_KEYWORDS,
         MODEL_CV_READER=settings.MODEL_CV_READER,
         MODEL_RANKING=settings.MODEL_RANKING,
+        MODEL_FILTER=settings.MODEL_FILTER,
     )
 
 
@@ -55,6 +57,7 @@ _DB_TO_ATTR = {
     "modelKeywords": "MODEL_KEYWORDS",
     "modelCvReader": "MODEL_CV_READER",
     "modelRanking": "MODEL_RANKING",
+    "modelFilter": "MODEL_FILTER",
 }
 
 
