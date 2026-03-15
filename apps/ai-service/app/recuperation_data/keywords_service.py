@@ -7,167 +7,254 @@ from app.utils.ai_caller import call_ai
 
 logger = logging.getLogger(__name__)
 
+# ── Secteurs disponibles (miroir du SECTOR_TREE frontend) ─────────────────────
+
+SECTOR_TREE = {
+    "Tech & IT": [
+        "ESN / services informatiques", "éditeur de logiciel", "startup tech", "SaaS",
+        "cybersécurité", "intelligence artificielle", "cloud computing", "data / big data",
+        "développement web", "développement mobile", "blockchain", "fintech", "legaltech",
+        "healthtech", "insurtech", "proptech", "deeptech", "devops", "infrastructure IT",
+        "hébergement web", "éditeur d'applications", "plateforme numérique",
+    ],
+    "Finance": [
+        "banque", "assurance", "gestion d'actifs", "capital risque", "private equity",
+        "fintech", "courtage", "audit", "comptabilité", "conseil financier",
+        "gestion de patrimoine", "trading", "paiement en ligne", "néobanque",
+        "fonds d'investissement", "cabinet fiscal",
+    ],
+    "Conseil & Services": [
+        "cabinet de conseil", "conseil en stratégie", "conseil en management", "conseil IT",
+        "conseil data", "cabinet d'audit", "recrutement / RH", "formation professionnelle",
+        "conseil juridique", "cabinet d'avocats", "externalisation", "BPO",
+        "conseil en innovation", "conseil en transformation digitale", "coaching d'entreprise",
+    ],
+    "Marketing": [
+        "agence marketing", "agence digitale", "agence SEO", "publicité",
+        "relations publiques", "média", "production de contenu", "marketing d'influence",
+        "branding", "communication corporate", "agence événementielle", "studio créatif",
+        "marketing automation", "growth marketing",
+    ],
+    "Communication": [
+        "relations publiques", "communication corporate", "agence événementielle",
+        "journalisme", "médias", "édition",
+    ],
+    "Ressources Humaines": [
+        "recrutement", "formation professionnelle", "coaching", "intérim",
+        "gestion de la paie",
+    ],
+    "Droit": [
+        "cabinet d'avocats", "conseil juridique", "notariat", "huissier",
+        "juriste d'entreprise",
+    ],
+    "Industrie": [
+        "industrie manufacturière", "aéronautique", "automobile", "chimie", "énergie",
+        "métallurgie", "électronique", "robotique", "industrie pharmaceutique", "plasturgie",
+        "textile", "industrie lourde", "fabrication de machines", "équipements industriels",
+        "industrie du verre", "industrie du bois",
+    ],
+    "Transport & Logistique": [
+        "transport", "logistique", "supply chain", "livraison", "transport maritime",
+        "transport aérien", "transport ferroviaire", "transport routier",
+        "logistique e-commerce", "entreposage", "messagerie", "transport international",
+        "gestion de flotte",
+    ],
+    "Commerce & Retail": [
+        "e-commerce", "grande distribution", "retail", "marketplace", "commerce de gros",
+        "commerce de détail", "supermarché", "hypermarché", "franchise",
+        "magasin spécialisé", "vente en ligne", "vente omnicanale",
+    ],
+    "Santé": [
+        "hôpital", "clinique", "laboratoire", "biotech", "pharmaceutique", "medtech",
+        "mutuelle", "assurance santé", "centre de recherche médical", "télémédecine",
+        "dispositifs médicaux", "centre de diagnostic", "santé numérique",
+    ],
+    "Immo & Construction": [
+        "immobilier", "promoteur immobilier", "construction", "BTP", "architecture",
+        "urbanisme", "agence immobilière", "gestion immobilière", "aménagement urbain",
+        "promotion immobilière", "construction durable", "ingénierie bâtiment",
+    ],
+    "Énergie & Env.": [
+        "énergie", "pétrole", "gaz", "énergies renouvelables", "nucléaire",
+        "environnement", "recyclage", "gestion des déchets", "efficacité énergétique",
+        "énergie solaire", "énergie éolienne", "hydrogène", "transition énergétique",
+    ],
+    "Agriculture & Agro.": [
+        "agriculture", "agroalimentaire", "agritech", "coopérative agricole",
+        "industrie alimentaire", "production agricole", "élevage", "viticulture",
+        "distribution alimentaire", "transformation alimentaire", "agriculture biologique",
+    ],
+    "Tourisme & Hôtellerie": [
+        "tourisme", "agence de voyage", "hôtel", "hôtellerie", "compagnie aérienne",
+        "événementiel", "tour opérateur", "location de vacances", "parc de loisirs",
+        "croisière", "tourisme d'affaires",
+    ],
+    "Divertissement & Médias": [
+        "jeux vidéo", "cinéma", "production audiovisuelle", "streaming", "musique",
+        "médias", "télévision", "radio", "édition", "presse", "plateforme de contenu",
+        "e-sport",
+    ],
+    "Éducation": [
+        "université", "école", "edtech", "formation", "recherche", "centre de recherche",
+        "formation en ligne", "bootcamp", "organisme de formation", "institut académique",
+    ],
+    "Secteur public & ONG": [
+        "administration", "collectivité territoriale", "ONG", "association",
+        "organisation internationale", "service public", "organisation gouvernementale",
+        "institution publique", "chambre de commerce",
+    ],
+}
+
+
+def _build_sector_tree_text() -> str:
+    lines = []
+    for domain, subs in SECTOR_TREE.items():
+        lines.append(f"- {domain} : {', '.join(subs)}")
+    return "\n".join(lines)
+
+
+def _build_user_context(
+    sectors: list[str] | None,
+    categories: list[str] | None,
+) -> str:
+    parts = []
+    if categories:
+        parts.append(f"Domaines sélectionnés par le candidat : {', '.join(categories)}")
+    if sectors:
+        parts.append(f"Sous-secteurs sélectionnés par le candidat : {', '.join(sectors)}")
+    if not parts:
+        parts.append("Le candidat n'a sélectionné aucun domaine ni sous-secteur.")
+    return "\n".join(parts)
+
+
+# ── Prompt IA stratégique ─────────────────────────────────────────────────────
+
 _SYSTEM_PROMPT = (
-    "Tu es un expert en recherche Apollo.io d'entreprises françaises. "
-    "Tu reçois un métier en français et tu dois retourner un JSON strict.\n\n"
+    "Tu es un conseiller expert en recherche d'emploi en France.\n"
+    "Un candidat te demande de l'aide pour trouver des entreprises qui pourraient "
+    "être intéressées par son profil.\n\n"
 
-    "## CONTEXTE APOLLO\n"
-    "Apollo.io indexe les profils d'entreprises issus de LinkedIn et de ses propres bases.\n"
-    "Le paramètre `q_organization_job_titles` filtre sur les OFFRES D'EMPLOI ACTIVES publiées par l'entreprise.\n\n"
+    "Tu connais parfaitement le marché de l'emploi français. Tu sais quels types "
+    "d'entreprises recrutent pour chaque métier, comment elles se nomment, "
+    "dans quels secteurs on les trouve.\n\n"
 
-    "## RÈGLE — job_titles_en (liste de 2 à 4 variantes)\n"
-    "Génère les variantes de titres de poste en anglais les plus utilisées sur les offres d'emploi anglo-saxonnes.\n"
-    "Ce sont les intitulés exacts que les RH et recruteurs tapent sur LinkedIn Jobs / Indeed EN.\n"
-    "- 'comptable' → ['accountant', 'accounting manager', 'financial accountant']\n"
-    "- 'développeur web' → ['web developer', 'frontend developer', 'fullstack developer']\n"
-    "- 'data analyst' → ['data analyst', 'business analyst', 'data scientist']\n"
-    "- 'commercial B2B' → ['sales representative', 'account executive', 'business development manager']\n"
-    "- 'juriste' → ['legal counsel', 'corporate lawyer', 'in-house counsel']\n"
-    "- 'serveur' → ['waiter', 'server', 'food server', 'waitstaff']\n"
-    "INTERDIT : inventer un titre sans rapport avec le métier demandé.\n"
+    "Le candidat va te donner son titre de poste et éventuellement les secteurs "
+    "qui l'intéressent. Toi, tu dois lui dire EXACTEMENT ce qu'il devrait taper "
+    "comme recherche sur 3 plateformes différentes pour trouver les bonnes entreprises.\n\n"
+
+    "Réfléchis bien à la nature du poste :\n"
+    "- Un serveur → c'est simple, on cherche des restaurants, brasseries, hôtels\n"
+    "- Un juriste en tech → c'est plus complexe, il faut penser aux cabinets spécialisés, "
+    "aux legaltech, aux départements juridiques de grosses boîtes tech\n"
+    "- Un commercial B2B → ça dépend énormément du secteur choisi\n\n"
+
+    "## PLATEFORME 1 : Apollo (base de données d'entreprises)\n\n"
+
+    "### apollo_job_titles\n"
+    "Ce paramètre cherche les entreprises qui ont des offres d'emploi actives.\n"
+    "Dis au candidat comment son poste se dit en anglais. UNE seule traduction fidèle.\n\n"
+
+    "### apollo_keywords\n"
+    "Ce paramètre cherche les entreprises par leurs tags sectoriels (en anglais).\n"
+    "Dis au candidat quels mots-clés taper pour trouver le bon type d'entreprises.\n"
+    "Ça peut être des mots simples ou des expressions de 2-3 mots.\n"
+    "Tout en anglais, en minuscules.\n"
+    "Si le candidat a déjà choisi des sous-secteurs, traduis-les. "
+    "Sinon, propose les plus pertinents pour son métier.\n\n"
+
+    "## PLATEFORME 2 : Google Maps\n\n"
+
+    "### google_maps_keywords\n"
+    "Google Maps cherche des établissements physiques dans une ville.\n"
+    "Dis au candidat ce qu'il devrait taper dans la barre de recherche Google Maps "
+    "pour trouver des entreprises près de chez lui qui pourraient l'embaucher.\n"
+    "C'est en FRANÇAIS.\n"
+    "Sois précis et créatif : combine le type de structure avec la spécialité.\n"
+    "Exemples :\n"
+    "- Juriste en tech → 'cabinet avocat droit du numérique', 'legaltech', 'cabinet juridique startup'\n"
+    "- Serveur → 'restaurant', 'brasserie', 'hôtel restaurant'\n"
+    "- Dev web en fintech → 'agence web fintech', 'studio développement application bancaire'\n"
+    "- Comptable → 'cabinet comptable', 'expert-comptable', 'cabinet audit financier'\n"
+    "- Commercial B2B en SaaS → 'éditeur logiciel', 'entreprise SaaS', 'startup logiciel'\n"
+    "N'utilise JAMAIS de termes vagues comme 'entreprise', 'société', 'bureau'.\n"
+    "N'inclus JAMAIS d'écoles, administrations ou agences d'intérim.\n\n"
+
+    "## FORMAT DE RÉPONSE\n"
+    "Tu DOIS répondre UNIQUEMENT avec un objet JSON valide, sans texte avant ni après.\n"
+    "Le JSON doit contenir exactement 3 clés :\n"
+    "- \"apollo_job_titles\" : liste de strings (1 seul élément)\n"
+    "- \"apollo_keywords\" : liste de strings (3 à 8 éléments)\n"
+    "- \"google_maps_keywords\" : liste de strings (3 à 6 éléments)\n"
 )
 
 _USER_PROMPT = (
-    'Métier : "{secteur}".\n'
-    '{contexte_utilisateur}'
-    "Réponds UNIQUEMENT avec ce JSON (rien d'autre) :\n"
-    '{{"job_titles_en":["titre1","titre2","titre3"]}}'
-)
-
-_CONTEXTE_TEMPLATE = (
-    "Contexte supplémentaire du candidat : « {prompt} »\n"
-)
-
-# ── Google Maps Keywords ────────────────────────────────────────────────────────
-
-_MAPS_SYSTEM_PROMPT = (
-    "Tu es un expert en recherche Google Maps d'entreprises françaises.\n"
-    "Tu reçois un métier et éventuellement des secteurs ciblés, et tu dois générer "
-    "les mots-clés de recherche Google Maps les plus pertinents.\n\n"
-
-    "RÈGLE FONDAMENTALE : QUALITÉ > QUANTITÉ.\n"
-    "Chaque mot-clé doit correspondre à un type de structure RÉEL et VISIBLE sur Google Maps "
-    "où une candidature spontanée pour ce poste a du sens.\n\n"
-
-    "SI des secteurs sont fournis par le candidat :\n"
-    "→ Utilise-les comme base pour générer des mots-clés précis.\n"
-    "→ Ex : Serveur + Restauration, Hôtellerie → ['restaurant', 'brasserie', 'hôtel restaurant']\n\n"
-
-    "SI AUCUN secteur n'est fourni :\n"
-    "→ Sois ULTRA CONSERVATEUR. Ne génère que des mots-clés hyper ciblés sur le cœur de métier.\n"
-    "→ Préfère 2 mots-clés parfaits plutôt que 5 moyens.\n"
-    "→ Ex : Data Analyst → ['cabinet data analytics', 'agence data science']\n"
-    "→ Ex : Comptable → ['cabinet comptable', 'expert-comptable']\n"
-    "→ Ex : Développeur web → ['agence web', 'agence digitale']\n\n"
-
-    "RÈGLES :\n"
-    "→ Entre 2 et 5 mots-clés maximum\n"
-    "→ En français (c'est une recherche Google Maps en France)\n"
-    "→ Chaque mot-clé = un type de structure visible sur Google Maps\n"
-    "→ Pas de doublons, pas de synonymes inutiles\n\n"
-
-    "INTERDIT :\n"
-    "✗ Termes vagues ('entreprise', 'société', 'bureau', 'service')\n"
-    "✗ Écoles, universités, centres de formation\n"
-    "✗ Administrations, mairies, préfectures\n"
-    "✗ Agences d'intérim, cabinets de recrutement\n"
-    "✗ Mots en anglais (sauf si c'est le terme courant en France)\n"
-)
-
-_MAPS_USER_PROMPT = (
-    'Métier : "{secteur}".\n'
-    '{contexte_utilisateur}'
-    "Réponds UNIQUEMENT avec ce JSON (rien d'autre) :\n"
-    '{{"keywords":["mot-clé 1","mot-clé 2"]}}'
+    'Le candidat cherche un poste de : "{secteur}"\n\n'
+    "{user_context}\n\n"
+    "Voici les sous-secteurs disponibles pour t'aider à choisir :\n{sector_tree}\n\n"
+    "Que lui conseilles-tu de taper comme recherche sur chaque plateforme ?\n"
+    "Réponds UNIQUEMENT avec le JSON."
 )
 
 
-async def get_job_titles(
-    secteur: str, user_prompt: str | None = None, sectors: list[str] | None = None
-) -> list[str]:
+# ── Fonction principale ──────────────────────────────────────────────────────
+
+async def build_search_params(
+    secteur: str,
+    sectors: list[str] | None = None,
+    categories: list[str] | None = None,
+) -> dict:
     """
-    Génère via IA les variantes du titre de poste en anglais
-    pour le paramètre Apollo `q_organization_job_titles`.
+    Un seul appel IA stratégique qui renvoie tous les paramètres de recherche :
+    - apollo_job_titles (EN)
+    - apollo_keywords (EN)
+    - google_maps_keywords (FR)
     """
-    contexte_utilisateur = _CONTEXTE_TEMPLATE.format(prompt=user_prompt) if user_prompt else ""
-    if sectors:
-        contexte_utilisateur += f"Secteurs professionnels ciblés par le candidat : {', '.join(sectors)}\n"
+    user_context = _build_user_context(sectors, categories)
+    sector_tree_text = _build_sector_tree_text()
     prompt = _USER_PROMPT.format(
         secteur=secteur,
-        contexte_utilisateur=contexte_utilisateur,
+        user_context=user_context,
+        sector_tree=sector_tree_text,
     )
 
     try:
         models = await get_models()
-        logger.info(f"[IA JOB TITLES] {models.MODEL_KEYWORDS}  secteur='{secteur}'")
+        logger.info(
+            f"[SEARCH STRATEGY] model={models.MODEL_KEYWORDS}  "
+            f"secteur='{secteur}'  sectors={sectors}  categories={categories}"
+        )
         raw = await call_ai(
             model=models.MODEL_KEYWORDS,
             prompt=prompt,
             system_prompt=_SYSTEM_PROMPT,
             temperature=0,
         )
-
-        try:
-            data = json.loads(raw)
-            if isinstance(data, dict):
-                job_titles_en = [t for t in data.get("job_titles_en", []) if isinstance(t, str) and t.strip()]
-                if not job_titles_en:
-                    job_titles_en = [secteur]
-                logger.info(f"[IA JOB TITLES] job_titles_en={job_titles_en}")
-                return job_titles_en
-        except json.JSONDecodeError:
-            pass
-
-        logger.warning(f"[IA JOB TITLES] Parse échoué pour '{secteur}', fallback brut")
-        return [secteur]
-
+        data = json.loads(raw)
+        result = {
+            "apollo_job_titles": [
+                t for t in data.get("apollo_job_titles", [])
+                if isinstance(t, str) and t.strip()
+            ],
+            "apollo_keywords": [
+                k for k in data.get("apollo_keywords", [])
+                if isinstance(k, str) and k.strip()
+            ],
+            "google_maps_keywords": [
+                k for k in data.get("google_maps_keywords", [])
+                if isinstance(k, str) and k.strip()
+            ],
+        }
+        if result["apollo_job_titles"]:
+            logger.info(f"[SEARCH STRATEGY] apollo_job_titles: {result['apollo_job_titles']}")
+            logger.info(f"[SEARCH STRATEGY] apollo_keywords: {result['apollo_keywords']}")
+            logger.info(f"[SEARCH STRATEGY] google_maps_keywords: {result['google_maps_keywords']}")
+            return result
     except Exception as e:
-        logger.error(f"[IA JOB TITLES] Erreur [{secteur}]: {e}")
-        return [secteur]
+        logger.error(f"[SEARCH STRATEGY] Erreur: {e}")
 
-
-async def get_maps_keywords(
-    secteur: str, sectors: list[str] | None = None, user_prompt: str | None = None
-) -> list[str]:
-    """
-    Génère via IA des mots-clés Google Maps en français, ultra sélectifs.
-    Si des secteurs sont fournis, les utilise comme base.
-    Sinon, génère des keywords hyper ciblés sur le métier.
-    """
-    contexte_utilisateur = _CONTEXTE_TEMPLATE.format(prompt=user_prompt) if user_prompt else ""
-    if sectors:
-        contexte_utilisateur += f"Secteurs professionnels ciblés par le candidat : {', '.join(sectors)}\n"
-    else:
-        contexte_utilisateur += "AUCUN secteur fourni — sois ULTRA CONSERVATEUR, génère uniquement des keywords hyper ciblés.\n"
-
-    prompt = _MAPS_USER_PROMPT.format(
-        secteur=secteur,
-        contexte_utilisateur=contexte_utilisateur,
-    )
-
-    try:
-        models = await get_models()
-        logger.info(f"[IA MAPS KEYWORDS] {models.MODEL_KEYWORDS}  secteur='{secteur}'  sectors={sectors}")
-        raw = await call_ai(
-            model=models.MODEL_KEYWORDS,
-            prompt=prompt,
-            system_prompt=_MAPS_SYSTEM_PROMPT,
-            temperature=0,
-        )
-
-        try:
-            data = json.loads(raw)
-            if isinstance(data, dict) and "keywords" in data:
-                keywords = [k for k in data["keywords"] if isinstance(k, str) and k.strip()]
-                if keywords:
-                    logger.info(f"[IA MAPS KEYWORDS] keywords={keywords}")
-                    return keywords
-        except json.JSONDecodeError:
-            pass
-
-        logger.warning(f"[IA MAPS KEYWORDS] Parse échoué pour '{secteur}', fallback brut")
-        return [secteur]
-
-    except Exception as e:
-        logger.error(f"[IA MAPS KEYWORDS] Erreur [{secteur}]: {e}")
-        return [secteur]
+    # Fallback minimal
+    return {
+        "apollo_job_titles": [secteur],
+        "apollo_keywords": [],
+        "google_maps_keywords": [secteur],
+    }

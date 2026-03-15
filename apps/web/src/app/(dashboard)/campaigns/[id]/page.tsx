@@ -2,10 +2,14 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import PipelineStepper from './PipelineStepper'
+import ActivityLog, { type ActivityEvent } from './ActivityLog'
+import PaywallModal from './PaywallModal'
 import LaunchModal from './LaunchModal'
 import CompanyDetailView from './CompanyDetailView'
 import PreGenerateModal, { type PreGenerateOptions } from './PreGenerateModal'
-import SelectCompaniesModal from './SelectCompaniesModal'
+
+// ── Types ────────────────────────────────────────────────────────────
 
 type EmailRecipient = {
   id: string
@@ -27,9 +31,7 @@ type EnrichedContact = {
   genre?: string | null
 }
 
-type EnrichedData = {
-  resultats: EnrichedContact[]
-}
+type EnrichedData = { resultats: EnrichedContact[] }
 
 type Company = {
   id: string
@@ -72,149 +74,103 @@ type CompanyProcessing = {
 }
 
 type FlatEmail = EmailRecipient & { companyName: string }
+type PipelineStep = 1 | 2 | 3 | 4
+type StepStatus = 'pending' | 'active' | 'completed'
 
-type Tab = 'apercu' | 'en_cours' | 'en_attente' | 'envoyes'
+// ── Helpers ──────────────────────────────────────────────────────────
 
-function CompanyCard({ company, deletingId, onDelete }: { company: Company; deletingId: string | null; onDelete: (id: string) => void }) {
-  return (
-    <div className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-sm hover:shadow-md hover:border-brand-300 transition-all group flex flex-col justify-between gap-4 relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-300 to-brand-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <h3 className="text-[15px] font-bold text-slate-900 leading-tight pr-6">{company.name}</h3>
-          <button
-            onClick={() => onDelete(company.id)}
-            disabled={deletingId === company.id}
-            className="w-7 h-7 absolute top-3 right-3 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white shrink-0 disabled:opacity-50 z-10"
-            title="Supprimer"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {company.status === 'enriched' && <span className="text-[10px] uppercase tracking-wider font-bold bg-violet-50 text-violet-600 border border-violet-100 px-2 py-0.5 rounded-md">Enrichie</span>}
-        </div>
-        <div className="space-y-2.5">
-          {company.address && (
-            <div className="flex items-start gap-2 text-xs text-slate-500 group-hover:text-slate-700 transition-colors">
-              <svg className="w-4 h-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-              <span className="line-clamp-2 leading-relaxed">{company.address}</span>
-            </div>
-          )}
-          {company.phone && (
-            <div className="flex items-center gap-2 text-xs text-slate-500 group-hover:text-slate-700 transition-colors">
-              <svg className="w-4 h-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-              <span>{company.phone}</span>
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="pt-4 mt-auto border-t border-slate-100 flex items-center justify-between gap-3 relative z-10 bg-white">
-        <div className="flex flex-wrap gap-1">
-          {(company.enriched?.resultats ?? []).some(r => r.mail) && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/50 px-2.5 py-1 rounded-md">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              {(company.enriched?.resultats ?? []).filter(r => r.mail).length} contact{(company.enriched?.resultats ?? []).filter(r => r.mail).length > 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-        {company.website && (
-          <a href={company.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 hover:bg-brand-50 border border-slate-200 hover:border-brand-200 text-slate-500 hover:text-brand-600 transition-colors shrink-0" title="Visiter le site web">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-          </a>
-        )}
-      </div>
-    </div>
-  )
+function logId() {
+  return Math.random().toString(36).slice(2, 10)
 }
 
-function CompanyListRow({ company, deletingId, onDelete }: { company: Company; deletingId: string | null; onDelete: (id: string) => void }) {
-  return (
-    <div className="px-8 py-3.5 border-b border-slate-50 hover:bg-slate-50/50 transition-colors group flex items-start justify-between gap-4">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-medium text-slate-900">{company.name}</p>
-          {company.status === 'enriched' && <span className="text-xs bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded font-medium">Enrichie</span>}
-        </div>
-        <div className="flex flex-wrap gap-x-3 mt-0.5">
-          {company.address && <span className="text-xs text-slate-400">{company.address}</span>}
-          {company.phone && <span className="text-xs text-slate-400">{company.phone}</span>}
-        </div>
-        {(company.enriched?.resultats ?? []).some(r => r.mail) && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
-            {(company.enriched?.resultats ?? []).filter(r => r.mail).map(r => (
-              <span key={r.mail!} className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-mono">{r.mail}</span>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {company.website && (
-          <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-500 hover:underline">Site →</a>
-        )}
-        <button
-          onClick={() => onDelete(company.id)}
-          disabled={deletingId === company.id}
-          className="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 disabled:opacity-50"
-        >
-          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-        </button>
-      </div>
-    </div>
-  )
+function fmtHour(h: number | null) {
+  if (h === null) return ''
+  return `${String(h).padStart(2, '0')}h`
 }
+
+// ── Main Page ────────────────────────────────────────────────────────
 
 export default function CampaignPage({ params }: { params: { id: string } }) {
   const { id } = params
-  const [campaign, setCampaign] = useState<Campaign | null>(null)
-  const [companies, setCompanies] = useState<Company[]>([])
-  const [scraping, setScraping] = useState(false)
-  const [scrapePhase, setScrapePhase] = useState<'recherche' | 'filtrage'>('recherche')
-  const scrapePhaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [message, setMessage] = useState('')
-  const [search, setSearch] = useState('')
-  const hasAutoScraped = useRef(false)
-  const eventSourceRef = useRef<EventSource | null>(null)
-  // Mutable ref so connectToJob always captures fresh state without stale closures
-  const connectToJobRef = useRef<(jobId: string) => void>(() => { })
-
-  const [generating, setGenerating] = useState(false)
-  const [launchPending, setLaunchPending] = useState(false)
-  const [blocks, setBlocks] = useState<GeneratedBlock[]>([])
-  const [processingMap, setProcessingMap] = useState<Map<string, CompanyProcessing>>(new Map())
-  const [expandedEmail, setExpandedEmail] = useState<string | null>(null)
-  const [expandedLm, setExpandedLm] = useState<Set<string>>(new Set())
-  const [sending, setSending] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('apercu')
-  const [openTabs, setOpenTabs] = useState<Set<Tab>>(new Set<Tab>(['apercu']))
-  const [launchModalOpen, setLaunchModalOpen] = useState(false)
-  const [hoveringStop, setHoveringStop] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
-  const [selectCompaniesOpen, setSelectCompaniesOpen] = useState(false)
-  const [selectedPoolLimit, setSelectedPoolLimit] = useState<number>(0)
-  const [preGenerateOpen, setPreGenerateOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const router = useRouter()
 
-  function openTab(tab: Tab) {
-    setOpenTabs(prev => new Set<Tab>(Array.from(prev).concat(tab)))
-    setActiveTab(tab)
-    setSelectedCompanyId(null)
+  // ── Core data ───────────────────────────────────
+  const [campaign, setCampaign] = useState<Campaign | null>(null)
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [blocks, setBlocks] = useState<GeneratedBlock[]>([])
+  const [processingMap, setProcessingMap] = useState<Map<string, CompanyProcessing>>(new Map())
+
+  // ── Pipeline state ──────────────────────────────
+  const [pipelineStep, setPipelineStep] = useState<PipelineStep>(1)
+  const [stepStatuses, setStepStatuses] = useState<Record<PipelineStep, StepStatus>>({
+    1: 'pending', 2: 'pending', 3: 'pending', 4: 'pending',
+  })
+
+  // ── UI state ────────────────────────────────────
+  const [scraping, setScraping] = useState(false)
+  const [scrapePhase, setScrapePhase] = useState<'recherche' | 'filtrage'>('recherche')
+  const [generating, setGenerating] = useState(false)
+  const [message, setMessage] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [sending, setSending] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [hoveringStop, setHoveringStop] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [launchPending, setLaunchPending] = useState(false)
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
+  const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null)
+
+  // ── Modals ──────────────────────────────────────
+  const [paywallOpen, setPaywallOpen] = useState(false)
+  const [preGenerateOpen, setPreGenerateOpen] = useState(false)
+  const [launchModalOpen, setLaunchModalOpen] = useState(false)
+
+  // ── Activity log ────────────────────────────────
+  const [activityLog, setActivityLog] = useState<ActivityEvent[]>([])
+
+  // ── Refs ─────────────────────────────────────────
+  const scrapePhaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const eventSourceRef = useRef<EventSource | null>(null)
+  const connectToJobRef = useRef<(jobId: string) => void>(() => {})
+  const hasAutoScraped = useRef(false)
+
+  // ── Derived data ────────────────────────────────
+  const allEmails: FlatEmail[] = blocks.flatMap(b => b.emails.map(e => ({ ...e, companyName: b.companyName })))
+  const draftEmails = allEmails.filter(e => e.status === 'draft')
+  const sentEmails = allEmails.filter(e => e.status === 'sent').sort((a, b) => (b.sentAt ?? '').localeCompare(a.sentAt ?? ''))
+  const isLaunched = campaign?.status === 'active' || campaign?.status === 'paused' || campaign?.status === 'finished'
+  const filteredCompanies = companies.filter(c =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    (c.address ?? '').toLowerCase().includes(search.toLowerCase())
+  )
+  const filteredHiringCompanies = filteredCompanies.filter(c => c.source === 'apollo_jobtitle')
+  const filteredPotentialCompanies = filteredCompanies.filter(c => c.source !== 'apollo_jobtitle')
+  const totalDecideurs = companies.reduce((acc, c) => acc + (c.enriched?.resultats?.filter(r => r.mail).length ?? 0), 0)
+
+  // ── Log helper ──────────────────────────────────
+  const addLog = useCallback((type: ActivityEvent['type'], message: string, detail?: string) => {
+    setActivityLog(prev => [...prev, { id: logId(), timestamp: new Date(), type, message, detail }])
+  }, [])
+
+  // ── Step helpers ────────────────────────────────
+  function setStep(step: PipelineStep, status: StepStatus) {
+    setStepStatuses(prev => ({ ...prev, [step]: status }))
   }
 
-  function switchTab(tab: Tab) {
-    setActiveTab(tab)
-    setSelectedCompanyId(null)
+  function advanceTo(step: PipelineStep) {
+    setPipelineStep(step)
+    setStepStatuses(prev => {
+      const next = { ...prev }
+      // Mark all previous steps completed
+      for (let i = 1 as PipelineStep; i < step; i++) {
+        next[i as PipelineStep] = 'completed'
+      }
+      next[step] = 'active'
+      return next
+    })
   }
 
-  function closeTab(tab: Tab, e: React.MouseEvent) {
-    e.stopPropagation()
-    setOpenTabs(prev => { const s = new Set<Tab>(Array.from(prev)); s.delete(tab); return s })
-    if (activeTab === tab) setActiveTab('apercu')
-  }
-
+  // ── Load emails helper ──────────────────────────
   const loadEmails = useCallback((emails: Array<{
     id: string; subject: string; body: string; to: string | null; recipientName: string | null; generatedLm: string | null; status: string; sentAt?: string | null; companyId: string;
     company: { name: string; address: string | null; enriched: EnrichedData | null }
@@ -232,21 +188,12 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         })
       }
       map.get(email.companyId)!.emails.push({
-        id: email.id,
-        subject: email.subject,
-        body: email.body,
-        to: email.to ?? null,
-        recipientName: email.recipientName ?? null,
-        generatedLm: email.generatedLm ?? null,
-        status: email.status,
-        sentAt: email.sentAt ?? null,
+        id: email.id, subject: email.subject, body: email.body,
+        to: email.to ?? null, recipientName: email.recipientName ?? null,
+        generatedLm: email.generatedLm ?? null, status: email.status, sentAt: email.sentAt ?? null,
       })
     }
-    const restored = Array.from(map.values())
-    if (restored.length > 0) {
-      setBlocks(restored)
-      setOpenTabs(new Set<Tab>(['apercu', 'en_cours', 'en_attente', 'envoyes']))
-    }
+    setBlocks(Array.from(map.values()))
   }, [])
 
   const refreshEmails = useCallback(() => {
@@ -254,15 +201,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     fetch(`/api/campaigns/${id}`).then(r => r.json()).then(setCampaign)
   }, [id, loadEmails])
 
-  useEffect(() => {
-    fetch(`/api/campaigns/${id}`).then(r => r.json()).then(setCampaign)
-    fetch(`/api/campaigns/${id}/companies`).then(r => r.json()).then(data => {
-      setCompanies(Array.isArray(data) ? data : [])
-    })
-    fetch(`/api/campaigns/${id}/emails`).then(r => r.json()).then(loadEmails)
-  }, [id, loadEmails])
-
-  // Mise à jour du callback mutable à chaque render pour éviter les closures périmées
+  // ── SSE connection ──────────────────────────────
   connectToJobRef.current = (jobId: string) => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
@@ -277,6 +216,8 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         const event = JSON.parse(e.data)
         if (event.type === 'enriching') {
           setProcessingMap(prev => new Map(prev).set(event.companyId, { companyId: event.companyId, companyName: event.companyName, state: 'enriching' }))
+          addLog('progress', `Enrichissement de ${event.companyName}...`)
+          // Stay on step 2
         } else if (event.type === 'generating') {
           setProcessingMap(prev => {
             const next = new Map(prev)
@@ -284,9 +225,15 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
             if (existing) next.set(event.companyId, { ...existing, state: 'generating' })
             return next
           })
+          addLog('progress', `Rédaction pour ${event.companyName}...`)
+          // Advance to step 3
+          setPipelineStep(3)
+          setStepStatuses(prev => ({ ...prev, 2: 'completed', 3: 'active' }))
         } else if (event.type === 'done') {
           setBlocks(prev => [...prev, event as GeneratedBlock])
           setProcessingMap(prev => { const next = new Map(prev); next.delete(event.companyId); return next })
+          const emailCount = (event as GeneratedBlock).emails?.length ?? 0
+          addLog('success', `${event.companyName} traité`, `${emailCount} email${emailCount > 1 ? 's' : ''} généré${emailCount > 1 ? 's' : ''}`)
         } else if (event.type === 'complete') {
           setGenerating(false)
           setProcessingMap(new Map())
@@ -294,13 +241,15 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
           setMessage('')
           es.close()
           eventSourceRef.current = null
-          // Re-fetch le vrai statut depuis le serveur (gère autoStart correctement)
+          addLog('success', 'Pipeline terminé !')
+          // Advance to step 4
+          advanceTo(4)
           fetch(`/api/campaigns/${id}`).then(r => r.json()).then(setCampaign)
           fetch(`/api/campaigns/${id}/emails`).then(r => r.json()).then(loadEmails)
-          setActiveTab('apercu')
         } else if (event.type === 'error') {
           setMessage(event.message ?? 'Erreur')
           setGenerating(false)
+          addLog('error', event.message ?? 'Erreur lors du traitement')
           es.close()
           eventSourceRef.current = null
         }
@@ -308,12 +257,41 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     }
   }
 
-  // Nettoyage à la destruction du composant
+  // ── Cleanup SSE ──────────────────────────────────
   useEffect(() => {
     return () => { eventSourceRef.current?.close() }
   }, [])
 
-  // Auto-reconnexion si le job tourne en background (user revient sur la page)
+  // ── Initial data load ───────────────────────────
+  useEffect(() => {
+    fetch(`/api/campaigns/${id}`).then(r => r.json()).then((data: Campaign) => {
+      setCampaign(data)
+      // Determine initial pipeline step from campaign status
+      if (data.status === 'scraped') {
+        advanceTo(1)
+        setStep(1, 'completed')
+      } else if (data.status === 'generating') {
+        advanceTo(2)
+      } else if (data.status === 'active' || data.status === 'paused' || data.status === 'finished') {
+        setPipelineStep(4)
+        setStepStatuses({ 1: 'completed', 2: 'completed', 3: 'completed', 4: 'completed' })
+      }
+    })
+    fetch(`/api/campaigns/${id}/companies`).then(r => r.json()).then(data => {
+      setCompanies(Array.isArray(data) ? data : [])
+    })
+    fetch(`/api/campaigns/${id}/emails`).then(r => r.json()).then(loadEmails)
+  }, [id, loadEmails])
+
+  // ── Auto-scrape on draft ────────────────────────
+  useEffect(() => {
+    if (campaign?.status === 'draft' && !hasAutoScraped.current) {
+      hasAutoScraped.current = true
+      // Don't auto-scrape — wait for user to click "Lancer le pipeline"
+    }
+  }, [campaign])
+
+  // ── Auto-reconnect to running job ───────────────
   useEffect(() => {
     if (campaign?.status !== 'generating' || generating) return
     fetch(`/api/campaigns/${id}/generate`, {
@@ -324,73 +302,68 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.jobId) {
-          if (data.poolLimit) setSelectedPoolLimit(data.poolLimit)
           setGenerating(true)
-          setOpenTabs(new Set<Tab>(['apercu', 'en_cours', 'en_attente', 'envoyes']))
-          setActiveTab('en_cours')
+          advanceTo(2)
+          addLog('info', 'Reconnexion au pipeline en cours...')
           connectToJobRef.current(data.jobId)
         }
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaign?.status])
 
-  // Polling quand la campagne est active
+  // ── Polling when active ─────────────────────────
   useEffect(() => {
     if (campaign?.status !== 'active') return
     const interval = setInterval(refreshEmails, 30000)
     return () => clearInterval(interval)
   }, [campaign?.status, refreshEmails])
 
-  useEffect(() => {
-    if (campaign?.status === 'draft' && !hasAutoScraped.current) {
-      hasAutoScraped.current = true
-      handleScrape()
-    }
-  }, [campaign])
+  // ── Actions ─────────────────────────────────────
 
   async function handleScrape() {
     setScraping(true)
     setScrapePhase('recherche')
     setMessage('')
-    // Après 20s, on passe en phase "filtrage" (le filtre IA prend le relais)
-    scrapePhaseTimer.current = setTimeout(() => setScrapePhase('filtrage'), 20_000)
+    setStep(1, 'active')
+    setPipelineStep(1)
+    addLog('info', 'Lancement du scraping...')
+    addLog('progress', 'Recherche des entreprises en cours...')
+
+    scrapePhaseTimer.current = setTimeout(() => {
+      setScrapePhase('filtrage')
+      addLog('progress', 'Filtrage IA des entreprises...')
+    }, 20_000)
+
     const res = await fetch(`/api/campaigns/${id}/scrape`, { method: 'POST' })
     if (scrapePhaseTimer.current) clearTimeout(scrapePhaseTimer.current)
     const data = await res.json()
-    if (res.ok) setCompanies(data.companies ?? [])
-    else setMessage(data.error ?? 'Erreur lors de la recherche')
+    if (res.ok) {
+      const found = data.companies ?? []
+      setCompanies(found)
+      setStep(1, 'completed')
+      addLog('success', `${found.length} entreprise${found.length > 1 ? 's' : ''} trouvée${found.length > 1 ? 's' : ''}`)
+    } else {
+      setMessage(data.error ?? 'Erreur lors de la recherche')
+      addLog('error', data.error ?? 'Erreur lors du scraping')
+    }
     setScraping(false)
   }
-
-
-
-  async function handleDeleteCompany(companyId: string) {
-    setDeletingId(companyId)
-    const res = await fetch(`/api/campaigns/${id}/companies/${companyId}`, { method: 'DELETE' })
-    if (res.ok) setCompanies(prev => prev.filter(c => c.id !== companyId))
-    setDeletingId(null)
-  }
-
-
 
   async function handleGenerate(opts: PreGenerateOptions) {
     setPreGenerateOpen(false)
     setGenerating(true)
-    setSelectedPoolLimit(opts.poolLimit || 0)
     setBlocks([])
     setMessage('')
     setProcessingMap(new Map())
-    setOpenTabs(new Set<Tab>(['apercu', 'en_cours', 'en_attente', 'envoyes']))
-    setActiveTab('en_cours')
+    advanceTo(2)
+    addLog('info', 'Démarrage de l\'enrichissement et de la rédaction...')
 
-    // 1. Uploader les pièces jointes supplémentaires si présentes
     if (opts.extraFiles.length > 0) {
       const formData = new FormData()
       for (const f of opts.extraFiles) formData.append('files', f)
       await fetch(`/api/campaigns/${id}/attachments`, { method: 'POST', body: formData })
     }
 
-    // 2. Enqueuer le job — retourne { jobId } (JSON, plus de SSE inline)
     const res = await fetch(`/api/campaigns/${id}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -404,6 +377,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     if (!res.ok) {
       setMessage('Erreur lors du lancement de la génération')
       setGenerating(false)
+      addLog('error', 'Erreur lors du lancement')
       return
     }
 
@@ -411,10 +385,10 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     if (!jobId) {
       setMessage('Erreur : aucun job ID reçu')
       setGenerating(false)
+      addLog('error', 'Aucun job ID reçu')
       return
     }
 
-    // 3. Ouvrir le stream SSE de suivi (avec replay Last-Event-ID si reconnexion)
     connectToJobRef.current(jobId)
   }
 
@@ -444,51 +418,28 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
   async function handleDelete() {
     setDeleting(true)
     const res = await fetch(`/api/campaigns/${id}`, { method: 'DELETE' })
-    if (res.ok) {
-      router.push('/dashboard')
-    } else {
-      setDeleting(false)
-    }
+    if (res.ok) router.push('/dashboard')
+    else setDeleting(false)
+  }
+
+  async function handleDeleteCompany(companyId: string) {
+    setDeletingId(companyId)
+    const res = await fetch(`/api/campaigns/${id}/companies/${companyId}`, { method: 'DELETE' })
+    if (res.ok) setCompanies(prev => prev.filter(c => c.id !== companyId))
+    setDeletingId(null)
   }
 
   function handleLaunchSuccess(pending?: boolean) {
     setLaunchModalOpen(false)
     if (pending) {
       setLaunchPending(true)
-      setMessage('Lancement automatique programmé. Les emails partiront à la fin de l\'enrichissement.')
+      addLog('info', 'Lancement automatique programmé')
     } else {
       fetch(`/api/campaigns/${id}`).then(r => r.json()).then(setCampaign)
+      addLog('success', 'Campagne lancée !')
     }
   }
 
-  const isLaunched = campaign?.status === 'active' || campaign?.status === 'paused' || campaign?.status === 'finished'
-  const isGenerationView = generating || blocks.length > 0
-  const doneIds = new Set(blocks.map(b => b.companyId))
-  
-  let poolToProcess = companies
-  if (selectedPoolLimit > 0) {
-    const sorted = [...companies].sort((a, b) => {
-      if (a.source === 'apollo_jobtitle' && b.source !== 'apollo_jobtitle') return -1
-      if (a.source !== 'apollo_jobtitle' && b.source === 'apollo_jobtitle') return 1
-      return 0
-    })
-    poolToProcess = sorted.slice(0, selectedPoolLimit)
-  }
-  
-  const queuedCompanies = poolToProcess.filter(c => !doneIds.has(c.id) && !processingMap.has(c.id))
-  const allEmails: FlatEmail[] = blocks.flatMap(b => b.emails.map(e => ({ ...e, companyName: b.companyName })))
-  const draftEmails = allEmails.filter(e => e.status === 'draft')
-  const sentEmails = allEmails.filter(e => e.status === 'sent').sort((a, b) =>
-    (b.sentAt ?? '').localeCompare(a.sentAt ?? '')
-  )
-  const filteredCompanies = companies.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.address ?? '').toLowerCase().includes(search.toLowerCase())
-  )
-  const filteredHiringCompanies = filteredCompanies.filter(c => c.source === 'apollo_jobtitle')
-  const filteredPotentialCompanies = filteredCompanies.filter(c => c.source !== 'apollo_jobtitle')
-
-  // Calcul "temps avant prochain envoi"
   function nextSendLabel(): string {
     if (!campaign?.dailyLimit) return ''
     const intervalMin = Math.floor(1440 / campaign.dailyLimit)
@@ -499,643 +450,550 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     return remaining <= 1 ? 'imminent' : `dans ~${remaining} min`
   }
 
-  function fmtHour(h: number | null) {
-    if (h === null) return ''
-    return `${String(h).padStart(2, '0')}h`
-  }
-
-  type TabDef = { id: Tab; label: string; count?: number; pulse?: boolean; closeable?: boolean }
-  const allTabDefs: TabDef[] = [
-    { id: 'apercu' as Tab, label: campaign?.name ?? 'Campagne' },
-    { id: 'en_cours' as Tab, label: 'En cours', count: queuedCompanies.length + processingMap.size || undefined, pulse: generating, closeable: true },
-    { id: 'en_attente' as Tab, label: 'En attente', count: draftEmails.length || undefined, closeable: true },
-    { id: 'envoyes' as Tab, label: 'Envoyés', count: sentEmails.length || undefined, closeable: true },
-  ]
-  const tabDefs = allTabDefs.filter(t => openTabs.has(t.id))
-
+  // ── Loading ─────────────────────────────────────
   if (!campaign) {
     return (
-      <div className="flex flex-col h-full bg-slate-100">
-        <div className="flex-1 bg-white flex items-center justify-center">
-          <p className="text-sm text-slate-400">Chargement...</p>
+      <div className="flex items-center justify-center h-full bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <span className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-slate-600">Chargement...</p>
         </div>
       </div>
     )
   }
 
+  // ── Render ──────────────────────────────────────
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-slate-50">
+     <div className="flex flex-col h-full max-w-[80%] mx-auto w-full">
 
-      {/* ── Barre d'onglets style navigateur ───────────────────────────────── */}
-      <div className="border-b border-slate-200 px-3 pt-2 flex items-end gap-0 shrink-0" style={{ backgroundColor: '#F3F4F0' }}>
-        {tabDefs.map(tab => {
-          const isActive = activeTab === tab.id
-          return (
+      {/* ── Header ─────────────────────────────── */}
+      <div className="px-6 py-4 bg-white border-b border-slate-300 flex items-center justify-between shrink-0">
+        <div>
+          <h1 className="text-lg font-bold text-slate-900">{campaign.name}</h1>
+          <p className="text-sm text-slate-600 mt-0.5">{campaign.jobTitle} · {campaign.location}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {campaign.status === 'active' && (
             <button
-              key={tab.id}
-              onClick={() => switchTab(tab.id)}
-              className={[
-                'relative flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-t-lg border-x border-t transition-all select-none w-44 justify-center overflow-hidden whitespace-nowrap',
-                isActive
-                  ? 'bg-white border-slate-200 text-slate-900 font-medium -mb-px z-10 shadow-[0_1px_0_white]'
-                  : 'border-transparent text-slate-500 hover:bg-white/60 hover:text-slate-700',
-              ].join(' ')}
+              onMouseEnter={() => setHoveringStop(true)}
+              onMouseLeave={() => setHoveringStop(false)}
+              onClick={handleStop}
+              className={`inline-flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all ${
+                hoveringStop ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'
+              }`}
             >
-              <span>{tab.label}</span>
-              {tab.count !== undefined && (
-                <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${isActive ? 'bg-slate-100 text-slate-600' : 'bg-slate-200/80 text-slate-400'}`}>
-                  {tab.count}
-                </span>
-              )}
-              {tab.pulse && (
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />
-              )}
-              {tab.closeable && (
-                <span
-                  role="button"
-                  onClick={e => closeTab(tab.id, e)}
-                  className={`flex items-center justify-center w-4 h-4 rounded hover:bg-black/10 transition-colors text-slate-400 hover:text-slate-700`}
-                >
-                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </span>
-              )}
+              {hoveringStop ? 'Stopper' : '● Active'}
             </button>
-          )
-        })}
+          )}
+          {campaign.status === 'paused' && (
+            <>
+              <button onClick={handleDelete} disabled={deleting} className="inline-flex items-center gap-1.5 border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-40 text-sm font-medium px-3 py-2 rounded-lg transition-colors">
+                Supprimer
+              </button>
+              <button onClick={() => setLaunchModalOpen(true)} className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
+                Reprendre
+              </button>
+            </>
+          )}
+          {campaign.status === 'finished' && (
+            <button onClick={handleDelete} disabled={deleting} className="inline-flex items-center gap-1.5 border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-40 text-sm font-medium px-3 py-2 rounded-lg transition-colors">
+              Supprimer
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* ── Zone de contenu ─────────────────────────────────────────────────── */}
-      <div className="flex-1 bg-white overflow-y-auto">
+      {/* ── Pipeline stepper ───────────────────── */}
+      <div className="px-6 pt-5">
+        <PipelineStepper stepStatuses={stepStatuses} campaignStatus={campaign.status} />
+      </div>
 
-        {/* APERÇU */}
-        {activeTab === 'apercu' && (
-          <div>
-            {/* En-tête campagne */}
-            <div className="px-8 py-6 border-b border-slate-50 flex items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h1 className="text-lg font-bold text-slate-900">{campaign.name}</h1>
-                  {/* Badge statut */}
-                  {campaign.status === 'active' && !launchPending && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      En cours
-                    </span>
-                  )}
-                  {launchPending && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
-                      ⏳ Lancement en attente
-                    </span>
-                  )}
-                  {campaign.status === 'paused' && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
-                      ⏸ En pause
-                    </span>
-                  )}
-                  {campaign.status === 'finished' && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
-                      ✓ Terminée
-                    </span>
-                  )}
+      {/* ── Two-column layout ──────────────────── */}
+      <div className="flex-1 flex gap-5 px-6 py-5 overflow-hidden min-h-0">
+
+        {/* ── Left: main content ─────────────── */}
+        <div className="flex-1 bg-white border border-slate-300 rounded-2xl overflow-y-auto">
+
+          {/* ── STEP 1: Scraping ─────────────── */}
+          {pipelineStep === 1 && (
+            <div className="p-8">
+              {/* Not started yet */}
+              {!scraping && companies.length === 0 && stepStatuses[1] !== 'completed' && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-5">
+                    <svg className="w-7 h-7 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-slate-600 mb-6">
+                    Lancez le pipeline pour rechercher des entreprises et générer vos candidatures.
+                  </p>
+                  <button
+                    onClick={handleScrape}
+                    className="inline-flex items-center gap-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Lancer le pipeline
+                  </button>
                 </div>
-                <p className="text-sm text-slate-400 mt-0.5">{campaign.jobTitle} · {campaign.location}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {/* Bouton Étape suivante (pré-génération) */}
-                {!isGenerationView && !isLaunched && companies.length > 0 && (
-                  <button
-                    onClick={() => setSelectCompaniesOpen(true)}
-                    disabled={scraping}
-                    className="inline-flex items-center gap-1.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-                  >
-                    Étape suivante →
-                  </button>
-                )}
+              )}
 
-                {/* Bouton Lancer */}
-                {isGenerationView && campaign.status !== 'active' && campaign.status !== 'paused' && campaign.status !== 'finished' && (
-                  <button
-                    onClick={() => setLaunchModalOpen(true)}
-                    disabled={launchPending}
-                    className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-                  >
-                    {launchPending ? 'Lancement programmé' : 'Lancer la campagne'}
-                  </button>
-                )}
+              {/* Scraping in progress */}
+              {scraping && (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <span className="w-8 h-8 border-2 border-brand-400 border-t-transparent rounded-full animate-spin mb-4" />
+                  <p className="text-sm text-slate-600 font-medium">
+                    {scrapePhase === 'filtrage' ? 'Filtrage des entreprises...' : 'Recherche des entreprises...'}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-1.5">Cela peut prendre quelques minutes</p>
+                </div>
+              )}
 
-                {campaign.status === 'active' && (
-                  <button
-                    onMouseEnter={() => setHoveringStop(true)}
-                    onMouseLeave={() => setHoveringStop(false)}
-                    onClick={handleStop}
-                    className={`inline-flex items-center gap-1.5 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all ${hoveringStop
-                      ? 'bg-red-500 hover:bg-red-600'
-                      : 'bg-emerald-500 hover:bg-emerald-600'
-                      }`}
-                  >
-                    {hoveringStop ? 'Stopper la campagne' : '● Campagne lancée'}
-                  </button>
-                )}
-
-                {campaign.status === 'paused' && (
-                  <>
+              {/* Companies found */}
+              {!scraping && companies.length > 0 && (
+                <div>
+                  {/* Top bar: title + Suivant */}
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="text-base font-bold text-slate-900">Résultats du scraping</h3>
                     <button
-                      onClick={handleDelete}
-                      disabled={deleting}
-                      className="inline-flex items-center gap-1.5 border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-40 text-sm font-medium px-3 py-2 rounded-lg transition-colors"
+                      onClick={() => setPaywallOpen(true)}
+                      className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                      Supprimer
+                      Suivant
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                     </button>
-                    <button
-                      onClick={() => setLaunchModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-                    >
-                      ↺ Reprendre
-                    </button>
-                  </>
-                )}
+                  </div>
 
-                {campaign.status === 'finished' && (
-                  <>
-                    <button
-                      onClick={handleDelete}
-                      disabled={deleting}
-                      className="inline-flex items-center gap-1.5 border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-40 text-sm font-medium px-3 py-2 rounded-lg transition-colors"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                      Supprimer
-                    </button>
-                    <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-500 text-sm font-medium px-4 py-2 rounded-lg">
-                      ✓ Campagne terminée
-                    </span>
-                  </>
-                )}
+                  {/* Stats cards */}
+                  <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="border border-slate-300 rounded-xl p-4 flex flex-col items-center gap-1.5">
+                      <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                      <span className="text-2xl font-bold text-slate-900">{companies.length}</span>
+                      <span className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Entreprises</span>
+                    </div>
+                    <div className="border border-slate-300 rounded-xl p-4 flex flex-col items-center gap-1.5">
+                      <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                      <span className="text-2xl font-bold text-slate-900">{totalDecideurs}</span>
+                      <span className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Décideurs</span>
+                    </div>
+                    <div className="border border-slate-300 rounded-xl p-4 flex flex-col items-center gap-1.5">
+                      <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                      <span className="text-2xl font-bold text-slate-900">{allEmails.length}</span>
+                      <span className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Emails</span>
+                    </div>
+                  </div>
 
+                  {/* Company list header */}
+                  <div className="border border-slate-300 rounded-xl overflow-hidden">
+                    <div className="px-5 py-3.5 border-b border-slate-300 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-slate-800">Entreprises ciblées</h3>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-600 font-medium">{filteredCompanies.length} résultats</span>
+                        <div className="relative">
+                          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-600 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                          <input
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder="Rechercher..."
+                            className="pl-7 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition w-40"
+                          />
+                        </div>
+                      </div>
+                    </div>
 
-              </div>
+                    {/* Company rows */}
+                    <div className="divide-y divide-slate-300">
+                      {filteredCompanies.map(company => {
+                        const isExpanded = expandedCompanyId === company.id
+                        const initial = company.name.charAt(0).toUpperCase()
+                        const contacts = company.enriched?.resultats?.filter(r => r.mail) ?? []
+                        const sector = company.source === 'apollo_jobtitle' ? campaign.jobTitle : (company.siren ? 'Entreprise' : 'Entreprise')
+                        const city = company.address?.split(',').pop()?.trim() ?? ''
+
+                        return (
+                          <div key={company.id}>
+                            <button
+                              onClick={() => setExpandedCompanyId(isExpanded ? null : company.id)}
+                              className="w-full text-left px-5 py-3.5 flex items-center gap-4 hover:bg-slate-50/80 transition-colors group"
+                            >
+                              {/* Avatar */}
+                              <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center shrink-0">
+                                <span className="text-sm font-bold text-slate-600">{initial}</span>
+                              </div>
+
+                              {/* Name + sector */}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-slate-900 truncate">{company.name}</p>
+                                <p className="text-xs text-slate-600 truncate">
+                                  {sector}{city ? ` · ${city}` : ''}
+                                </p>
+                              </div>
+
+                              {/* Right side */}
+                              <div className="flex items-center gap-3 shrink-0">
+                                {contacts.length > 0 && (
+                                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                  </span>
+                                )}
+                                <svg className={`w-4 h-4 text-slate-600 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </div>
+                            </button>
+
+                            {/* Expanded details */}
+                            {isExpanded && (
+                              <div className="px-5 pb-4 pt-1 ml-14 mr-5 space-y-3">
+                                {company.address && (
+                                  <div className="flex items-start gap-2">
+                                    <svg className="w-3.5 h-3.5 text-slate-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                    <span className="text-xs text-slate-600">{company.address}</span>
+                                  </div>
+                                )}
+                                {company.phone && (
+                                  <div className="flex items-center gap-2">
+                                    <svg className="w-3.5 h-3.5 text-slate-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                    <span className="text-xs text-slate-600">{company.phone}</span>
+                                  </div>
+                                )}
+                                {contacts.length > 0 && (
+                                  <div>
+                                    <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider mb-1.5">Contacts trouvés</p>
+                                    <div className="space-y-1">
+                                      {contacts.map((r, i) => (
+                                        <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                                          <span className="font-medium">{r.prenom} {r.nom}</span>
+                                          {r.role && <span className="text-slate-600">· {r.role}</span>}
+                                          {r.mail && <span className="font-mono text-slate-600">{r.mail}</span>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-2 pt-1">
+                                  {company.website && (
+                                    <a
+                                      href={company.website}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3 py-1.5 rounded-lg transition-colors"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                      Voir le site
+                                    </a>
+                                  )}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteCompany(company.id) }}
+                                    disabled={deletingId === company.id}
+                                    className="inline-flex items-center gap-1.5 text-xs font-medium text-red-500 hover:text-red-600 hover:bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                                  >
+                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                                    Retirer
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {filteredCompanies.length === 0 && (
+                      <p className="text-sm text-slate-600 text-center py-8">Aucune entreprise ne correspond à votre recherche.</p>
+                    )}
+                  </div>
+
+                </div>
+              )}
+
+              {/* Scrape done, no results */}
+              {!scraping && companies.length === 0 && stepStatuses[1] === 'completed' && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <p className="text-sm text-slate-600 mb-4">Aucune entreprise trouvée.</p>
+                  <button onClick={handleScrape} className="text-sm text-brand-600 hover:underline font-medium">
+                    Relancer la recherche
+                  </button>
+                </div>
+              )}
+
+              {message && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-lg">
+                  <p className="text-sm text-red-600 font-medium">{message}</p>
+                </div>
+              )}
             </div>
+          )}
 
-            {message && (
-              <div className="px-8 py-3 border-b border-slate-50">
-                <p className="text-sm text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">{message}</p>
+          {/* ── STEP 2: Enrichment ───────────── */}
+          {pipelineStep === 2 && (
+            <div className="p-8 space-y-3">
+              <div className="mb-4">
+                <h2 className="text-base font-bold text-slate-900 mb-1">Identification des décideurs</h2>
+                <p className="text-sm text-slate-600">Recherche des contacts pertinents pour chaque entreprise...</p>
               </div>
-            )}
 
-            {/* ── Vue campagne active / paused / finished ── */}
-            {isLaunched && (
-              <div>
-                {/* Stats */}
-                <div className="px-8 py-5 border-b border-slate-50 space-y-4">
-                  {/* Barre de progression */}
-                  {campaign.totalEmails !== null && campaign.totalEmails > 0 && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-medium text-slate-500">Progression</span>
-                        <span className="text-xs font-bold text-slate-900">
-                          {campaign.sentCount} / {campaign.totalEmails} mails
-                        </span>
-                      </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(100, (campaign.sentCount / campaign.totalEmails) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
+              {generating && (
+                <p className="text-xs text-slate-600 bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-center">
+                  L&apos;enrichissement peut prendre <strong className="text-slate-700">quelques minutes</strong> selon le nombre d&apos;entreprises.
+                </p>
+              )}
 
-                  {/* Infos */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-slate-50 rounded-xl px-4 py-3">
-                      <p className="text-xs text-slate-400 mb-0.5">Restants</p>
-                      <p className="text-lg font-bold text-slate-900">{(campaign.totalEmails ?? 0) - campaign.sentCount}</p>
-                    </div>
-                    <div className="bg-slate-50 rounded-xl px-4 py-3">
-                      <p className="text-xs text-slate-400 mb-0.5">Limite / jour</p>
-                      <p className="text-lg font-bold text-slate-900">{campaign.dailyLimit ?? '—'}</p>
-                    </div>
-                    <div className="bg-slate-50 rounded-xl px-4 py-3">
-                      <p className="text-xs text-slate-400 mb-0.5">Fenêtre d&apos;envoi</p>
-                      <p className="text-sm font-semibold text-slate-900">{fmtHour(campaign.sendStartHour)} – {fmtHour(campaign.sendEndHour)}</p>
-                    </div>
-                    {campaign.status === 'active' && (
-                      <div className="bg-slate-50 rounded-xl px-4 py-3">
-                        <p className="text-xs text-slate-400 mb-0.5">Prochain envoi</p>
-                        <p className="text-sm font-semibold text-slate-900">{nextSendLabel()}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Liste des mails envoyés */}
-                <div className="px-8 py-4">
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
-                    Mails envoyés
-                    {sentEmails.length > 0 && <span className="ml-1.5 text-slate-400">({sentEmails.length})</span>}
-                  </p>
-                  {sentEmails.length === 0 ? (
-                    <div className="py-10 text-center">
-                      <p className="text-sm text-slate-400">
-                        {campaign.status === 'active'
-                          ? 'Premier envoi imminent...'
-                          : 'Aucun mail envoyé'}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {sentEmails.map(email => (
-                        <div key={email.id} className="flex items-center justify-between gap-3 py-2.5 border-b border-slate-50 last:border-0">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-slate-800 truncate">{email.companyName}</p>
-                            <p className="text-xs text-slate-400 truncate">
-                              {email.recipientName && <span className="mr-1.5">{email.recipientName}</span>}
-                              {email.to && <span className="font-mono">{email.to}</span>}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {email.sentAt && (
-                              <span className="text-xs text-slate-400">
-                                {new Date(email.sentAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            )}
-                            <span className="text-xs bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-medium">Envoyé</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ── Vue pré-lancement (stats génération) ── */}
-            {!isLaunched && isGenerationView && (
-              <div className="px-8 py-4 border-b border-slate-50 space-y-0">
-                {([
-                  { label: 'Entreprises trouvées', value: companies.length, tab: null as Tab | null },
-                  { label: 'Entreprises sélectionnées/à traiter', value: selectedPoolLimit > 0 ? selectedPoolLimit : companies.length, tab: null as Tab | null },
-                  { label: 'Enrichissements / Rédaction en cours', value: queuedCompanies.length + processingMap.size, tab: 'en_cours' as Tab },
-                  { label: 'Mails en attente d\'envoi', value: draftEmails.length, tab: 'en_attente' as Tab },
-                  { label: 'Mails envoyés', value: sentEmails.length, tab: 'envoyes' as Tab },
-                ]).map(row => (
-                  <div key={row.label} className="flex items-center justify-between py-3 border-b border-slate-50 last:border-0">
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg font-bold text-slate-900 w-8 text-right">{row.value}</span>
-                      <span className="text-sm text-slate-500">{row.label}</span>
-                    </div>
-                    {row.tab && !openTabs.has(row.tab) && (
-                      <button
-                        onClick={() => openTab(row.tab!)}
-                        className="text-xs text-brand-500 hover:text-brand-600 font-medium hover:underline transition-colors"
-                      >
-                        Voir →
-                      </button>
-                    )}
-                    {row.tab && openTabs.has(row.tab) && (
-                      <button
-                        onClick={() => setActiveTab(row.tab!)}
-                        className="text-xs text-slate-400 hover:text-slate-600 font-medium hover:underline transition-colors"
-                      >
-                        Ouvrir
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Chargement */}
-            {!isGenerationView && companies.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-24">
-                {scraping ? (
-                  <>
-                    <span className="w-6 h-6 border-2 border-brand-400 border-t-transparent rounded-full animate-spin mb-3" />
-                    <p className="text-sm text-slate-500 font-medium">
-                      {scrapePhase === 'filtrage' ? 'Filtrage des entreprises...' : 'Récupération des entreprises...'}
+              {Array.from(processingMap.values()).map(p => (
+                <div key={p.companyId} className="border border-slate-300 rounded-xl px-5 py-4 flex items-center gap-4">
+                  <span className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-900">{p.companyName}</p>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      {p.state === 'enriching' ? 'Recherche des contacts en ligne...' : 'Rédaction du mail personnalisé...'}
                     </p>
-                    <p className="text-xs text-slate-400 mt-1">Cela peut prendre quelques minutes</p>
-                  </>
-                ) : (
-                  <p className="text-sm text-slate-400">Aucune entreprise trouvée.</p>
-                )}
-              </div>
-            )}
+                  </div>
+                  <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium shrink-0">
+                    Enrichissement
+                  </span>
+                </div>
+              ))}
 
-            {/* Barre recherche + liste entreprises (pré-génération) */}
-            {!isLaunched && companies.length > 0 && (
-              <>
-                <div className="px-8 py-3 border-b border-slate-50 flex items-center justify-between gap-4 sticky top-0 bg-white z-10">
-                  <p className="text-xs font-medium text-slate-500">
-                    {isGenerationView
-                      ? `${blocks.length} / ${selectedPoolLimit > 0 ? selectedPoolLimit : companies.length} entreprise(s) traitée(s)`
-                      : `${companies.length} entreprise(s) trouvée(s)`
-                    }
-                  </p>
+              {blocks.map(b => (
+                <div key={b.companyId} className="border border-emerald-100 bg-emerald-50/50 rounded-xl px-5 py-3.5 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    {!isGenerationView && (
-                      <div className="flex items-center bg-slate-100/80 p-1 rounded-lg border border-slate-200/50">
+                    <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    <p className="text-sm font-medium text-slate-800">{b.companyName}</p>
+                  </div>
+                  <span className="text-xs text-emerald-600 font-medium">{b.emails.length} email{b.emails.length > 1 ? 's' : ''}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── STEP 3: Rédaction ────────────── */}
+          {pipelineStep === 3 && (
+            <div className="p-8 space-y-3">
+              <div className="mb-4">
+                <h2 className="text-base font-bold text-slate-900 mb-1">Rédaction personnalisée</h2>
+                <p className="text-sm text-slate-600">Génération des emails personnalisés pour chaque contact...</p>
+              </div>
+
+              {Array.from(processingMap.values()).map(p => (
+                <div key={p.companyId} className="border border-slate-300 rounded-xl px-5 py-4 flex items-center gap-4">
+                  <span className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-900">{p.companyName}</p>
+                    <p className="text-xs text-slate-600 mt-0.5">Rédaction du mail personnalisé...</p>
+                  </div>
+                  <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium shrink-0">
+                    Rédaction
+                  </span>
+                </div>
+              ))}
+
+              {blocks.map(b => (
+                <div key={b.companyId} className="border border-emerald-100 bg-emerald-50/50 rounded-xl px-5 py-3.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    <p className="text-sm font-medium text-slate-800">{b.companyName}</p>
+                  </div>
+                  <span className="text-xs text-emerald-600 font-medium">{b.emails.length} email{b.emails.length > 1 ? 's' : ''}</span>
+                </div>
+              ))}
+
+              {!generating && processingMap.size === 0 && (
+                <div className="py-12 text-center">
+                  <p className="text-sm font-medium text-slate-600">Rédaction terminée</p>
+                  <p className="text-xs text-slate-600 mt-1">{draftEmails.length} email{draftEmails.length > 1 ? 's' : ''} prêt{draftEmails.length > 1 ? 's' : ''}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── STEP 4: Ready / Launched ─────── */}
+          {pipelineStep === 4 && (
+            <div className="p-8">
+              {/* Company detail view */}
+              {selectedCompanyId ? (() => {
+                const block = blocks.find(b => b.companyId === selectedCompanyId)
+                if (!block) return null
+                return (
+                  <CompanyDetailView
+                    block={block}
+                    campaignName={campaign.name}
+                    onBack={() => setSelectedCompanyId(null)}
+                    sending={sending}
+                    onSend={sendEmail}
+                  />
+                )
+              })() : (
+                <>
+                  {/* Launched state */}
+                  {isLaunched && (
+                    <div className="space-y-5">
+                      {campaign.totalEmails !== null && campaign.totalEmails > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-medium text-slate-600">Progression</span>
+                            <span className="text-xs font-bold text-slate-900">{campaign.sentCount} / {campaign.totalEmails} mails</span>
+                          </div>
+                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (campaign.sentCount / campaign.totalEmails) * 100)}%` }} />
+                          </div>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-slate-50 rounded-xl px-4 py-3">
+                          <p className="text-xs text-slate-600 mb-0.5">Restants</p>
+                          <p className="text-lg font-bold text-slate-900">{(campaign.totalEmails ?? 0) - campaign.sentCount}</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-xl px-4 py-3">
+                          <p className="text-xs text-slate-600 mb-0.5">Limite / jour</p>
+                          <p className="text-lg font-bold text-slate-900">{campaign.dailyLimit ?? '—'}</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-xl px-4 py-3">
+                          <p className="text-xs text-slate-600 mb-0.5">Fenêtre d&apos;envoi</p>
+                          <p className="text-sm font-semibold text-slate-900">{fmtHour(campaign.sendStartHour)} – {fmtHour(campaign.sendEndHour)}</p>
+                        </div>
+                        {campaign.status === 'active' && (
+                          <div className="bg-slate-50 rounded-xl px-4 py-3">
+                            <p className="text-xs text-slate-600 mb-0.5">Prochain envoi</p>
+                            <p className="text-sm font-semibold text-slate-900">{nextSendLabel()}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Sent emails */}
+                      <div className="pt-2">
+                        <p className="text-xs font-medium text-slate-600 uppercase tracking-wide mb-3">
+                          Mails envoyés {sentEmails.length > 0 && <span className="text-slate-600">({sentEmails.length})</span>}
+                        </p>
+                        {sentEmails.length === 0 ? (
+                          <p className="text-sm text-slate-600 text-center py-8">
+                            {campaign.status === 'active' ? 'Premier envoi imminent...' : 'Aucun mail envoyé'}
+                          </p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {sentEmails.map(email => (
+                              <div key={email.id} className="flex items-center justify-between gap-3 py-2.5 border-b border-slate-200 last:border-0">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-slate-800 truncate">{email.companyName}</p>
+                                  <p className="text-xs text-slate-600 truncate">
+                                    {email.recipientName && <span className="mr-1.5">{email.recipientName}</span>}
+                                    {email.to && <span className="font-mono">{email.to}</span>}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {email.sentAt && (
+                                    <span className="text-xs text-slate-600">
+                                      {new Date(email.sentAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  )}
+                                  <span className="text-xs bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-medium">Envoyé</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pre-launch: review emails */}
+                  {!isLaunched && (
+                    <div className="space-y-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-base font-bold text-slate-900 mb-1">Prêt pour l&apos;envoi</h2>
+                          <p className="text-sm text-slate-600">{draftEmails.length} email{draftEmails.length > 1 ? 's' : ''} en attente d&apos;envoi</p>
+                        </div>
                         <button
-                          onClick={() => setViewMode('grid')}
-                          className={`p-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-brand-600' : 'text-slate-400 hover:text-slate-600'}`}
-                          title="Vue en grille"
+                          onClick={() => setLaunchModalOpen(true)}
+                          disabled={launchPending || draftEmails.length === 0}
+                          className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
                         >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-                        </button>
-                        <button
-                          onClick={() => setViewMode('list')}
-                          className={`p-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-brand-600' : 'text-slate-400 hover:text-slate-600'}`}
-                          title="Vue en liste"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                          {launchPending ? 'Lancement programmé' : 'Lancer la campagne'}
                         </button>
                       </div>
-                    )}
-                    <div className="relative">
-                      <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      <input
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        placeholder="Rechercher..."
-                        className="pl-7 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
-                      />
+
+                      {draftEmails.length === 0 ? (
+                        <p className="text-sm text-slate-600 text-center py-12">
+                          {generating ? "Les emails apparaîtront ici dès qu'ils sont générés" : 'Aucun email en attente'}
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {blocks.filter(b => b.emails.some(e => e.status === 'draft')).map(block => {
+                            const count = block.emails.filter(e => e.status === 'draft').length
+                            return (
+                              <button
+                                key={block.companyId}
+                                onClick={() => setSelectedCompanyId(block.companyId)}
+                                className="w-full text-left border border-slate-300 hover:border-brand-200 rounded-xl px-5 py-4 flex items-center justify-between gap-3 transition-all hover:shadow-sm group bg-white"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-slate-900 group-hover:text-brand-600 transition-colors truncate">{block.companyName}</p>
+                                  {block.companyAddress && <p className="text-xs text-slate-600 truncate mt-0.5">{block.companyAddress}</p>}
+                                </div>
+                                <div className="flex items-center gap-2.5 shrink-0">
+                                  <span className="text-xs bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-medium">
+                                    {count} mail{count > 1 ? 's' : ''}
+                                  </span>
+                                  <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-brand-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </div>
-
-                {/* Liste entreprises (pré-génération) — grille */}
-                {!isGenerationView && viewMode === 'grid' && (
-                  <div className="px-8 py-6 bg-slate-50/50 space-y-6">
-                    {/* Section Apollo — entreprises qui recrutent */}
-                    {filteredHiringCompanies.length > 0 && (
-                      <>
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                            <p className="text-sm font-semibold text-slate-800">
-                              Ces entreprises rechercheraient un {campaign?.jobTitle}
-                            </p>
-                          </div>
-                          <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{filteredHiringCompanies.length}</span>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                          {filteredHiringCompanies.map(company => (
-                            <CompanyCard key={company.id} company={company} deletingId={deletingId} onDelete={handleDeleteCompany} />
-                          ))}
-                        </div>
-                      </>
-                    )}
-
-                    {/* Section Google Maps — entreprises potentielles */}
-                    {filteredPotentialCompanies.length > 0 && (
-                      <>
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-brand-500" />
-                            <p className="text-sm font-semibold text-slate-800">
-                              Ces entreprises pourraient être intéressées par votre profil
-                            </p>
-                          </div>
-                          <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{filteredPotentialCompanies.length}</span>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                          {filteredPotentialCompanies.map(company => (
-                            <CompanyCard key={company.id} company={company} deletingId={deletingId} onDelete={handleDeleteCompany} />
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {!isGenerationView && viewMode === 'list' && (
-                  <div className="flex flex-col">
-                    {/* Section Apollo — entreprises qui recrutent */}
-                    {filteredHiringCompanies.length > 0 && (
-                      <>
-                        <div className="px-8 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          Ces entreprises rechercheraient un {campaign?.jobTitle}
-                          <span className="text-slate-400 font-normal">({filteredHiringCompanies.length})</span>
-                        </div>
-                        {filteredHiringCompanies.map(company => (
-                          <CompanyListRow key={company.id} company={company} deletingId={deletingId} onDelete={handleDeleteCompany} />
-                        ))}
-                      </>
-                    )}
-                    {/* Section Google Maps — entreprises potentielles */}
-                    {filteredPotentialCompanies.length > 0 && (
-                      <>
-                        <div className="px-8 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
-                          Ces entreprises pourraient être intéressées par votre profil
-                          <span className="text-slate-400 font-normal">({filteredPotentialCompanies.length})</span>
-                        </div>
-                        {filteredPotentialCompanies.map(company => (
-                          <CompanyListRow key={company.id} company={company} deletingId={deletingId} onDelete={handleDeleteCompany} />
-                        ))}
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* Liste entreprises (post-génération compact) */}
-                {isGenerationView && blocks.map(b => (
-                  <div key={b.companyId} className="px-8 py-3.5 border-b border-slate-50 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-800 truncate">{b.companyName}</p>
-                      {b.companyAddress && <p className="text-xs text-slate-400 truncate">{b.companyAddress}</p>}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-slate-400">{b.emails.length} mail{b.emails.length !== 1 ? 's' : ''}</span>
-                      <span className="text-xs bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded font-medium">Enrichie</span>
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* EN COURS */}
-        {activeTab === 'en_cours' && (
-          <div className="px-8 py-6 space-y-3">
-            {generating && (
-              <p className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-4 py-3 text-center">
-                L&apos;enrichissement et la rédaction peuvent prendre <strong className="text-slate-700">quelques minutes</strong> selon le nombre d&apos;entreprises.
-              </p>
-            )}
-            {Array.from(processingMap.values()).map(p => (
-              <div key={p.companyId} className="border border-slate-200 rounded-xl px-5 py-4 flex items-center gap-4">
-                <span className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-slate-900">{p.companyName}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {p.state === 'enriching' ? 'Recherche des contacts en ligne...' : 'Rédaction du mail personnalisé...'}
-                  </p>
-                </div>
-                <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium shrink-0">
-                  {p.state === 'enriching' ? 'Enrichissement' : 'Rédaction'}
-                </span>
-              </div>
-            ))}
-            {queuedCompanies.map(c => (
-              <div key={c.id} className="border border-slate-100 rounded-xl px-5 py-3.5 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm text-slate-500 truncate">{c.name}</p>
-                  {c.address && <p className="text-xs text-slate-400 truncate">{c.address}</p>}
-                </div>
-                <span className="text-xs text-slate-400">En attente</span>
-              </div>
-            ))}
-            {!generating && processingMap.size === 0 && queuedCompanies.length === 0 && (
-              <div className="py-16 text-center">
-                <p className="text-sm font-medium text-slate-600">Traitement terminé</p>
-                <p className="text-xs text-slate-400 mt-1">{draftEmails.length} mail{draftEmails.length !== 1 ? 's' : ''} prêt{draftEmails.length !== 1 ? 's' : ''} à envoyer</p>
-                <button onClick={() => setActiveTab('en_attente')} className="mt-4 text-sm text-brand-500 hover:underline font-medium">Voir les mails →</button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* EN ATTENTE */}
-        {activeTab === 'en_attente' && (
-          <>
-            {/* Vue fiche entreprise */}
-            {selectedCompanyId ? (() => {
-              const block = blocks.find(b => b.companyId === selectedCompanyId)
-              if (!block) return null
-              return (
-                <CompanyDetailView
-                  block={block}
-                  campaignName={campaign.name}
-                  onBack={() => setSelectedCompanyId(null)}
-                  sending={sending}
-                  onSend={sendEmail}
-                />
-              )
-            })() : (
-              /* Vue liste entreprises */
-              <div className="px-8 py-6">
-                {draftEmails.length === 0 ? (
-                  <div className="py-16 text-center">
-                    <p className="text-xs text-slate-400">
-                      {generating ? "Les mails apparaîtront ici dès qu'ils sont générés" : 'Aucun mail en attente'}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {blocks.filter(b => b.emails.some(e => e.status === 'draft')).map(block => {
-                      const count = block.emails.filter(e => e.status === 'draft').length
-                      return (
-                        <button
-                          key={block.companyId}
-                          onClick={() => setSelectedCompanyId(block.companyId)}
-                          className="w-full text-left border border-slate-100 hover:border-brand-200 rounded-xl px-5 py-4 flex items-center justify-between gap-3 transition-all hover:shadow-sm group bg-white"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-slate-900 group-hover:text-brand-600 transition-colors truncate">
-                              {block.companyName}
-                            </p>
-                            {block.companyAddress && (
-                              <p className="text-xs text-slate-400 truncate mt-0.5">{block.companyAddress}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2.5 shrink-0">
-                            {block.enriched?.resultats?.some(r => r.mail) && (
-                              <span className="text-xs bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded font-medium">
-                                Enrichie
-                              </span>
-                            )}
-                            <span className="text-xs bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-medium">
-                              {count} mail{count !== 1 ? 's' : ''}
-                            </span>
-                            <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-brand-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ENVOYÉS */}
-        {activeTab === 'envoyes' && (
-          <div className="px-8 py-6 space-y-2">
-            {sentEmails.length === 0 ? (
-              <div className="py-16 text-center">
-                <p className="text-xs text-slate-400">Aucun mail envoyé pour l&apos;instant</p>
-              </div>
-            ) : sentEmails.map(email => (
-              <div key={email.id} className="border border-slate-100 rounded-xl px-5 py-4 flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-slate-900 truncate">{email.companyName}</p>
-                  <p className="text-xs text-slate-400 mt-0.5 truncate">
-                    {email.recipientName ?? email.to ?? 'Destinataire inconnu'}
-                    {email.to && <span className="font-mono ml-2">{email.to}</span>}
-                  </p>
-                  <p className="text-xs text-slate-400 truncate mt-0.5">{email.subject}</p>
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  <span className="text-xs bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-medium">Envoyé</span>
-                  {email.sentAt && (
-                    <span className="text-xs text-slate-400">
-                      {new Date(email.sentAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                    </span>
                   )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
 
+        {/* ── Right: Activity log ────────────── */}
+        <div className="w-[340px] shrink-0 self-start h-[320px]">
+          <ActivityLog events={activityLog} />
+        </div>
       </div>
+
+      {/* ── Modals ─────────────────────────────── */}
+      <PaywallModal
+        open={paywallOpen}
+        onConfirm={() => { setPaywallOpen(false); setPreGenerateOpen(true) }}
+        onCancel={() => setPaywallOpen(false)}
+      />
+
+      <PreGenerateModal
+        open={preGenerateOpen}
+        poolLimit={companies.length}
+        onConfirm={handleGenerate}
+        onCancel={() => setPreGenerateOpen(false)}
+      />
 
       {launchModalOpen && (
         <LaunchModal
           campaignId={id}
           totalDraft={draftEmails.length}
-          isGenerating={isGenerationView}
+          isGenerating={generating}
           onClose={() => setLaunchModalOpen(false)}
           onSuccess={handleLaunchSuccess}
         />
       )}
 
-      <SelectCompaniesModal
-        open={selectCompaniesOpen}
-        totalCompanies={companies.length}
-        onConfirm={async (count, enrichMode) => {
-          await fetch(`/api/campaigns/${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enrichMode }),
-          })
-          setSelectedPoolLimit(count)
-          setSelectCompaniesOpen(false)
-          setPreGenerateOpen(true)
-        }}
-        onCancel={() => setSelectCompaniesOpen(false)}
-      />
-
-      <PreGenerateModal
-        open={preGenerateOpen}
-        poolLimit={selectedPoolLimit}
-        onConfirm={handleGenerate}
-        onCancel={() => setPreGenerateOpen(false)}
-      />
+      {message && !scraping && pipelineStep !== 1 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 px-4 py-2.5 bg-slate-900 text-white text-sm font-medium rounded-lg shadow-lg">
+          {message}
+        </div>
+      )}
+     </div>
     </div>
   )
 }

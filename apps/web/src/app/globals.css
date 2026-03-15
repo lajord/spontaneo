@@ -27,3 +27,34 @@ body {
 input, select, textarea {
   font-family: inherit;
 }
+
+/* Step transitions */
+@keyframes step-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes step-slide-back {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.step-forward {
+  animation: step-slide-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.step-backward {
+  animation: step-slide-back 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

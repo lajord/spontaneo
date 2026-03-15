@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const body = await req.json()
-  const { name, jobTitle, location, radius, startDate, duration, prompt, cvData, lmText, cvFilename, enrichMode, sectors } = body
+  const { name, jobTitle, location, radius, startDate, duration, prompt, cvData, lmText, cvFilename, enrichMode, sectors, categories } = body
 
   if (!name || !jobTitle || !location) {
     return NextResponse.json({ error: 'Champs requis manquants' }, { status: 400 })
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
       name,
       jobTitle,
       sectors: Array.isArray(sectors) ? sectors : [],
+      categories: Array.isArray(categories) ? categories : [],
       location,
       radius: radius ?? 20,
       startDate: startDate ?? null,

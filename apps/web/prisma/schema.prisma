@@ -74,6 +74,7 @@ model Campaign {
   name          String
   jobTitle      String
   sectors       String[]  @default([])
+  categories    String[]  @default([])
   granularity   String    @default("moyen")
   location      String
   radius        Int       @default(20)

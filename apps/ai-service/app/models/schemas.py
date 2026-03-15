@@ -28,7 +28,8 @@ class SearchRequest(BaseModel):
     localisation: str
     radius: int = 20
     prompt: Optional[str] = None  # Objectifs / remarques libres de l'utilisateur
-    sectors: Optional[List[str]] = None  # Secteurs professionnels ciblés (ex: Restauration, Hôtellerie)
+    sectors: Optional[List[str]] = None  # Sous-secteurs ciblés (ex: agence web, cabinet d'avocats)
+    categories: Optional[List[str]] = None  # Catégories principales (ex: Technologie & Numérique, Finance)
 
 
 class SearchResponse(BaseModel):
@@ -36,6 +37,7 @@ class SearchResponse(BaseModel):
     localisation: str
     job_titles: list[str]
     maps_keywords: list[str] = []
+    apollo_keywords: list[str] = []
     total: int
     entreprises: list[Company]
 

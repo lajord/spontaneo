@@ -13,6 +13,7 @@ async def _fetch_all_pages(
     client: ApolloClient,
     seen: dict[str, Company],
     per_page: int,
+    source: str = "apollo_jobtitle",
     **kwargs,
 ) -> None:
     """Pagine sur toutes les pages Apollo et remplit `seen`."""
@@ -45,7 +46,7 @@ async def _fetch_all_pages(
                     nom=name,
                     site_web=org.get("website_url"),
                     adresse=org.get("raw_address"),
-                    source="apollo_jobtitle",
+                    source=source,
                 )
 
         page += 1
@@ -75,4 +76,36 @@ async def search_companies_by_job_titles(
 
     result = list(seen.values())
     logger.info(f"[APOLLO SEARCH] Total : {len(result)} entreprises pour '{location}'")
+    return result
+
+
+async def search_companies_by_keywords(
+    keywords: list[str],
+    location: str,
+    per_page: int = 100,
+) -> list[Company]:
+    """
+    Recherche Apollo par keyword tags.
+    Retourne les entreprises dont le profil correspond aux tags fournis.
+    """
+    if not keywords:
+        logger.info("[APOLLO KEYWORD SEARCH] Aucun keyword fourni, skip")
+        return []
+
+    client = ApolloClient(settings.APOLLO_API_KEY)
+
+    try:
+        await _fetch_all_pages(
+            client,
+            seen=(seen := {}),
+            per_page=per_page,
+            source="apollo_keyword",
+            organization_locations=[location],
+            q_organization_keyword_tags=keywords,
+        )
+    finally:
+        await client.close()
+
+    result = list(seen.values())
+    logger.info(f"[APOLLO KEYWORD SEARCH] Total : {len(result)} entreprises pour '{location}'")
     return result
