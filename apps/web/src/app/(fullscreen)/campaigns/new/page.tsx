@@ -127,6 +127,7 @@ export default function NewCampaignPage() {
   const [sectors, setSectors] = useState<string[]>([])
   const [customSectors, setCustomSectors] = useState<string[]>([])
   const [customSectorInput, setCustomSectorInput] = useState('')
+  const [filterPrompt, setFilterPrompt] = useState('')
 
   // Step 3
   const [location, setLocation] = useState('')
@@ -234,6 +235,9 @@ export default function NewCampaignPage() {
     let builtPrompt = ''
     if (contractType) {
       builtPrompt += `Type de contrat recherché : ${contractType}. `
+    }
+    if (filterPrompt.trim()) {
+      builtPrompt += `\nCritères de sélection des entreprises : ${filterPrompt.trim()}`
     }
 
     try {
@@ -552,6 +556,24 @@ export default function NewCampaignPage() {
                 />
               </div>
             )}
+
+            <div className="pt-2">
+              <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] mb-1.5">
+                Vos critères de sélection
+                <span className="normal-case tracking-normal font-normal text-neutral-400 ml-1">(optionnel)</span>
+              </label>
+              <p className="text-[12px] text-neutral-400 mb-2.5">
+                Décrivez le type d'entreprise souhaité, vos spécificités, et surtout{' '}
+                <span className="font-medium text-neutral-500">ce que vous ne voulez pas</span>.
+              </p>
+              <textarea
+                value={filterPrompt}
+                onChange={(e) => setFilterPrompt(e.target.value)}
+                rows={3}
+                placeholder="Ex : je veux des PME innovantes de moins de 200 personnes. Pas de grands groupes CAC40, ni de cabinets de conseil RH, ni d'agences d'intérim..."
+                className="w-full border border-neutral-300 bg-white px-4 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-all duration-200 text-sm font-medium rounded-lg resize-none"
+              />
+            </div>
           </div>
         )}
 

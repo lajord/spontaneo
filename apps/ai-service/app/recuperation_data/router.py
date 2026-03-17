@@ -114,6 +114,7 @@ async def search_companies_apollo(request: SearchRequest):
             secteur=request.secteur,
             sectors=sectors if sectors else None,
             categories=categories if categories else None,
+            user_instructions=request.prompt if request.prompt else None,
         )
 
         for company in filtered:

@@ -14,7 +14,8 @@ _BATCH_SIZE = 50  # Max entreprises par appel IA (évite les réponses tronquée
 _SYSTEM_PROMPT = (
     "Tu reçois une liste d'entreprises trouvées pour un candidat.\n"
     "Pour chaque entreprise, dis si elle est cohérente avec la recherche du candidat.\n"
-    "Base-toi sur le nom de l'entreprise et son activité probable.\n\n"
+    "Base-toi sur le nom de l'entreprise et son activité probable.\n"
+    "Si le candidat a exprimé des critères ou des exclusions spécifiques, tu DOIS les respecter à la lettre et en priorité absolue.\n\n"
     "Réponds UNIQUEMENT avec un tableau JSON de booléens dans le même ordre.\n"
     "true = pertinent, false = pas pertinent.\n"
     "Pas de markdown, pas de texte autour, juste le tableau JSON.\n"
@@ -24,7 +25,8 @@ _SYSTEM_PROMPT = (
 _USER_PROMPT = (
     "## Candidat\n"
     "Poste recherché : {secteur}\n"
-    "{sectors_context}\n\n"
+    "{sectors_context}\n"
+    "{user_instructions_section}\n"
     "## Entreprises à évaluer ({count} entreprises)\n"
     "{companies_list}\n\n"
     "Réponds avec un tableau JSON de {count} booléens (un par entreprise, dans l'ordre)."
@@ -49,6 +51,7 @@ async def _filter_batch(
     secteur: str,
     sectors_context: str,
     model: str,
+    user_instructions: str | None = None,
 ) -> list[bool]:
     """Filtre un batch d'entreprises. Retourne une liste de booléens."""
     lines = []
@@ -59,9 +62,17 @@ async def _filter_batch(
         lines.append(" ".join(parts))
     companies_list = "\n".join(lines)
 
+    if user_instructions:
+        user_instructions_section = (
+            f"Instructions du candidat (à respecter absolument) :\n{user_instructions}\n"
+        )
+    else:
+        user_instructions_section = ""
+
     prompt = _USER_PROMPT.format(
         secteur=secteur,
         sectors_context=sectors_context,
+        user_instructions_section=user_instructions_section,
         companies_list=companies_list,
         count=len(batch),
     )
@@ -100,6 +111,7 @@ async def filter_companies(
     secteur: str,
     sectors: list[str] | None = None,
     categories: list[str] | None = None,
+    user_instructions: str | None = None,
 ) -> list[Company]:
     """
     Filtre des entreprises par lots en parallèle.
@@ -128,7 +140,7 @@ async def filter_companies(
     # Exécuter tous les batches en parallèle
     try:
         all_verdicts_lists = await asyncio.gather(*[
-            _filter_batch(batch, secteur, sectors_context, model)
+            _filter_batch(batch, secteur, sectors_context, model, user_instructions)
             for batch in batches
         ])
     except Exception as e:
