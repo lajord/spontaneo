@@ -99,6 +99,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
   const [companies, setCompanies] = useState<Company[]>([])
   const [blocks, setBlocks] = useState<GeneratedBlock[]>([])
   const [processingMap, setProcessingMap] = useState<Map<string, CompanyProcessing>>(new Map())
+  const [enrichedCompanies, setEnrichedCompanies] = useState<Map<string, { companyId: string; companyName: string; enriched: EnrichedData }>>(new Map())
 
   // ── Pipeline state ──────────────────────────────
   const [pipelineStep, setPipelineStep] = useState<PipelineStep>(1)
@@ -122,6 +123,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
 
   // ── Modals ──────────────────────────────────────
   const [paywallOpen, setPaywallOpen] = useState(false)
+  const [paywallCount, setPaywallCount] = useState(0)
   const [preGenerateOpen, setPreGenerateOpen] = useState(false)
   const [launchModalOpen, setLaunchModalOpen] = useState(false)
 
@@ -216,16 +218,21 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         if (event.type === 'enriching') {
           setProcessingMap(prev => new Map(prev).set(event.companyId, { companyId: event.companyId, companyName: event.companyName, state: 'enriching' }))
           addLog('progress', `Enrichissement de ${event.companyName}...`)
-          // Stay on step 2
+        } else if (event.type === 'enriched') {
+          // Phase 1 terminée pour cette entreprise → move processingMap → enrichedCompanies
+          setProcessingMap(prev => { const next = new Map(prev); next.delete(event.companyId); return next })
+          setEnrichedCompanies(prev => new Map(prev).set(event.companyId, {
+            companyId: event.companyId,
+            companyName: event.companyName,
+            enriched: event.enriched ?? { resultats: [] },
+          }))
+          addLog('success', `${event.companyName} enrichi`)
         } else if (event.type === 'generating') {
-          setProcessingMap(prev => {
-            const next = new Map(prev)
-            const existing = next.get(event.companyId)
-            if (existing) next.set(event.companyId, { ...existing, state: 'generating' })
-            return next
-          })
+          // Phase 2 démarre pour cette entreprise → move enrichedCompanies → processingMap
+          setEnrichedCompanies(prev => { const next = new Map(prev); next.delete(event.companyId); return next })
+          setProcessingMap(prev => new Map(prev).set(event.companyId, { companyId: event.companyId, companyName: event.companyName, state: 'generating' }))
           addLog('progress', `Rédaction pour ${event.companyName}...`)
-          // Advance to step 3
+          // Advance to step 3 (à la première entreprise en phase 2)
           setPipelineStep(3)
           setStepStatuses(prev => ({ ...prev, 2: 'completed', 3: 'active' }))
         } else if (event.type === 'done') {
@@ -236,12 +243,12 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         } else if (event.type === 'complete') {
           setGenerating(false)
           setProcessingMap(new Map())
+          setEnrichedCompanies(new Map())
           setLaunchPending(false)
           setMessage('')
           es.close()
           eventSourceRef.current = null
           addLog('success', 'Pipeline terminé !')
-          // Advance to step 4
           advanceTo(4)
           fetch(`/api/campaigns/${id}`).then(r => r.json()).then(setCampaign)
           fetch(`/api/campaigns/${id}/emails`).then(r => r.json()).then(loadEmails)
@@ -271,6 +278,9 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         setStep(1, 'completed')
       } else if (data.status === 'generating') {
         advanceTo(2)
+      } else if (data.status === 'emails_generated') {
+        setPipelineStep(4)
+        setStepStatuses({ 1: 'completed', 2: 'completed', 3: 'completed', 4: 'active' })
       } else if (data.status === 'active' || data.status === 'paused' || data.status === 'finished') {
         setPipelineStep(4)
         setStepStatuses({ 1: 'completed', 2: 'completed', 3: 'completed', 4: 'completed' })
@@ -387,6 +397,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     setPreGenerateOpen(false)
     setGenerating(true)
     setBlocks([])
+    setEnrichedCompanies(new Map())
     setMessage('')
     setProcessingMap(new Map())
     advanceTo(2)
@@ -767,67 +778,111 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
           )}
 
           {/* ── STEP 2: Enrichment ───────────── */}
-          {pipelineStep === 2 && (
-            <div className="p-8 space-y-3">
-              <div className="mb-4">
-                <h2 className="text-base font-bold text-slate-900 mb-1">Identification des décideurs</h2>
-                <p className="text-sm text-slate-600">Recherche des contacts pertinents pour chaque entreprise...</p>
-              </div>
+          {pipelineStep === 2 && (() => {
+            const enrichedIds = new Set(enrichedCompanies.keys())
+            const processingIds = new Set(processingMap.keys())
+            const sortedPool = [...companies]
+              .sort((a, b) => {
+                if (a.source === 'apollo_jobtitle' && b.source !== 'apollo_jobtitle') return -1
+                if (b.source === 'apollo_jobtitle' && a.source !== 'apollo_jobtitle') return 1
+                return 0
+              })
+              .slice(0, paywallCount > 0 ? paywallCount : companies.length)
+            const waitingCompanies = sortedPool.filter(c => !enrichedIds.has(c.id) && !processingIds.has(c.id))
 
-              {generating && (
-                <p className="text-xs text-slate-600 bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-center">
-                  L&apos;enrichissement peut prendre <strong className="text-slate-700">quelques minutes</strong> selon le nombre d&apos;entreprises.
-                </p>
-              )}
+            // Métriques — depuis les données enrichies disponibles (phase 1)
+            const decideurs = Array.from(enrichedCompanies.values())
+              .flatMap(e => e.enriched?.resultats ?? [])
+              .filter(r => r.type === 'specialise' && r.mail).length
 
-              {Array.from(processingMap.values()).map(p => (
-                <div key={p.companyId} className="border border-slate-300 rounded-xl px-5 py-4 flex items-center gap-4">
-                  <span className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-900">{p.companyName}</p>
-                    <p className="text-xs text-slate-600 mt-0.5">
-                      {p.state === 'enriching' ? 'Recherche des contacts en ligne...' : 'Rédaction du mail personnalisé...'}
+            return (
+              <div className="p-8 space-y-4">
+                {/* Métriques */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="border border-slate-200 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-bold text-slate-900 tabular-nums">{decideurs}</p>
+                    <p className="text-xs text-slate-500 mt-1">Décideurs trouvés</p>
+                  </div>
+                  <div className="border border-slate-200 rounded-xl p-4 text-center">
+                    <p className="text-2xl font-bold text-slate-900 tabular-nums">{enrichedCompanies.size}</p>
+                    <p className="text-xs text-slate-500 mt-1">Entreprises enrichies</p>
+                  </div>
+                </div>
+
+                {generating && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-4 flex gap-3 items-start">
+                    <svg className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-blue-700 leading-relaxed">
+                      L&apos;enrichissement peut prendre du temps <strong>(plusieurs heures</strong> en fonction du nombre d&apos;entreprises).
+                      Vous pouvez partir — nous vous enverrons un mail une fois l&apos;enrichissement terminé !
                     </p>
                   </div>
-                  <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium shrink-0">
-                    Enrichissement
-                  </span>
-                </div>
-              ))}
+                )}
 
-              {blocks.map(b => (
-                <div key={b.companyId} className="border border-emerald-100 bg-emerald-50/50 rounded-xl px-5 py-3.5 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    <p className="text-sm font-medium text-slate-800">{b.companyName}</p>
+                {/* Enrichies (phase 1 terminée) */}
+                {Array.from(enrichedCompanies.values()).map(e => {
+                  const resultats = e.enriched?.resultats ?? []
+                  const nbDecideurs = resultats.filter(r => r.type === 'specialise' && r.mail).length
+                  const nbGeneriques = resultats.filter(r => r.type === 'generique' && r.mail).length
+                  const nbTotal = nbDecideurs + nbGeneriques
+
+                  let contactLabel: string
+                  let contactColor: string
+                  if (nbDecideurs > 0) {
+                    contactLabel = `${nbDecideurs} décideur${nbDecideurs > 1 ? 's' : ''}${nbGeneriques > 0 ? ` + ${nbGeneriques} générique${nbGeneriques > 1 ? 's' : ''}` : ''}`
+                    contactColor = 'text-emerald-600'
+                  } else if (nbGeneriques > 0) {
+                    contactLabel = `${nbGeneriques} contact${nbGeneriques > 1 ? 's' : ''} générique${nbGeneriques > 1 ? 's' : ''}`
+                    contactColor = 'text-slate-500'
+                  } else {
+                    contactLabel = 'Aucun contact trouvé'
+                    contactColor = 'text-slate-400'
+                  }
+
+                  return (
+                    <div key={e.companyId} className="border border-emerald-100 bg-emerald-50/50 rounded-xl px-5 py-3.5 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        <p className="text-sm font-medium text-slate-800">{e.companyName}</p>
+                      </div>
+                      <span className={`text-xs font-medium ${contactColor}`}>{contactLabel}</span>
+                    </div>
+                  )
+                })}
+
+                {/* En cours d'enrichissement */}
+                {Array.from(processingMap.values()).map(p => (
+                  <div key={p.companyId} className="border border-slate-300 rounded-xl px-5 py-4 flex items-center gap-4">
+                    <span className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-slate-900">{p.companyName}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Recherche des contacts en ligne...</p>
+                    </div>
                   </div>
-                  <span className="text-xs text-emerald-600 font-medium">{b.emails.length} email{b.emails.length > 1 ? 's' : ''}</span>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+
+                {/* En attente */}
+                {waitingCompanies.map(c => (
+                  <div key={c.id} className="border border-slate-100 rounded-xl px-5 py-3.5 flex items-center gap-3 opacity-40">
+                    <span className="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0" />
+                    <p className="text-sm font-medium text-slate-600">{c.name}</p>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
 
           {/* ── STEP 3: Rédaction ────────────── */}
           {pipelineStep === 3 && (
             <div className="p-8 space-y-3">
-              <div className="mb-4">
+              <div className="mb-2">
                 <h2 className="text-base font-bold text-slate-900 mb-1">Rédaction personnalisée</h2>
-                <p className="text-sm text-slate-600">Génération des emails personnalisés pour chaque contact...</p>
+                <p className="text-sm text-slate-500">{blocks.length} / {paywallCount || companies.length} emails rédigés</p>
               </div>
 
-              {Array.from(processingMap.values()).map(p => (
-                <div key={p.companyId} className="border border-slate-300 rounded-xl px-5 py-4 flex items-center gap-4">
-                  <span className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-900">{p.companyName}</p>
-                    <p className="text-xs text-slate-600 mt-0.5">Rédaction du mail personnalisé...</p>
-                  </div>
-                  <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium shrink-0">
-                    Rédaction
-                  </span>
-                </div>
-              ))}
-
+              {/* Emails rédigés */}
               {blocks.map(b => (
                 <div key={b.companyId} className="border border-emerald-100 bg-emerald-50/50 rounded-xl px-5 py-3.5 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -838,10 +893,29 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                 </div>
               ))}
 
-              {!generating && processingMap.size === 0 && (
-                <div className="py-12 text-center">
+              {/* En cours de rédaction */}
+              {Array.from(processingMap.values()).map(p => (
+                <div key={p.companyId} className="border border-slate-300 rounded-xl px-5 py-4 flex items-center gap-4">
+                  <span className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-900">{p.companyName}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Rédaction du mail personnalisé...</p>
+                  </div>
+                </div>
+              ))}
+
+              {/* En attente de rédaction (enrichies mais pas encore traitées) */}
+              {Array.from(enrichedCompanies.values()).map(e => (
+                <div key={e.companyId} className="border border-slate-100 rounded-xl px-5 py-3.5 flex items-center gap-3 opacity-40">
+                  <span className="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0" />
+                  <p className="text-sm font-medium text-slate-600">{e.companyName}</p>
+                </div>
+              ))}
+
+              {!generating && processingMap.size === 0 && enrichedCompanies.size === 0 && (
+                <div className="py-10 text-center">
                   <p className="text-sm font-medium text-slate-600">Rédaction terminée</p>
-                  <p className="text-xs text-slate-600 mt-1">{draftEmails.length} email{draftEmails.length > 1 ? 's' : ''} prêt{draftEmails.length > 1 ? 's' : ''}</p>
+                  <p className="text-xs text-slate-500 mt-1">{draftEmails.length} email{draftEmails.length > 1 ? 's' : ''} prêt{draftEmails.length > 1 ? 's' : ''}</p>
                 </div>
               )}
             </div>
@@ -850,21 +924,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
           {/* ── STEP 4: Ready / Launched ─────── */}
           {pipelineStep === 4 && (
             <div className="p-8">
-              {/* Company detail view */}
-              {selectedCompanyId ? (() => {
-                const block = blocks.find(b => b.companyId === selectedCompanyId)
-                if (!block) return null
-                return (
-                  <CompanyDetailView
-                    block={block}
-                    campaignName={campaign.name}
-                    onBack={() => setSelectedCompanyId(null)}
-                    sending={sending}
-                    onSend={sendEmail}
-                  />
-                )
-              })() : (
-                <>
+              <>
                   {/* Launched state */}
                   {isLaunched && (
                     <div className="space-y-5">
@@ -987,7 +1047,6 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                     </div>
                   )}
                 </>
-              )}
             </div>
           )}
         </div>
@@ -998,16 +1057,26 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
+      {/* ── Company sidebar ─────────────────────── */}
+      <CompanyDetailView
+        block={selectedCompanyId ? (blocks.find(b => b.companyId === selectedCompanyId) ?? null) : null}
+        campaignName={campaign.name}
+        onClose={() => setSelectedCompanyId(null)}
+        sending={sending}
+        onSend={sendEmail}
+      />
+
       {/* ── Modals ─────────────────────────────── */}
       <PaywallModal
         open={paywallOpen}
-        onConfirm={() => { setPaywallOpen(false); setPreGenerateOpen(true) }}
+        totalCompanies={companies.length}
+        onConfirm={(count) => { setPaywallCount(count); setPaywallOpen(false); setPreGenerateOpen(true) }}
         onCancel={() => setPaywallOpen(false)}
       />
 
       <PreGenerateModal
         open={preGenerateOpen}
-        poolLimit={companies.length}
+        poolLimit={paywallCount || companies.length}
         onConfirm={handleGenerate}
         onCancel={() => setPreGenerateOpen(false)}
       />

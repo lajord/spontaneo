@@ -3,6 +3,21 @@ import { prisma } from '@/lib/prisma'
 import { sendEmail, Attachment, OAuthExpiredError } from '@/lib/email-sender'
 import { readCvFile, readLmFile } from '@/lib/file-storage'
 
+async function upsertContactedCompany(userId: string, companyName: string, website: string | null) {
+  let domain: string | null = null
+  if (website) {
+    try {
+      const url = new URL(website)
+      domain = url.hostname.replace(/^www\./, '')
+    } catch { /* ignore */ }
+  }
+  await prisma.contactedCompany.upsert({
+    where: { userId_companyName: { userId, companyName } },
+    update: { domain, contactedAt: new Date() },
+    create: { userId, companyName, domain },
+  })
+}
+
 export async function GET(req: NextRequest) {
   // Vérification du secret cron (désactivé en dev pour faciliter les tests locaux)
   if (process.env.NODE_ENV !== 'development') {
@@ -145,10 +160,14 @@ export async function GET(req: NextRequest) {
       const reason = `"${campaign.name}" — email ${nextEmail.id} sans destinataire → marqué failed`
       console.log(`[cron] ⚠️ ${reason}`)
       skipReasons.push(reason)
-      await prisma.email.update({
-        where: { id: nextEmail.id },
-        data: { status: 'failed' },
+      await prisma.email.update({ where: { id: nextEmail.id }, data: { status: 'failed' } })
+      // Vérifier si tous les mails de cette entreprise sont traités
+      const remainingAfterFail = await prisma.email.count({
+        where: { companyId: nextEmail.companyId, campaignId: campaign.id, status: 'draft' },
       })
+      if (remainingAfterFail === 0) {
+        await upsertContactedCompany(campaign.userId, nextEmail.company.name, nextEmail.company.website)
+      }
       skipped++
       continue
     }
@@ -190,6 +209,13 @@ export async function GET(req: NextRequest) {
           },
         }),
       ])
+      // Vérifier si tous les mails de cette entreprise sont traités
+      const remainingAfterSend = await prisma.email.count({
+        where: { companyId: nextEmail.companyId, campaignId: campaign.id, status: 'draft' },
+      })
+      if (remainingAfterSend === 0) {
+        await upsertContactedCompany(campaign.userId, nextEmail.company.name, nextEmail.company.website)
+      }
       console.log(`[cron] ✅ Email envoyé avec succès ! sentCount=${newSentCount}`)
       processed++
     } catch (err) {

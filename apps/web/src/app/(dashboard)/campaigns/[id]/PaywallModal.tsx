@@ -1,13 +1,35 @@
 'use client'
 
+import { useState } from 'react'
+
+const CREDITS_PER_COMPANY = 2
+
 interface PaywallModalProps {
   open: boolean
-  onConfirm: () => void
+  totalCompanies: number
+  onConfirm: (selectedCount: number) => void
   onCancel: () => void
 }
 
-export default function PaywallModal({ open, onConfirm, onCancel }: PaywallModalProps) {
+export default function PaywallModal({ open, totalCompanies, onConfirm, onCancel }: PaywallModalProps) {
+  const [count, setCount] = useState(totalCompanies)
+  const [inputValue, setInputValue] = useState(String(totalCompanies))
+
   if (!open) return null
+
+  const credits = count * CREDITS_PER_COMPANY
+
+  function handleCountChange(val: number) {
+    const clamped = Math.min(totalCompanies, Math.max(1, val))
+    setCount(clamped)
+    setInputValue(String(clamped))
+  }
+
+  function handleInputBlur() {
+    const parsed = parseInt(inputValue, 10)
+    if (isNaN(parsed)) setInputValue(String(count))
+    else handleCountChange(parsed)
+  }
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -21,27 +43,61 @@ export default function PaywallModal({ open, onConfirm, onCancel }: PaywallModal
           </div>
           <h2 className="text-lg font-bold text-slate-900 mb-1">Passer à l&apos;étape suivante</h2>
           <p className="text-sm text-slate-500 leading-relaxed">
-            L&apos;identification des décideurs et la rédaction personnalisée nécessitent des crédits.
-            Vérifiez votre solde avant de continuer.
+            Choisissez combien d&apos;entreprises vous souhaitez contacter.
+            Chaque entreprise coûte <span className="font-semibold text-slate-700">{CREDITS_PER_COMPANY} crédits</span>.
           </p>
         </div>
 
-        {/* Placeholder info */}
-        <div className="mx-6 mb-4 p-4 bg-slate-50 border border-slate-100 rounded-xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-slate-600 font-medium">Crédits nécessaires</span>
-            <span className="text-sm font-bold text-slate-900">—</span>
+        {/* Slider */}
+        <div className="mx-6 mb-4 p-5 bg-slate-50 border border-slate-100 rounded-xl">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-slate-600 font-medium">Nombre d&apos;entreprises</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={totalCompanies}
+                value={inputValue}
+                onChange={e => setInputValue(e.target.value)}
+                onBlur={handleInputBlur}
+                onKeyDown={e => { if (e.key === 'Enter') handleInputBlur() }}
+                className="w-16 border border-slate-200 rounded-lg px-2 py-1 text-sm font-bold text-slate-900 text-center focus:outline-none focus:ring-2 focus:ring-slate-900 transition"
+              />
+              <span className="text-sm text-slate-400">/ {totalCompanies}</span>
+            </div>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-600 font-medium">Votre solde</span>
-            <span className="text-sm font-bold text-slate-900">—</span>
+
+          <div className="relative py-2">
+            <div className="relative h-2 bg-slate-200 rounded-full">
+              <div
+                className="absolute left-0 top-0 h-2 bg-slate-900 rounded-full transition-all"
+                style={{ width: totalCompanies <= 1 ? '100%' : `${((count - 1) / (totalCompanies - 1)) * 100}%` }}
+              />
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={totalCompanies}
+              value={count}
+              onChange={e => handleCountChange(Number(e.target.value))}
+              className="absolute inset-0 w-full opacity-0 cursor-pointer h-full"
+            />
+            <div
+              className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white border-2 border-slate-900 rounded-full shadow-md pointer-events-none transition-all"
+              style={{ left: totalCompanies <= 1 ? 'calc(100% - 10px)' : `calc(${((count - 1) / (totalCompanies - 1)) * 100}% - 10px)` }}
+            />
+          </div>
+
+          <div className="flex items-center justify-between mt-1">
+            <span className="text-[10px] text-slate-400">1</span>
+            <span className="text-[10px] text-slate-400">{totalCompanies}</span>
           </div>
         </div>
 
-        <div className="mx-6 mb-6 p-3 bg-amber-50 border border-amber-100 rounded-lg">
-          <p className="text-xs text-amber-700 font-medium text-center">
-            Paywall placeholder — sera implémenté ultérieurement
-          </p>
+        {/* Credits summary */}
+        <div className="mx-6 mb-6 p-4 bg-slate-900 rounded-xl flex items-center justify-between">
+          <span className="text-sm text-slate-300 font-medium">Crédits nécessaires</span>
+          <span className="text-lg font-bold text-white tabular-nums">{credits}</span>
         </div>
 
         {/* Actions */}
@@ -53,10 +109,10 @@ export default function PaywallModal({ open, onConfirm, onCancel }: PaywallModal
             Annuler
           </button>
           <button
-            onClick={onConfirm}
+            onClick={() => onConfirm(count)}
             className="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
           >
-            Continuer
+            Continuer ({credits} crédits)
           </button>
         </div>
       </div>

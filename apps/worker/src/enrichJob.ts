@@ -65,7 +65,6 @@ function buildRecipients(enriched: EnrichedData): Recipient[] {
   const recipients: Recipient[] = []
   const usedMails = new Set<string>()
 
-  // Trier par ranking_score décroissant (les contacts les plus pertinents d'abord)
   const sorted = [...(enriched.resultats ?? [])].sort((a, b) =>
     (b.ranking_score ?? 0) - (a.ranking_score ?? 0)
   )
@@ -115,11 +114,7 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
     include: { companies: true },
   })
 
-  if (!campaign) {
-    throw new Error(`Campaign ${campaignId} not found`)
-  }
-
-  // Le status 'running' + startedAt est déjà set par claimNextJob() dans index.ts
+  if (!campaign) throw new Error(`Campaign ${campaignId} not found`)
 
   // Determine which companies still need processing
   const alreadyProcessed = await prisma.email.findMany({
@@ -129,18 +124,15 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
   })
   const processedIds = new Set(alreadyProcessed.map(e => e.companyId))
 
-  // 1. Sort companies top-to-bottom: Apollo first, then Google Maps
+  // Sort: Apollo JT first
   const sortedCompanies = [...campaign.companies].sort((a, b) => {
-    // Apollo is higher priority
-    if (a.source === 'apollo_jobtitle' && b.source !== 'apollo_jobtitle') return -1;
-    if (b.source === 'apollo_jobtitle' && a.source !== 'apollo_jobtitle') return 1;
-    return 0;
-  });
+    if (a.source === 'apollo_jobtitle' && b.source !== 'apollo_jobtitle') return -1
+    if (b.source === 'apollo_jobtitle' && a.source !== 'apollo_jobtitle') return 1
+    return 0
+  })
 
-  // 2. Filter unprocessed
   let companiesToProcess = sortedCompanies.filter(c => !processedIds.has(c.id))
 
-  // 3. Apply poolLimit
   if (payload.poolLimit && payload.poolLimit > 0) {
     companiesToProcess = companiesToProcess.slice(0, payload.poolLimit)
   }
@@ -149,7 +141,6 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
   const hasLm = !!(campaign.lmText && campaign.lmText.trim().length > 0)
   const customLinks = links.custom ?? []
 
-  // Update total companies count
   await prisma.job.update({
     where: { id: jobId },
     data: { totalCompanies: companiesToProcess.length },
@@ -161,12 +152,20 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
     console.error(`[WORKER] appendJobEvent error:`, err)
   )
 
-  const processCompany = async (company: (typeof campaign.companies)[number]) => {
-    // ── 1. Enrichissement ──────────────────────────────────────────────────
+  let batchSize = 3
+  try {
+    const config = await prisma.appConfig.findUnique({ where: { id: 'singleton' } })
+    if (config) batchSize = config.batchSize
+  } catch {}
+
+  // ── Phase 1 : Enrichissement de toutes les entreprises ───────────────────
+
+  const enrichedMap = new Map<string, EnrichedData>()
+
+  const enrichOne = async (company: (typeof campaign.companies)[number]) => {
     await emit({ type: 'enriching', companyId: company.id, companyName: company.name })
 
     let enriched: EnrichedData = {}
-
     try {
       const isRanked = campaign.enrichMode === 'ranked'
       const enrichEndpoint = isRanked
@@ -194,12 +193,29 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
       console.error(`[WORKER] Enrichissement échoué pour ${company.name}:`, err)
     }
 
-    // ── 2. Génération du mail ──────────────────────────────────────────────
-    await emit({ type: 'generating', companyId: company.id })
+    enrichedMap.set(company.id, enriched)
+    await emit({ type: 'enriched', companyId: company.id, companyName: company.name, enriched })
+  }
+
+  for (let i = 0; i < companiesToProcess.length; i += batchSize) {
+    const batch = companiesToProcess.slice(i, i + batchSize)
+    await Promise.all(
+      batch.map(c => enrichOne(c).catch(err => {
+        console.error(`[WORKER] Erreur enrichissement ${c.name}:`, err)
+        enrichedMap.set(c.id, {})
+      }))
+    )
+  }
+
+  // ── Phase 2 : Génération des mails ───────────────────────────────────────
+
+  const generateOne = async (company: (typeof campaign.companies)[number]) => {
+    const enriched = enrichedMap.get(company.id) ?? {}
+
+    await emit({ type: 'generating', companyId: company.id, companyName: company.name })
 
     let bodyCore = ''
     let subject = userMailSubject || `Candidature spontanée – ${campaign.jobTitle}`
-    // Prendre le contact spécialisé avec le meilleur ranking_score
     const mainContact = [...(enriched.resultats ?? [])]
       .filter(r => r.type === 'specialise')
       .sort((a, b) => (b.ranking_score ?? 0) - (a.ranking_score ?? 0))[0] ?? null
@@ -252,10 +268,8 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
       // Fallback géré ci-dessous
     }
 
-    // ── 3. Destinataires + emails ──────────────────────────────────────────
     const recipients = buildRecipients(enriched)
 
-    // Si aucun contact email trouvé, on skip la création d'emails
     if (recipients.length === 0) {
       await emit({
         type: 'done',
@@ -265,12 +279,7 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
         enriched,
         emails: [],
       })
-
-      await prisma.job.update({
-        where: { id: jobId },
-        data: { processedCount: { increment: 1 } },
-      })
-
+      await prisma.job.update({ where: { id: jobId }, data: { processedCount: { increment: 1 } } })
       return
     }
 
@@ -300,15 +309,7 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
           : [salutation, pitch, attachmentLine, signature].filter(Boolean).join('\n\n')
 
         const email = await prisma.email.create({
-          data: {
-            campaignId,
-            companyId: company.id,
-            subject,
-            body: fullBody,
-            to: to ?? undefined,
-            recipientName,
-            status: 'draft',
-          },
+          data: { campaignId, companyId: company.id, subject, body: fullBody, to: to ?? undefined, recipientName, status: 'draft' },
         })
 
         if (campaign.lmText && to) {
@@ -331,10 +332,7 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
             if (lmRes.ok) {
               const { lm_adapted, lm_structured, lm_docx_b64 } = await lmRes.json()
               if (lm_adapted) {
-                const updated = await prisma.email.update({
-                  where: { id: email.id },
-                  data: { generatedLm: lm_adapted },
-                })
+                const updated = await prisma.email.update({ where: { id: email.id }, data: { generatedLm: lm_adapted } })
                 if (lm_docx_b64) {
                   saveLmDocxBytes(campaign.userId, email.id, Buffer.from(lm_docx_b64, 'base64')).catch(err =>
                     console.error(`[WORKER] Erreur DOCX bytes LM ${email.id}:`, err)
@@ -363,72 +361,26 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
       companyAddress: company.address,
       enriched,
       emails: savedEmails.map(e => ({
-        id: e.id,
-        subject: e.subject,
-        body: e.body,
-        to: e.to ?? null,
-        recipientName: e.recipientName ?? null,
-        status: e.status,
-        generatedLm: e.generatedLm ?? null,
+        id: e.id, subject: e.subject, body: e.body,
+        to: e.to ?? null, recipientName: e.recipientName ?? null,
+        status: e.status, generatedLm: e.generatedLm ?? null,
       })),
     })
 
-    // Increment processed count
-    await prisma.job.update({
-      where: { id: jobId },
-      data: { processedCount: { increment: 1 } },
-    })
-
-    // Track in ContactedCompany (global pool deduplication) & remove from campaign companies list
-    let domain: string | null = null
-    if (company.website) {
-      try {
-        const url = new URL(company.website)
-        domain = url.hostname.replace(/^www\./, '')
-      } catch {
-        // ignore
-      }
-    }
-    
-    await (prisma as any).contactedCompany.upsert({
-      where: {
-        userId_companyName: {
-          userId: campaign.userId,
-          companyName: company.name
-        }
-      },
-      update: { domain, contactedAt: new Date() },
-      create: {
-        userId: campaign.userId,
-        companyName: company.name,
-        domain
-      }
-    })
-
-    // NB: on ne supprime PAS la company pour éviter le onDelete:Cascade
-    // qui supprimait aussi les emails créés juste au-dessus.
-
+    await prisma.job.update({ where: { id: jobId }, data: { processedCount: { increment: 1 } } })
   }
 
-  // ── Traitement parallèle (taille de batch configurable depuis AppConfig) ────
-  let batchSize = 3
-  try {
-    const config = await prisma.appConfig.findUnique({ where: { id: 'singleton' } })
-    if (config) batchSize = config.batchSize
-  } catch {}
   for (let i = 0; i < companiesToProcess.length; i += batchSize) {
     const batch = companiesToProcess.slice(i, i + batchSize)
     await Promise.all(
-      batch.map(company =>
-        processCompany(company).catch(err => {
-          console.error(`[WORKER] Error processing ${company.name}:`, err)
-        })
-      )
+      batch.map(c => generateOne(c).catch(err => {
+        console.error(`[WORKER] Erreur génération ${c.name}:`, err)
+      }))
     )
   }
 
-  // Re-lire le payload depuis la DB car autoStart peut avoir été activé
-  // par l'API /launch pendant que le job tournait (preshot)
+  // ── Finalisation ─────────────────────────────────────────────────────────
+
   const freshJob = await prisma.job.findUnique({ where: { id: jobId }, select: { payload: true } })
   const shouldAutoStart = (freshJob?.payload as any)?.autoStart === true
   const totalEmails = await prisma.email.count({ where: { campaignId, status: 'draft' } })
@@ -439,10 +391,7 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
       data: { status: 'active', totalEmails, sentCount: 0, launchedAt: new Date() },
     })
   } else {
-    await prisma.campaign.update({
-      where: { id: campaignId },
-      data: { status: 'emails_generated' },
-    })
+    await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'emails_generated' } })
   }
 
   await emit({ type: 'complete' })

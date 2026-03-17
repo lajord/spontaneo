@@ -69,5 +69,24 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ em
     data: { status: 'sent', sentAt: new Date() },
   })
 
+  // Vérifier si tous les mails de cette entreprise sont traités
+  const remaining = await prisma.email.count({
+    where: { companyId: email.companyId, campaignId: email.campaignId, status: 'draft' },
+  })
+  if (remaining === 0) {
+    let domain: string | null = null
+    if (email.company.website) {
+      try {
+        const url = new URL(email.company.website)
+        domain = url.hostname.replace(/^www\./, '')
+      } catch { /* ignore */ }
+    }
+    await prisma.contactedCompany.upsert({
+      where: { userId_companyName: { userId: session.user.id, companyName: email.company.name } },
+      update: { domain, contactedAt: new Date() },
+      create: { userId: session.user.id, companyName: email.company.name, domain },
+    })
+  }
+
   return NextResponse.json({ success: true })
 }
