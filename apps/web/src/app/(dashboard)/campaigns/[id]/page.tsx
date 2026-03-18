@@ -281,9 +281,13 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
       } else if (data.status === 'emails_generated') {
         setPipelineStep(4)
         setStepStatuses({ 1: 'completed', 2: 'completed', 3: 'completed', 4: 'active' })
+        addLog('success', 'Mails générés — prêts à être envoyés')
       } else if (data.status === 'active' || data.status === 'paused' || data.status === 'finished') {
         setPipelineStep(4)
         setStepStatuses({ 1: 'completed', 2: 'completed', 3: 'completed', 4: 'completed' })
+        const sentCount = data.sentCount ?? 0
+        const statusLabel = data.status === 'active' ? 'active' : data.status === 'paused' ? 'en pause' : 'terminée'
+        addLog('info', `Campagne ${statusLabel}`, `${sentCount} mail${sentCount > 1 ? 's' : ''} envoyé${sentCount > 1 ? 's' : ''}`)
       }
     })
     fetch(`/api/campaigns/${id}/companies`).then(r => r.json()).then(data => {
@@ -439,6 +443,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
 
   async function sendEmail(emailId: string) {
     setSending(emailId)
+    const emailMeta = allEmails.find(e => e.id === emailId)
     const res = await fetch(`/api/emails/${emailId}/send`, { method: 'POST' })
     const data = await res.json()
     if (res.ok) {
@@ -446,8 +451,10 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         ...b,
         emails: b.emails.map(e => e.id === emailId ? { ...e, status: 'sent' } : e),
       })))
+      addLog('success', `Mail envoyé — ${emailMeta?.companyName ?? ''}`, emailMeta?.to ?? undefined)
     } else {
       setMessage(data.error ?? "Erreur d'envoi")
+      addLog('error', `Échec d'envoi — ${emailMeta?.companyName ?? ''}`, data.error ?? "Erreur inconnue")
     }
     setSending(null)
   }
@@ -976,7 +983,9 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                                 <div className="min-w-0 flex-1">
                                   <p className="text-sm font-medium text-slate-800 truncate">{email.companyName}</p>
                                   <p className="text-xs text-slate-600 truncate">
-                                    {email.recipientName && <span className="mr-1.5">{email.recipientName}</span>}
+                                    {email.recipientName && email.recipientName !== email.to && (
+                                      <span className="mr-1.5">{email.recipientName}</span>
+                                    )}
                                     {email.to && <span className="font-mono">{email.to}</span>}
                                   </p>
                                 </div>

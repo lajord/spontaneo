@@ -104,6 +104,11 @@ async function getValidToken(config: EmailConfig, forceRefresh = false): Promise
 
 // ── Gmail sending ─────────────────────────────────────────────────────────────
 
+/** Encode un header email non-ASCII en RFC 2047 base64 pour éviter la corruption des accents. */
+function encodeRfc2047(value: string): string {
+  return `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`
+}
+
 function buildRfc2822(opts: {
   from: string
   to: string
@@ -112,13 +117,14 @@ function buildRfc2822(opts: {
   attachments?: Attachment[]
 }): string {
   const hasAttachments = (opts.attachments ?? []).length > 0
+  const encodedSubject = encodeRfc2047(opts.subject)
 
   if (!hasAttachments) {
     // Email texte simple
     const message = [
       `From: ${opts.from}`,
       `To: ${opts.to}`,
-      `Subject: ${opts.subject}`,
+      `Subject: ${encodedSubject}`,
       'MIME-Version: 1.0',
       'Content-Type: text/plain; charset=UTF-8',
       '',
@@ -132,7 +138,7 @@ function buildRfc2822(opts: {
   const parts: string[] = [
     `From: ${opts.from}`,
     `To: ${opts.to}`,
-    `Subject: ${opts.subject}`,
+    `Subject: ${encodedSubject}`,
     'MIME-Version: 1.0',
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     '',

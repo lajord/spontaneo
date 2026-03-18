@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Search, MapPin, ArrowRight, CheckCircle,
-  Target, Sparkles, Send, Clock, Shield, BarChart2,
+  Crosshair, Zap, Mail, Clock, Shield, BarChart2,
 } from 'lucide-react'
 
 const DOMAINS = ['Tech & IT', 'Finance', 'Marketing', 'Conseil', 'Droit', 'RH', 'Communication', 'Santé']
@@ -17,23 +17,23 @@ const STEPS = [
   },
   {
     num: '02',
-    title: "L'IA trouve les cibles",
-    desc: 'On scrape Apollo, Google Maps et les annuaires pour identifier les meilleures entreprises.',
+    title: "Nos algorithmes trouvent les cibles",
+    desc: 'Nos algorithmes analysent des milliers de sources pour identifier les entreprises les plus pertinentes.',
   },
   {
     num: '03',
     title: 'Les candidatures partent',
-    desc: 'Chaque mail est personnalisé avec le bon contact, votre CV et une LM sur mesure.',
+    desc: 'Chaque mail est personnalisé avec le bon contact, votre CV et une lettre de motivation sur mesure.',
   },
 ]
 
 const FEATURES = [
-  { icon: Target,    title: 'Ciblage intelligent',       desc: 'Apollo.io + Google Maps + filtrage IA pour trouver exactement les bonnes entreprises.' },
-  { icon: Sparkles,  title: 'Enrichissement automatique', desc: 'GPT-5 + recherche web pour identifier le bon contact et son email dans chaque boîte.' },
-  { icon: Send,      title: 'Mails ultra-personnalisés',  desc: "Chaque email est rédigé sur mesure. Jamais de template générique — l'IA s'adapte à chaque boîte." },
-  { icon: Clock,     title: 'Envoi planifié',             desc: 'Les mails partent en semaine, entre 8h et 18h, avec des quotas pour rester sous le radar.' },
-  { icon: Shield,    title: 'Anti-doublon garanti',       desc: 'On ne contacte jamais deux fois la même entreprise. Votre réputation est protégée.' },
-  { icon: BarChart2, title: 'Dashboard temps réel',      desc: 'Suivez vos campagnes en live : entreprises enrichies, mails envoyés, statuts.' },
+  { icon: Crosshair, title: 'Ciblage intelligent',        desc: 'Nos algorithmes croisent de multiples sources pour trouver exactement les entreprises qui correspondent à votre profil.' },
+  { icon: Zap,       title: 'Enrichissement automatique', desc: 'Notre IA identifie automatiquement le bon interlocuteur et ses coordonnées dans chaque entreprise ciblée.' },
+  { icon: Mail,      title: 'Mails ultra-personnalisés',  desc: "Chaque email est rédigé sur mesure. Jamais de template générique — notre IA s'adapte à chaque entreprise." },
+  { icon: Clock,     title: 'Envoi planifié',             desc: 'Les mails partent en semaine, entre 8h et 18h, avec des quotas pour maximiser vos chances de réponse.' },
+  { icon: Shield,    title: 'Anti-doublon garanti',       desc: 'Nos systèmes s\'assurent de ne jamais contacter deux fois la même entreprise. Votre réputation est protégée.' },
+  { icon: BarChart2, title: 'Dashboard temps réel',       desc: 'Suivez vos campagnes en live : entreprises analysées, mails envoyés, statuts de réponse.' },
 ]
 
 const STATS = [
@@ -74,14 +74,13 @@ export default function LandingPage() {
       {/* ══════════════════════════════════════════════════════
           HERO
       ══════════════════════════════════════════════════════ */}
-      <section className="relative flex flex-col items-center justify-center px-6 py-24 bg-white overflow-hidden" style={{ minHeight: 'calc(100vh - 64px)' }}>
-
-        {/* Top green glow */}
-        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
-        <div
-          className="absolute -top-32 left-1/2 -translate-x-1/2 w-[900px] h-[420px] rounded-full pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse, rgba(16,185,129,0.07) 0%, transparent 68%)' }}
-        />
+      <section
+        className="relative flex flex-col items-center justify-center px-6 py-24 overflow-hidden"
+        style={{
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, #fafaf5 0%, #d4e8cf 25%, #9ec49a 50%, #b8c9ba 75%, #d6d6d2 100%)',
+        }}
+      >
 
         <div className="relative w-full max-w-[640px] mx-auto text-center">
 
@@ -98,11 +97,11 @@ export default function LandingPage() {
             style={{ fontSize: 'clamp(40px, 6vw, 64px)' }}>
             Automatisez votre
             <br />
-            <span className="lp-shimmer">recherche d'emploi.</span>
+            <span style={{ color: '#0891b2' }}>recherche d'emploi.</span>
           </h1>
 
           {/* Subtitle */}
-          <p className="lp-a2 text-[16px] text-gray-500 max-w-[420px] mx-auto leading-relaxed mb-10">
+          <p className="lp-a2 text-[16px] text-gray-700 max-w-[420px] mx-auto leading-relaxed mb-10">
             Envoyez des dizaines de candidatures spontanées hyper-personnalisées chaque semaine, sans lever le petit doigt.
           </p>
 
@@ -179,7 +178,7 @@ export default function LandingPage() {
           </div>
 
           {/* Trust */}
-          <div className="lp-a4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-7 text-xs text-gray-400">
+          <div className="lp-a4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-7 text-xs text-gray-600">
             <span className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-emerald-500" />Gratuit pour commencer</span>
             <span className="w-px h-3 bg-gray-200 hidden sm:block" />
             <span className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-emerald-500" />Aucune carte requise</span>

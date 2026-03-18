@@ -3,13 +3,14 @@ import { ArrowRight } from 'lucide-react'
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-900">
+    <div className="min-h-screen font-sans text-gray-900">
 
       {/* Header */}
-      <header
-        className="fixed top-0 left-0 right-0 z-50 border-b border-gray-100 bg-white"
-      >
-        <nav className="max-w-5xl mx-auto px-6 flex items-center justify-between" style={{ height: '64px' }}>
+      <header className="fixed top-0 left-0 right-0 z-50 pt-4 px-6">
+        <nav
+          className="max-w-5xl mx-auto flex items-center justify-between px-5 bg-white/60 backdrop-blur-md border border-black/[0.07] rounded-2xl shadow-sm"
+          style={{ height: '52px' }}
+        >
 
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
@@ -31,7 +32,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-2">
             <Link
               href="/login"
-              className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors px-3 py-1.5"
+              className="text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors px-3 py-1.5"
             >
               Se connecter
             </Link>
@@ -51,7 +52,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       </header>
 
       {/* Main */}
-      <main style={{ paddingTop: '64px' }}>{children}</main>
+      <main>{children}</main>
 
       {/* Footer — dark pour s'enchaîner avec le CTA final */}
       <footer style={{ background: '#0d1117' }} className="border-t border-white/[0.05]">

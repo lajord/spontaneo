@@ -261,3 +261,44 @@ export async function deleteExtraAttachments(userId: string, campaignId: string)
   const dir = extraDir(userId, campaignId)
   if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true })
 }
+
+// ── Nettoyage ─────────────────────────────────────────────────────────────────
+
+/** Supprime le fichier CV d'une campagne. */
+export function deleteCvFile(userId: string, filename: string): void {
+  const fp = cvFilePath(userId, filename)
+  if (fs.existsSync(fp)) fs.rmSync(fp, { force: true })
+}
+
+/** Supprime la LM DOCX d'un email. */
+export function deleteLmFile(userId: string, emailId: string): void {
+  const fp = lmFilePath(userId, emailId)
+  if (fs.existsSync(fp)) fs.rmSync(fp, { force: true })
+}
+
+/**
+ * Supprime tous les fichiers liés à une campagne :
+ * - Le CV (si aucune autre campagne du même user ne l'utilise)
+ * - Toutes les LM des emails
+ * - Les pièces jointes supplémentaires
+ */
+export async function deleteCampaignFiles(
+  userId: string,
+  campaignId: string,
+  cvUrl: string | null,
+  emailIds: string[],
+  otherCampaignCvUrls: string[],
+): Promise<void> {
+  // Supprimer le CV seulement s'il n'est pas partagé avec une autre campagne
+  if (cvUrl && !otherCampaignCvUrls.includes(cvUrl)) {
+    deleteCvFile(userId, cvUrl)
+  }
+
+  // Supprimer toutes les LM des emails de cette campagne
+  for (const emailId of emailIds) {
+    deleteLmFile(userId, emailId)
+  }
+
+  // Supprimer les pièces jointes supplémentaires
+  await deleteExtraAttachments(userId, campaignId)
+}

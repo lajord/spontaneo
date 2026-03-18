@@ -124,7 +124,7 @@ input, select, textarea {
 
 /* Shimmer headline */
 .lp-shimmer {
-  background: linear-gradient(90deg, #34d399 0%, #6ee7b7 30%, #a7f3d0 50%, #34d399 70%, #10b981 100%);
+  background: linear-gradient(90deg, #06b6d4 0%, #22d3ee 30%, #67e8f9 50%, #06b6d4 70%, #0891b2 100%);
   background-size: 250% auto;
   -webkit-background-clip: text;
   background-clip: text;

@@ -3,6 +3,8 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import SignOutButton from '@/components/SignOutButton'
+import Topbar from '@/components/Topbar'
+import { prisma } from '@/lib/prisma'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -11,6 +13,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const initials = session.user.name
     ? session.user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
     : session.user.email.slice(0, 2).toUpperCase()
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { credits: true },
+  })
+  const credits = dbUser?.credits ?? 0
 
   return (
     <div className="min-h-screen bg-[#f9fafb] flex">
@@ -71,7 +79,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      <main className="flex-1 overflow-y-auto flex flex-col">
+        <Topbar credits={credits} initials={initials} />
+        <div className="flex-1">{children}</div>
+      </main>
     </div>
   )
 }
