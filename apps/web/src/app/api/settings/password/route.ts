@@ -14,14 +14,13 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Le mot de passe doit faire au moins 8 caractères' }, { status: 400 })
   }
 
-  const result = await auth.api.changePassword({
-    headers: await headers(),
-    body: { currentPassword, newPassword, revokeOtherSessions: false },
-  })
-
-  if (result.error) {
+  try {
+    await auth.api.changePassword({
+      headers: await headers(),
+      body: { currentPassword, newPassword, revokeOtherSessions: false },
+    })
+    return NextResponse.json({ success: true })
+  } catch {
     return NextResponse.json({ error: 'Mot de passe actuel incorrect' }, { status: 400 })
   }
-
-  return NextResponse.json({ success: true })
 }
