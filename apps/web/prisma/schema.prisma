@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ── BetterAuth tables ─────────────────────────────────────────────────────────
@@ -114,6 +115,7 @@ model Company {
   siren      String?
   codeNaf    String?
   source     String?
+  score      Int?
   enriched   Json?
   status     String   @default("scraped")
   scrapedAt  DateTime @default(now())

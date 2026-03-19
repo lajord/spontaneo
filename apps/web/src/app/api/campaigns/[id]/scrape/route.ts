@@ -94,14 +94,24 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
             const jsonStr = line.slice(6).trim()
             if (!jsonStr) continue
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let event: any
             try {
-              const event = JSON.parse(jsonStr)
+              event = JSON.parse(jsonStr)
+            } catch {
+              continue
+            }
 
-              if (event.type === 'company' && event.company) {
-                const c: CompanyEvent = event.company
-                if (isAlreadyContacted(c, contactedNames, contactedDomains)) continue
+            console.log('[SCRAPE] event reçu:', event?.type, event?.company?.nom ?? '')
 
-                // Sauvegarder en DB
+            if (event.type === 'company' && event.company) {
+              const c = event.company as CompanyEvent
+              if (isAlreadyContacted(c, contactedNames, contactedDomains)) {
+                console.log('[SCRAPE] ignorée (déjà contactée):', c.nom)
+                continue
+              }
+
+              try {
                 const saved = await prisma.company.create({
                   data: {
                     campaignId: id,
@@ -111,21 +121,44 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
                     phone: c.telephone ?? null,
                     sector: campaign.jobTitle,
                     source: c.source ?? null,
+                    score: c.score ?? null,
                   },
                 })
-
+                console.log('[SCRAPE] sauvegardée + forwardée:', c.nom)
                 send({ type: 'company', company: saved, tier: event.tier ?? 'high', score: c.score ?? null })
-              } else if (event.type === 'ranking') {
-                send(event)
-              } else if (event.type === 'params') {
-                send(event)
-              } else if (event.type === 'done') {
-                await prisma.campaign.update({ where: { id }, data: { status: 'scraped' } })
-                const count = await prisma.company.count({ where: { campaignId: id } })
-                send({ type: 'done', total: count })
+              } catch (dbErr) {
+                console.error('[SCRAPE] Erreur Prisma company.create:', c.nom, dbErr)
+                send({
+                  type: 'company',
+                  company: {
+                    id: `tmp-${Math.random().toString(36).slice(2, 10)}`,
+                    name: c.nom,
+                    address: c.adresse ?? null,
+                    website: c.site_web ?? null,
+                    phone: c.telephone ?? null,
+                    siren: null,
+                    source: c.source ?? null,
+                    status: 'scraped',
+                    enriched: null,
+                    score: c.score ?? null,
+                  },
+                  tier: event.tier ?? 'high',
+                  score: c.score ?? null,
+                })
               }
-            } catch {
-              // Ignorer les events mal formés
+            } else if (event.type === 'ranking') {
+              send(event)
+            } else if (event.type === 'params') {
+              send(event)
+            } else if (event.type === 'done') {
+              try {
+                await prisma.campaign.update({ where: { id }, data: { status: 'scraped' } })
+              } catch (e) {
+                console.error('[SCRAPE] Erreur mise à jour statut:', e)
+              }
+              const count = await prisma.company.count({ where: { campaignId: id } })
+              console.log('[SCRAPE] done — total DB:', count)
+              send({ type: 'done', total: count })
             }
           }
         }

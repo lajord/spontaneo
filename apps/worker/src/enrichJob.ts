@@ -209,7 +209,97 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
     )
   }
 
-  // ── Phase 1.5 : Vérification NeverBounce ─────────────────────────────────
+  // ── Phase 1.5 : Apollo — récupération des emails manquants ──────────────
+
+  {
+    type ApolloItem = {
+      ref: string
+      first_name?: string
+      last_name?: string
+      domain?: string
+      organization_name?: string
+    }
+
+    const apolloItems: ApolloItem[] = []
+    const companyById = new Map(companiesToProcess.map(c => [c.id, c]))
+
+    for (const [companyId, enriched] of enrichedMap.entries()) {
+      const contacts = enriched.resultats ?? []
+      const company = companyById.get(companyId)
+      const domain = company?.website
+        ? company.website.replace(/^https?:\/\//, '').split('/')[0]
+        : undefined
+
+      for (let i = 0; i < contacts.length; i++) {
+        const c = contacts[i]
+        if (c.type === 'specialise' && !c.mail && (c.nom || c.prenom)) {
+          apolloItems.push({
+            ref: `${companyId}:${i}`,
+            ...(c.prenom ? { first_name: c.prenom } : {}),
+            ...(c.nom ? { last_name: c.nom } : {}),
+            ...(domain ? { domain } : {}),
+            ...(company?.name ? { organization_name: company.name } : {}),
+          })
+        }
+      }
+    }
+
+    if (apolloItems.length > 0) {
+      await emit({ type: 'apollo_fill_start', total: apolloItems.length })
+
+      const APOLLO_BATCH = 10
+      let filled = 0
+      const modifiedCompanyIds = new Set<string>()
+
+      for (let i = 0; i < apolloItems.length; i += APOLLO_BATCH) {
+        const batch = apolloItems.slice(i, i + APOLLO_BATCH)
+        try {
+          const res = await fetch(`${AI_SERVICE_URL}/api/v1/apollo/fill-emails`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: batch }),
+            signal: AbortSignal.timeout(60_000),
+          })
+
+          if (res.ok) {
+            const data = await res.json() as {
+              results: { ref: string; mail: string | null; email_verified: boolean }[]
+            }
+            for (const result of data.results) {
+              if (!result.mail) continue
+              const colonIdx = result.ref.lastIndexOf(':')
+              const cId = result.ref.slice(0, colonIdx)
+              const contactIdx = parseInt(result.ref.slice(colonIdx + 1), 10)
+              const enriched = enrichedMap.get(cId)
+              if (enriched?.resultats?.[contactIdx]) {
+                enriched.resultats[contactIdx] = { ...enriched.resultats[contactIdx], mail: result.mail }
+                filled++
+                modifiedCompanyIds.add(cId)
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`[WORKER] Apollo fill batch ${i}–${i + APOLLO_BATCH} échoué:`, err)
+        }
+      }
+
+      // Persister les contacts mis à jour en DB
+      await Promise.all(
+        [...modifiedCompanyIds].map(cId => {
+          const enriched = enrichedMap.get(cId)
+          if (!enriched) return
+          return prisma.company.update({
+            where: { id: cId },
+            data: { enriched },
+          }).catch(err => console.error(`[WORKER] DB update Apollo fill ${cId}:`, err))
+        })
+      )
+
+      await emit({ type: 'apollo_fill_done', total: apolloItems.length, filled })
+    }
+  }
+
+  // ── Phase 2 : Vérification NeverBounce ───────────────────────────────────
 
   if (NEVER_BOUNCE_API_KEY) {
     // Indexer tous les mails uniques → [{companyId, contactIndex}]

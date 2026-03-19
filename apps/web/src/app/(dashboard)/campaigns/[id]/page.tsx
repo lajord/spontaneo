@@ -43,6 +43,7 @@ type Company = {
   source: string | null
   status: string
   enriched: EnrichedData | null
+  score?: number | null
 }
 
 type Campaign = {
@@ -130,6 +131,11 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
   // ── Activity log ────────────────────────────────
   const [activityLog, setActivityLog] = useState<ActivityEvent[]>([])
 
+  // ── Sub-phases "Identification décideurs" ────────
+  type SubPhaseState = 'idle' | 'running' | 'done'
+  const [apolloPhase, setApolloPhase] = useState<{ state: SubPhaseState; total: number; filled: number }>({ state: 'idle', total: 0, filled: 0 })
+  const [neverBouncePhase, setNeverBouncePhase] = useState<{ state: SubPhaseState; total: number; valid: number; removed: number }>({ state: 'idle', total: 0, valid: 0, removed: 0 })
+
   // ── Refs ─────────────────────────────────────────
   const eventSourceRef = useRef<EventSource | null>(null)
   const connectToJobRef = useRef<(jobId: string) => void>(() => {})
@@ -140,10 +146,18 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
   const draftEmails = allEmails.filter(e => e.status === 'draft')
   const sentEmails = allEmails.filter(e => e.status === 'sent').sort((a, b) => (b.sentAt ?? '').localeCompare(a.sentAt ?? ''))
   const isLaunched = campaign?.status === 'active' || campaign?.status === 'paused' || campaign?.status === 'finished'
-  const filteredCompanies = companies.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.address ?? '').toLowerCase().includes(search.toLowerCase())
-  )
+  const filteredCompanies = companies
+    .filter(c =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      (c.address ?? '').toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aIsJT = a.source === 'apollo_jobtitle'
+      const bIsJT = b.source === 'apollo_jobtitle'
+      if (aIsJT && !bIsJT) return -1
+      if (!aIsJT && bIsJT) return 1
+      return (b.score ?? 0) - (a.score ?? 0)
+    })
   const filteredHiringCompanies = filteredCompanies.filter(c => c.source === 'apollo_jobtitle')
   const filteredPotentialCompanies = filteredCompanies.filter(c => c.source !== 'apollo_jobtitle')
   const totalDecideurs = companies.reduce((acc, c) => acc + (c.enriched?.resultats?.filter(r => r.mail).length ?? 0), 0)
@@ -227,6 +241,18 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
             enriched: event.enriched ?? { resultats: [] },
           }))
           addLog('success', `${event.companyName} enrichi`)
+        } else if (event.type === 'apollo_fill_start') {
+          setApolloPhase({ state: 'running', total: event.total, filled: 0 })
+          addLog('progress', `Enrichissement supplémentaire : recherche pour ${event.total} contact(s)...`)
+        } else if (event.type === 'apollo_fill_done') {
+          setApolloPhase({ state: 'done', total: event.total, filled: event.filled })
+          addLog('success', `Enrichissement supplémentaire : ${event.filled}/${event.total} email(s) récupéré(s)`)
+        } else if (event.type === 'verifying_emails') {
+          setNeverBouncePhase({ state: 'running', total: event.total, valid: 0, removed: 0 })
+          addLog('progress', `Vérification des emails : ${event.total} adresse(s) en cours...`)
+        } else if (event.type === 'emails_verified') {
+          setNeverBouncePhase({ state: 'done', total: event.total, valid: event.valid, removed: event.removed })
+          addLog('success', `Vérification : ${event.valid} email(s) valide(s)${event.removed > 0 ? `, ${event.removed} supprimé(s)` : ''}`)
         } else if (event.type === 'generating') {
           // Phase 2 démarre pour cette entreprise → move enrichedCompanies → processingMap
           setEnrichedCompanies(prev => { const next = new Map(prev); next.delete(event.companyId); return next })
@@ -382,7 +408,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                 filterStarted = true
                 setScrapePhase('filtrage')
               }
-              setCompanies(prev => [...prev, event.company])
+              setCompanies(prev => [...prev, { ...event.company, score: event.score ?? null }])
             } else if (event.type === 'done') {
               setStep(1, 'completed')
               addLog('success', `${event.total} entreprise${event.total > 1 ? 's' : ''} trouvée${event.total > 1 ? 's' : ''}`)
@@ -406,6 +432,8 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     setEnrichedCompanies(new Map())
     setMessage('')
     setProcessingMap(new Map())
+    setApolloPhase({ state: 'idle', total: 0, filled: 0 })
+    setNeverBouncePhase({ state: 'idle', total: 0, valid: 0, removed: 0 })
     advanceTo(2)
     addLog('info', 'Démarrage de l\'enrichissement et de la rédaction...')
 
@@ -575,10 +603,10 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
 
           {/* ── STEP 1: Scraping ─────────────── */}
           {pipelineStep === 1 && (
-            <div className="p-8">
+            <div>
               {/* Not started yet */}
               {!scraping && companies.length === 0 && stepStatuses[1] !== 'completed' && (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="p-8 flex flex-col items-center justify-center py-16 text-center">
                   <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-5">
                     <svg className="w-7 h-7 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
@@ -602,7 +630,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
 
               {/* Scraping in progress */}
               {scraping && (
-                <div className="flex flex-col items-center justify-center py-16">
+                <div className="p-8 flex flex-col items-center justify-center py-16">
                   <span className="w-8 h-8 border-2 border-brand-400 border-t-transparent rounded-full animate-spin mb-4" />
                   <p className="text-sm text-slate-600 font-medium">
                     {scrapePhase === 'filtrage' ? 'Filtrage des entreprises...' : 'Recherche des entreprises...'}
@@ -614,60 +642,37 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
               {/* Companies found */}
               {!scraping && companies.length > 0 && (
                 <div>
-                  {/* Top bar: title + Suivant */}
-                  <div className="flex items-center justify-between mb-5">
-                    <h3 className="text-base font-bold text-slate-900">Résultats du scraping</h3>
-                    <button
-                      onClick={() => setPaywallOpen(true)}
-                      className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
-                    >
-                      Suivant
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                    </button>
-                  </div>
-
-                  {/* Stats cards */}
-                  <div className="grid grid-cols-3 gap-4 mb-6">
-                    <div className="border border-slate-300 rounded-xl p-4 flex flex-col items-center gap-1.5">
-                      <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                      <span className="text-2xl font-bold text-slate-900">{companies.length}</span>
-                      <span className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Entreprises</span>
+                  {/* Header: title + search + Suivant */}
+                  <div className="px-6 py-4 flex items-center justify-between border-b border-slate-200">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-base font-bold text-slate-900">Résultats du scraping</h3>
+                      <span className="text-xs text-slate-500 font-medium">{filteredCompanies.length} résultats</span>
                     </div>
-                    <div className="border border-slate-300 rounded-xl p-4 flex flex-col items-center gap-1.5">
-                      <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                      <span className="text-2xl font-bold text-slate-900">{totalDecideurs}</span>
-                      <span className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Décideurs</span>
-                    </div>
-                    <div className="border border-slate-300 rounded-xl p-4 flex flex-col items-center gap-1.5">
-                      <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                      <span className="text-2xl font-bold text-slate-900">{allEmails.length}</span>
-                      <span className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Emails</span>
-                    </div>
-                  </div>
-
-                  {/* Company list header */}
-                  <div className="border border-slate-300 rounded-xl overflow-hidden">
-                    <div className="px-5 py-3.5 border-b border-slate-300 flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-slate-800">Entreprises ciblées</h3>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-slate-600 font-medium">{filteredCompanies.length} résultats</span>
-                        <div className="relative">
-                          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-600 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                          </svg>
-                          <input
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            placeholder="Rechercher..."
-                            className="pl-7 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition w-40"
-                          />
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                          value={search}
+                          onChange={e => setSearch(e.target.value)}
+                          placeholder="Rechercher..."
+                          className="pl-7 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition w-40"
+                        />
                       </div>
+                      <button
+                        onClick={() => setPaywallOpen(true)}
+                        className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
+                      >
+                        Suivant
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                      </button>
                     </div>
+                  </div>
 
-                    {/* Company rows */}
-                    <div className="divide-y divide-slate-300">
-                      {filteredCompanies.map(company => {
+                  {/* Company rows — directly in the panel */}
+                  <div className="divide-y divide-slate-200 max-h-[520px] overflow-y-auto">
+                    {filteredCompanies.map(company => {
                         const isExpanded = expandedCompanyId === company.id
                         const initial = company.name.charAt(0).toUpperCase()
                         const contacts = company.enriched?.resultats?.filter(r => r.mail) ?? []
@@ -764,11 +769,9 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                       })}
                     </div>
 
-                    {filteredCompanies.length === 0 && (
-                      <p className="text-sm text-slate-600 text-center py-8">Aucune entreprise ne correspond à votre recherche.</p>
-                    )}
-                  </div>
-
+                  {filteredCompanies.length === 0 && (
+                    <p className="text-sm text-slate-600 text-center py-8">Aucune entreprise ne correspond à votre recherche.</p>
+                  )}
                 </div>
               )}
 
@@ -783,7 +786,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
               )}
 
               {message && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-lg">
+                <div className="mx-6 mb-4 mt-2 p-3 bg-red-50 border border-red-100 rounded-lg">
                   <p className="text-sm text-red-600 font-medium">{message}</p>
                 </div>
               )}
@@ -883,6 +886,51 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                     <p className="text-sm font-medium text-slate-600">{c.name}</p>
                   </div>
                 ))}
+
+                {/* ── Sous-phases : enrichissement & vérification ── */}
+                {(apolloPhase.state !== 'idle' || neverBouncePhase.state !== 'idle') && (
+                  <div className="border border-slate-200 rounded-xl overflow-hidden mt-2">
+                    <div className="px-5 py-3 bg-slate-50 border-b border-slate-200">
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Validation des contacts</p>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {apolloPhase.state !== 'idle' && (
+                        <div className="px-5 py-3.5 flex items-center gap-3">
+                          {apolloPhase.state === 'running' ? (
+                            <span className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                          ) : (
+                            <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          )}
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-slate-800">Enrichissement supplémentaire</p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {apolloPhase.state === 'running'
+                                ? `Recherche d'emails pour ${apolloPhase.total} contact(s)...`
+                                : `${apolloPhase.filled} email(s) récupéré(s) sur ${apolloPhase.total} contact(s)`}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {neverBouncePhase.state !== 'idle' && (
+                        <div className="px-5 py-3.5 flex items-center gap-3">
+                          {neverBouncePhase.state === 'running' ? (
+                            <span className="w-4 h-4 border-2 border-sky-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                          ) : (
+                            <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          )}
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-slate-800">Vérification des adresses</p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {neverBouncePhase.state === 'running'
+                                ? `Vérification de ${neverBouncePhase.total} email(s)...`
+                                : `${neverBouncePhase.valid} email(s) valide(s)${neverBouncePhase.removed > 0 ? ` · ${neverBouncePhase.removed} supprimé(s)` : ''}`}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })()}
@@ -1066,9 +1114,30 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
           )}
         </div>
 
-        {/* ── Right: Activity log ────────────── */}
-        <div className="w-[340px] shrink-0 self-start h-[320px]">
-          <ActivityLog events={activityLog} />
+        {/* ── Right: Stats + Activity log ────── */}
+        <div className="w-[340px] shrink-0 flex flex-col gap-4">
+          {/* Metrics */}
+          <div className="bg-white border border-slate-300 rounded-2xl px-5 py-4 shrink-0">
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-4">Vue d&apos;ensemble</p>
+            <div className="grid grid-cols-3 gap-0">
+              <div className="flex flex-col items-center gap-1 py-1">
+                <span className="text-2xl font-bold text-slate-900 tabular-nums">{companies.length}</span>
+                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider text-center leading-tight">Entreprises</span>
+              </div>
+              <div className="flex flex-col items-center gap-1 py-1 border-x border-slate-100">
+                <span className="text-2xl font-bold text-slate-900 tabular-nums">{totalDecideurs}</span>
+                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider text-center leading-tight">Décideurs</span>
+              </div>
+              <div className="flex flex-col items-center gap-1 py-1">
+                <span className="text-2xl font-bold text-slate-900 tabular-nums">{allEmails.length}</span>
+                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider text-center leading-tight">Emails</span>
+              </div>
+            </div>
+          </div>
+          {/* Activity log */}
+          <div className="flex-1 min-h-0">
+            <ActivityLog events={activityLog} />
+          </div>
         </div>
       </div>
 

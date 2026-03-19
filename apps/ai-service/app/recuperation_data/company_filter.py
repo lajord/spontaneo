@@ -1,16 +1,22 @@
 import asyncio
+import json
 import logging
 import re
 import unicodedata
 
 from app.core.model_config import get_models
 from app.models.schemas import Company
-from app.utils.ai_caller import call_ai_with_search
+from app.utils.ai_caller import call_ai, call_ai_with_search
 
 logger = logging.getLogger(__name__)
 
-# Sémaphore : 15 appels IA en parallèle (sonar-pro supporte ce débit)
-_FILTER_SEMAPHORE = asyncio.Semaphore(15)
+# Taille des batches
+_FILTER_BATCH_SIZE = 20   # Pass 1 : filtre binaire  (20 entreprises / appel)
+_SCORE_BATCH_SIZE  = 10   # Pass 2 : scoring         (10 entreprises / appel)
+
+# Max appels Perplexity simultanés pour la Pass 2
+_SCORE_SEMAPHORE = asyncio.Semaphore(3)
+
 
 # ── Normalisation pour déduplication ─────────────────────────────────────────
 
@@ -21,7 +27,6 @@ _LEGAL_FORMS = re.compile(
 
 
 def _normalize_name(name: str) -> str:
-    """Supprime accents, formes juridiques et ponctuation pour la comparaison."""
     nfkd = unicodedata.normalize("NFKD", name)
     ascii_name = nfkd.encode("ascii", "ignore").decode()
     lower = ascii_name.lower()
@@ -38,7 +43,7 @@ def _extract_postal_code(adresse: str | None) -> str:
 
 
 def dedup_companies(companies: list[Company]) -> list[Company]:
-    """Dédup par nom normalisé + code postal (si disponible)."""
+    """Dédup par nom normalisé + code postal."""
     seen: dict[str, Company] = {}
     for c in companies:
         norm = _normalize_name(c.nom)
@@ -49,92 +54,179 @@ def dedup_companies(companies: list[Company]) -> list[Company]:
     return list(seen.values())
 
 
-# ── Scoring per-company avec web search ───────────────────────────────────────
+# ── Pass 1 : filtre binaire par batch ────────────────────────────────────────
 
-_SCORE_SYSTEM = (
-    "Tu es un expert en candidatures spontanées et en analyse d'entreprises en France.\n"
-    "Tu dois évaluer si une entreprise est une cible pertinente pour un candidat en recherche d'emploi.\n"
-    "Tu as accès à la recherche web — utilise-la pour vérifier l'activité réelle de l'entreprise.\n"
-    "Réponds UNIQUEMENT avec un entier entre 0 et 100, sans texte autour."
+_P1_SYSTEM = (
+    "Tu es un classificateur d'entreprises. "
+    "Réponds UNIQUEMENT avec un tableau JSON d'indices entiers, sans texte autour."
 )
 
-_SCORE_PROMPT = (
-    "## Candidat en recherche d'emploi\n"
-    "Poste visé : {secteur}\n"
-    "{sectors_context}"
-    "{user_instructions}"
-    "## Entreprise à évaluer\n"
-    "Nom : {nom}\n"
-    "{site_line}"
-    "{type_line}"
-    "{adresse_line}"
-    "\n## Mission\n"
-    "Recherche des informations sur cette entreprise (activité réelle, secteur, profils recrutés).\n"
-    "Évalue si elle représente une bonne cible pour une candidature spontanée "
-    "au poste de \"{secteur}\".\n\n"
-    "## Barème\n"
-    "- 0 à 49 : À exclure\n"
-    "  • Mauvais secteur d'activité\n"
-    "  • Administration publique, école, université, association caritative\n"
-    "  • Agence d'intérim ou cabinet de recrutement\n"
-    "  • Entreprise sans lien avec le métier du candidat\n"
-    "  • Explicitement interdit par les instructions du candidat\n"
-    "- 50 à 69 : Pertinence partielle\n"
-    "  • Secteur adjacent ou activité mixte\n"
-    "  • Doute sur le type de profils recrutés\n"
-    "  • Activité de l'entreprise pas totalement claire\n"
-    "- 70 à 100 : Excellente cible\n"
-    "  • Secteur aligné avec le poste recherché\n"
-    "  • Entreprise qui recrute probablement des profils similaires\n"
-    "  • Cohérence forte entre l'activité de l'entreprise et le métier du candidat\n\n"
-    "Réponds UNIQUEMENT avec un entier entre 0 et 100."
+_P1_PROMPT = """\
+Parmi les entreprises ci-dessous, retourne un tableau JSON des indices (base 0) \
+de celles qui correspondent à au moins une de ces catégories :
+
+- École, lycée, collège, université, centre ou organisme de formation
+- Administration publique, mairie, préfecture, ministère, collectivité, service public
+- Association à but non lucratif, ONG, fondation, association caritative
+- Agence d'intérim ou entreprise de travail temporaire
+- Cabinet de recrutement, chasseur de têtes, agence RH
+- Syndicat, ordre professionnel, chambre de commerce, chambre des métiers
+- Hôpital public, CHU, EHPAD public
+
+Entreprises :
+{companies_list}
+
+Réponds UNIQUEMENT avec un tableau JSON, ex: [0, 3, 5] ou [] si aucune.
+"""
+
+
+def _build_company_line(i: int, c: Company) -> str:
+    parts = [f"{i}. {c.nom}"]
+    if c.type_activite:
+        parts.append(f"(activité: {c.type_activite})")
+    if c.adresse:
+        parts.append(f"— {c.adresse}")
+    return " ".join(parts)
+
+
+async def _p1_batch(companies: list[Company], model: str) -> list[int]:
+    """Retourne les indices locaux à exclure dans ce batch."""
+    lines = [_build_company_line(i, c) for i, c in enumerate(companies)]
+    prompt = _P1_PROMPT.format(companies_list="\n".join(lines))
+
+    try:
+        raw = await call_ai(model=model, prompt=prompt, system_prompt=_P1_SYSTEM, temperature=0.0)
+        match = re.search(r"\[.*?\]", raw.strip(), re.DOTALL)
+        if not match:
+            logger.warning(f"[P1] Réponse inattendue : '{raw[:100]}' — aucune exclusion")
+            return []
+        indices = json.loads(match.group(0))
+        valid = [i for i in indices if isinstance(i, int) and 0 <= i < len(companies)]
+        if valid:
+            logger.info(f"[P1] Exclues : {[companies[i].nom for i in valid]}")
+        return valid
+    except Exception as e:
+        logger.error(f"[P1] Erreur batch : {e} — aucune exclusion par sécurité")
+        return []
+
+
+async def _hard_filter(companies: list[Company], model: str) -> list[Company]:
+    """
+    Pass 1 — filtre binaire par batch de {_FILTER_BATCH_SIZE}.
+    Élimine : écoles, admin publique, asso but non lucratif, intérim, cabinets recrutement.
+    Tous les batches tournent en parallèle (pas de web search → pas de pression rate limit).
+    """
+    if not companies:
+        return []
+
+    batches = [companies[i: i + _FILTER_BATCH_SIZE] for i in range(0, len(companies), _FILTER_BATCH_SIZE)]
+    logger.info(f"[P1] {len(companies)} entreprises → {len(batches)} batch(s) de {_FILTER_BATCH_SIZE}")
+
+    results = await asyncio.gather(*[_p1_batch(b, model) for b in batches])
+
+    excluded: set[int] = set()
+    for batch_idx, local_indices in enumerate(results):
+        offset = batch_idx * _FILTER_BATCH_SIZE
+        for li in local_indices:
+            excluded.add(offset + li)
+
+    kept = [c for idx, c in enumerate(companies) if idx not in excluded]
+    logger.info(f"[P1] {len(excluded)} exclues, {len(kept)} gardées")
+    return kept
+
+
+# ── Pass 2 : scoring par batch (avec web search) ─────────────────────────────
+
+_P2_SYSTEM = (
+    "Tu es un expert en candidatures spontanées et en analyse d'entreprises en France. "
+    "Utilise la recherche web pour vérifier l'activité réelle de chaque entreprise. "
+    "Réponds UNIQUEMENT avec un tableau JSON de scores entiers (0-100), sans texte autour."
 )
 
+_P2_PROMPT = """\
+## Candidat
+Poste visé : {secteur}
+{sectors_context}{user_instructions}
+## Mission
+Pour chacune des {n} entreprises suivantes, fais une recherche web et évalue \
+si elle est une bonne cible pour une candidature spontanée au poste de "{secteur}".
 
-async def _score_one(
-    company: Company,
+## Barème
+- 0 à 29  : À exclure — activité sans rapport avec le poste, aucun recrutement probable
+- 30 à 59 : Pertinence partielle — secteur adjacent, activité mixte, doute sur les profils
+- 60 à 100 : Excellente cible — secteur aligné, recrute probablement des profils similaires
+
+## Entreprises à évaluer
+{companies_list}
+
+Réponds UNIQUEMENT avec un tableau JSON de {n} scores dans l'ordre, ex: [75, 45, 80]
+"""
+
+
+async def _p2_batch(
+    companies: list[Company],
     secteur: str,
     sectors_context: str,
     user_instructions_section: str,
     model: str,
-) -> int:
-    """Score une entreprise (0-100) via IA avec web search."""
-    site_line = f"Site web : {company.site_web}\n" if company.site_web else ""
-    type_line = f"Type d'activité : {company.type_activite}\n" if company.type_activite else ""
-    adresse_line = f"Adresse : {company.adresse}\n" if company.adresse else ""
+) -> list[int]:
+    """Score un batch de companies, retourne une liste de scores dans le même ordre."""
+    n = len(companies)
+    lines = []
+    for i, c in enumerate(companies):
+        parts = [f"{i}. {c.nom}"]
+        if c.site_web:
+            parts.append(f"(site: {c.site_web})")
+        if c.type_activite:
+            parts.append(f"(activité: {c.type_activite})")
+        if c.adresse:
+            parts.append(f"— {c.adresse}")
+        lines.append(" ".join(parts))
 
-    prompt = _SCORE_PROMPT.format(
+    prompt = _P2_PROMPT.format(
         secteur=secteur,
         sectors_context=sectors_context,
         user_instructions=user_instructions_section,
-        nom=company.nom,
-        site_line=site_line,
-        type_line=type_line,
-        adresse_line=adresse_line,
+        n=n,
+        companies_list="\n".join(lines),
     )
 
-    async with _FILTER_SEMAPHORE:
+    fallback = [50] * n
+
+    async with _SCORE_SEMAPHORE:
         try:
-            raw = await call_ai_with_search(
-                model=model,
-                prompt=prompt,
-                system_prompt=_SCORE_SYSTEM,
-            )
+            raw = await call_ai_with_search(model=model, prompt=prompt, system_prompt=_P2_SYSTEM)
         except Exception as e:
-            logger.error(f"[RANKING] Erreur scoring '{company.nom}': {e} — score=50 par défaut")
-            return 50
+            logger.error(f"[P2] Erreur batch : {e} — scores=50 par défaut")
+            return fallback
 
     raw = raw.strip()
-    match = re.search(r"\b(\d{1,3})\b", raw)
+    match = re.search(r"\[.*?\]", raw, re.DOTALL)
     if not match:
-        logger.warning(f"[RANKING] Réponse inattendue pour '{company.nom}': '{raw[:80]}' — score=50")
-        return 50
+        logger.warning(f"[P2] Réponse inattendue : '{raw[:120]}' — scores=50")
+        return fallback
 
-    score = int(match.group(1))
-    score = max(0, min(100, score))
-    logger.info(f"[RANKING] '{company.nom}' → {score}")
-    return score
+    try:
+        scores_raw = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        logger.warning(f"[P2] JSON invalide : '{raw[:120]}' — scores=50")
+        return fallback
 
+    # Valider et compléter si l'IA a renvoyé moins de scores que prévu
+    scores = []
+    for i in range(n):
+        try:
+            s = int(scores_raw[i])
+            scores.append(max(0, min(100, s)))
+        except (IndexError, TypeError, ValueError):
+            scores.append(50)
+
+    names_scores = [(companies[i].nom, scores[i]) for i in range(n)]
+    logger.info(f"[P2] Scores : {names_scores}")
+    return scores
+
+
+# ── Point d'entrée ────────────────────────────────────────────────────────────
 
 async def rank_companies(
     companies: list[Company],
@@ -144,44 +236,56 @@ async def rank_companies(
     user_instructions: str | None = None,
 ) -> list[Company]:
     """
-    Score toutes les entreprises en parallèle (web search).
-    Retourne la liste triée par score décroissant, sans les entreprises < 50.
-    Chaque company.score est mis à jour en place.
+    Pass 1 : filtre binaire par batch de 20 (Perplexity, sans web search exploité).
+             Élimine : écoles, admin, asso, intérim, cabinets recrutement.
+    Pass 2 : scoring par batch de 10 (Perplexity + web search, semaphore=3).
+             Trie le reste, exclut score < 30.
+    Retourne la liste triée par score décroissant.
     """
     if not companies:
         return []
 
-    sectors_parts = []
+    models = await get_models()
+
+    # ── Pass 1 ───────────────────────────────────────────────────────────────
+    after_filter = await _hard_filter(companies, model=models.MODEL_FILTER)
+    if not after_filter:
+        return []
+
+    # ── Pass 2 ───────────────────────────────────────────────────────────────
+    sectors_context = ""
     if categories:
-        sectors_parts.append(f"Domaines ciblés : {', '.join(categories)}\n")
+        sectors_context += f"Domaines ciblés : {', '.join(categories)}\n"
     if sectors:
-        sectors_parts.append(f"Sous-secteurs ciblés : {', '.join(sectors)}\n")
-    sectors_context = "".join(sectors_parts) if sectors_parts else ""
+        sectors_context += f"Sous-secteurs ciblés : {', '.join(sectors)}\n"
 
     user_instructions_section = (
         f"## Instructions du candidat (à respecter absolument)\n{user_instructions}\n\n"
         if user_instructions else ""
     )
 
-    models = await get_models()
-    model = models.MODEL_FILTER
-
+    batches = [
+        after_filter[i: i + _SCORE_BATCH_SIZE]
+        for i in range(0, len(after_filter), _SCORE_BATCH_SIZE)
+    ]
     logger.info(
-        f"[RANKING] Scoring de {len(companies)} entreprises "
-        f"avec {model} ({_FILTER_SEMAPHORE._value} slots parallèles)"
+        f"[P2] Scoring de {len(after_filter)} entreprises "
+        f"→ {len(batches)} batch(s) de {_SCORE_BATCH_SIZE} avec {models.MODEL_RANKING} (semaphore=3)"
     )
 
-    scores = await asyncio.gather(*[
-        _score_one(c, secteur, sectors_context, user_instructions_section, model)
-        for c in companies
+    batch_results = await asyncio.gather(*[
+        _p2_batch(b, secteur, sectors_context, user_instructions_section, models.MODEL_RANKING)
+        for b in batches
     ])
 
-    for company, score in zip(companies, scores):
+    # Aplatir les résultats et affecter les scores
+    all_scores = [score for batch_scores in batch_results for score in batch_scores]
+    for company, score in zip(after_filter, all_scores):
         company.score = score
 
-    kept = [c for c in companies if c.score >= 50]
-    kept.sort(key=lambda c: c.score, reverse=True)  # type: ignore[arg-type]
+    kept = [c for c in after_filter if (c.score or 0) >= 30]
+    kept.sort(key=lambda c: c.score or 0, reverse=True)
 
-    removed = len(companies) - len(kept)
-    logger.info(f"[RANKING] {removed} éliminées (score < 50), {len(kept)} gardées")
+    removed = len(after_filter) - len(kept)
+    logger.info(f"[P2] {removed} éliminées (score < 30), {len(kept)} gardées")
     return kept

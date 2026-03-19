@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 from openai import AsyncOpenAI
 from google import genai
 from google.genai import types
@@ -11,6 +12,14 @@ logger = logging.getLogger(__name__)
 
 # Sémaphore global : max 3 appels Gemini simultanés (évite le rate limit free tier)
 _GEMINI_SEMAPHORE = asyncio.Semaphore(3)
+
+# Sémaphore global : max 3 appels Perplexity simultanés
+_PERPLEXITY_SEMAPHORE = asyncio.Semaphore(3)
+
+# Rate limiter Perplexity : intervalle minimum entre deux appels (secondes)
+_PERPLEXITY_MIN_INTERVAL = 1.5
+_perplexity_last_call: float = 0.0
+_perplexity_rate_lock = asyncio.Lock()
 
 _MAX_RETRIES = 4
 
@@ -189,24 +198,48 @@ async def _perplexity(
     system_prompt: str = "",
     temperature: float = 0.3,
 ) -> str:
-    try:
-        client = AsyncOpenAI(
-            api_key=settings.PERPLEXITY_API_KEY,
-            base_url=settings.PERPLEXITY_BASE_URL,
-        )
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-        response = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-        )
-        return response.choices[0].message.content or ""
-    except Exception as e:
-        logger.error(f"[PERPLEXITY] Erreur : {e.__class__.__name__}: {e}")
-        raise
+    client = AsyncOpenAI(
+        api_key=settings.PERPLEXITY_API_KEY,
+        base_url=settings.PERPLEXITY_BASE_URL,
+    )
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
+    global _perplexity_last_call
+
+    async with _PERPLEXITY_SEMAPHORE:
+        # Rate limiting : espacer les appels d'au moins _PERPLEXITY_MIN_INTERVAL secondes
+        async with _perplexity_rate_lock:
+            now = time.monotonic()
+            wait_before = _PERPLEXITY_MIN_INTERVAL - (now - _perplexity_last_call)
+            if wait_before > 0:
+                await asyncio.sleep(wait_before)
+            _perplexity_last_call = time.monotonic()
+
+        for attempt in range(_MAX_RETRIES):
+            try:
+                response = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                )
+                return response.choices[0].message.content or ""
+            except Exception as e:
+                err_str = str(e)
+                is_rate_limit = "429" in err_str or "rate_limit" in err_str.lower()
+                if is_rate_limit and attempt < _MAX_RETRIES - 1:
+                    wait = 20 * (attempt + 1)
+                    logger.warning(
+                        f"[PERPLEXITY] 429 rate limit — tentative {attempt + 1}/{_MAX_RETRIES}, "
+                        f"retry dans {wait}s..."
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    logger.error(f"[PERPLEXITY] Erreur : {e.__class__.__name__}: {e}")
+                    raise
+    return ""
 
 
 async def _ovh_vision(

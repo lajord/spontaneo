@@ -96,9 +96,9 @@ async def search_companies_apollo(request: SearchRequest):
             user_instructions=request.prompt if request.prompt else None,
         )
 
-        # 6. Stream : tier "high" (≥70) d'abord, puis tier "low" (50-69)
-        high = [c for c in ranked if (c.score or 0) >= 70]
-        low = [c for c in ranked if 50 <= (c.score or 0) < 70]
+        # 6. Stream : tier "high" (≥60) d'abord, puis tier "low" (30-59)
+        high = [c for c in ranked if (c.score or 0) >= 60]
+        low = [c for c in ranked if 30 <= (c.score or 0) < 60]
 
         for company in high:
             yield _sse_event({

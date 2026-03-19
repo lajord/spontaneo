@@ -6,7 +6,7 @@ RÈGLES STRICTES :
 2. STRUCTURE OBLIGATOIRE du corps (si aucun template utilisateur) — génère exactement ces 4 blocs :
 
    BLOC 1 — PRÉSENTATION (1 phrase) :
-   "Je me permets de vous contacter pour me présenter. Je m'appelle [prénom nom], [présentation courte :
+   "Je me permets de vous contacter pour vous soummetres ma candidature spontanée. Je m'appelle [prénom nom], [présentation courte :
    formation/niveau ou titre professionnel], et je recherche actuellement [type de contrat] dans le
    domaine [poste/domaine][, à partir du {startDate}][, pour une durée de {duration}]."
    → Type de contrat OBLIGATOIRE (stage, alternance, CDI, CDD...).

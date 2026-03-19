@@ -1,10 +1,98 @@
 import logging
 import httpx
 from fastapi import APIRouter, Query
+from pydantic import BaseModel
+from typing import Optional
 from app.core.config import settings
+from app.apollo.client import ApolloClient
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+# ── Fill missing emails via bulk_match ───────────────────────────────────────
+
+class FillEmailItem(BaseModel):
+    ref: str  # opaque reference retournée telle quelle (ex: "companyId:contactIndex")
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    domain: Optional[str] = None
+    organization_name: Optional[str] = None
+
+
+class FillEmailResult(BaseModel):
+    ref: str
+    mail: Optional[str] = None
+    email_verified: bool = False
+
+
+class FillEmailRequest(BaseModel):
+    items: list[FillEmailItem]
+
+
+class FillEmailResponse(BaseModel):
+    results: list[FillEmailResult]
+
+
+@router.post("/apollo/fill-emails", response_model=FillEmailResponse, tags=["apollo"])
+async def fill_missing_emails(request: FillEmailRequest) -> FillEmailResponse:
+    """Apollo bulk_match pour récupérer les emails manquants.
+
+    Prend une liste de contacts identifiés (nom/prénom + domaine) sans email
+    et tente de récupérer leur email pro via Apollo bulk_match.
+    Chaque item est renvoyé avec son ref opaque pour que le caller puisse mapper.
+    """
+    empty = FillEmailResponse(results=[FillEmailResult(ref=item.ref) for item in request.items])
+
+    if not settings.APOLLO_API_KEY:
+        logger.info("[APOLLO FILL] Clé API absente — skip")
+        return empty
+
+    if not request.items:
+        return FillEmailResponse(results=[])
+
+    details = []
+    for item in request.items:
+        detail: dict = {}
+        if item.first_name:
+            detail["first_name"] = item.first_name
+        if item.last_name:
+            detail["last_name"] = item.last_name
+        if item.domain:
+            detail["domain"] = item.domain
+        if item.organization_name:
+            detail["organization_name"] = item.organization_name
+        details.append(detail)
+
+    client = ApolloClient(api_key=settings.APOLLO_API_KEY)
+    results: list[FillEmailResult] = []
+    try:
+        response = await client.bulk_match(details=details, reveal_personal_emails=True)
+        matches = response.get("matches") or []
+
+        for i, item in enumerate(request.items):
+            match = matches[i] if i < len(matches) else None
+            person = (match or {}).get("person")
+            if person and person.get("email"):
+                email_status = person.get("email_status", "")
+                results.append(FillEmailResult(
+                    ref=item.ref,
+                    mail=person["email"],
+                    email_verified=(email_status == "verified"),
+                ))
+            else:
+                results.append(FillEmailResult(ref=item.ref))
+
+    except Exception as e:
+        logger.error(f"[APOLLO FILL] bulk_match échoué: {e}")
+        return empty
+    finally:
+        await client.close()
+
+    filled = sum(1 for r in results if r.mail)
+    logger.info(f"[APOLLO FILL] {filled}/{len(request.items)} emails récupérés")
+
+    return FillEmailResponse(results=results)
 
 
 @router.get("/mixed_companies/search/by-job-titles", tags=["apollo-test"])
