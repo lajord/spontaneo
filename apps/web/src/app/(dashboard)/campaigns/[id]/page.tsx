@@ -402,7 +402,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
 
             if (event.type === 'ranking') {
               setScrapePhase('filtrage')
-              addLog('progress', `Filtrage IA de ${event.count} entreprises...`)
+              addLog('progress', `Filtrage de ${event.count} entreprises...`)
             } else if (event.type === 'company' && event.company) {
               if (!filterStarted) {
                 filterStarted = true

@@ -4,6 +4,8 @@ import logging
 import re
 import unicodedata
 
+import httpx
+
 from app.core.model_config import get_models
 from app.models.schemas import Company
 from app.utils.ai_caller import call_ai, call_ai_with_search
@@ -11,11 +13,15 @@ from app.utils.ai_caller import call_ai, call_ai_with_search
 logger = logging.getLogger(__name__)
 
 # Taille des batches
-_FILTER_BATCH_SIZE = 20   # Pass 1 : filtre binaire  (20 entreprises / appel)
+_FILTER_BATCH_SIZE = 5    # Pass 1 : filtre binaire avec web search (5 entreprises / appel)
 _SCORE_BATCH_SIZE  = 10   # Pass 2 : scoring         (10 entreprises / appel)
 
 # Max appels Perplexity simultanés pour la Pass 2
 _SCORE_SEMAPHORE = asyncio.Semaphore(3)
+
+# Vérification URL
+_URL_TIMEOUT   = 8.0
+_URL_SEMAPHORE = asyncio.Semaphore(15)
 
 
 # ── Normalisation pour déduplication ─────────────────────────────────────────
@@ -54,24 +60,69 @@ def dedup_companies(companies: list[Company]) -> list[Company]:
     return list(seen.values())
 
 
-# ── Pass 1 : filtre binaire par batch ────────────────────────────────────────
+# ── Vérification URL ─────────────────────────────────────────────────────────
+
+async def _is_url_alive(url: str) -> bool:
+    """Retourne False si l'URL est morte (erreur, timeout, 4xx/5xx)."""
+    if not url:
+        return True
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    async with _URL_SEMAPHORE:
+        try:
+            async with httpx.AsyncClient(
+                follow_redirects=True,
+                timeout=_URL_TIMEOUT,
+                verify=False,
+            ) as client:
+                response = await client.head(url, headers={"User-Agent": "Mozilla/5.0"})
+                if response.status_code >= 400:
+                    response = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                return response.status_code < 400
+        except Exception:
+            return False
+
+
+async def _url_filter(companies: list[Company]) -> list[Company]:
+    """Supprime les entreprises dont le site web est mort (erreur HTTP ou inaccessible)."""
+    companies_with_url = [(i, c) for i, c in enumerate(companies) if c.site_web]
+    if not companies_with_url:
+        return companies
+
+    results = await asyncio.gather(*[_is_url_alive(c.site_web) for _, c in companies_with_url])
+
+    dead_indices = {companies_with_url[i][0] for i, alive in enumerate(results) if not alive}
+    if dead_indices:
+        logger.info(f"[URL] URLs mortes : {[companies[i].nom for i in sorted(dead_indices)]}")
+
+    kept = [c for i, c in enumerate(companies) if i not in dead_indices]
+    logger.info(f"[URL] {len(dead_indices)} exclues (site mort), {len(kept)} gardées")
+    return kept
+
+
+# ── Pass 1 : filtre binaire par batch (avec web search) ──────────────────────
 
 _P1_SYSTEM = (
     "Tu es un classificateur d'entreprises. "
+    "Effectue une recherche web pour chaque entreprise avant de te prononcer. "
     "Réponds UNIQUEMENT avec un tableau JSON d'indices entiers, sans texte autour."
 )
 
 _P1_PROMPT = """\
-Parmi les entreprises ci-dessous, retourne un tableau JSON des indices (base 0) \
-de celles qui correspondent à au moins une de ces catégories :
+Pour chacune des entreprises ci-dessous, fais une recherche web pour vérifier \
+sa nature réelle, puis retourne un tableau JSON des indices (base 0) de celles \
+qui correspondent à au moins une de ces catégories :
 
-- École, lycée, collège, université, centre ou organisme de formation
-- Administration publique, mairie, préfecture, ministère, collectivité, service public
-- Association à but non lucratif, ONG, fondation, association caritative
+- École, lycée, collège, université, centre de formation, organisme de formation (OPCO, CFA…)
+- Administration publique, mairie, préfecture, ministère, collectivité territoriale, service public
+- Association à but non lucratif, ONG, fondation, association caritative ou culturelle (loi 1901)
 - Agence d'intérim ou entreprise de travail temporaire
-- Cabinet de recrutement, chasseur de têtes, agence RH
+- Cabinet de recrutement, chasseur de têtes, agence RH, société de portage salarial
 - Syndicat, ordre professionnel, chambre de commerce, chambre des métiers
-- Hôpital public, CHU, EHPAD public
+- Hôpital public, CHU, EHPAD public, clinique publique
+- Secte, mouvement sectaire, organisation religieuse
+
+En cas de doute, préfère exclure l'entreprise (sois strict).
 
 Entreprises :
 {companies_list}
@@ -90,12 +141,12 @@ def _build_company_line(i: int, c: Company) -> str:
 
 
 async def _p1_batch(companies: list[Company], model: str) -> list[int]:
-    """Retourne les indices locaux à exclure dans ce batch."""
+    """Retourne les indices locaux à exclure dans ce batch (avec web search Perplexity)."""
     lines = [_build_company_line(i, c) for i, c in enumerate(companies)]
     prompt = _P1_PROMPT.format(companies_list="\n".join(lines))
 
     try:
-        raw = await call_ai(model=model, prompt=prompt, system_prompt=_P1_SYSTEM, temperature=0.0)
+        raw = await call_ai_with_search(model=model, prompt=prompt, system_prompt=_P1_SYSTEM)
         match = re.search(r"\[.*?\]", raw.strip(), re.DOTALL)
         if not match:
             logger.warning(f"[P1] Réponse inattendue : '{raw[:100]}' — aucune exclusion")
@@ -112,20 +163,19 @@ async def _p1_batch(companies: list[Company], model: str) -> list[int]:
 
 async def _hard_filter(companies: list[Company], model: str) -> list[Company]:
     """
-    Pass 1 — filtre binaire par batch de {_FILTER_BATCH_SIZE}.
-    Élimine : écoles, admin publique, asso but non lucratif, intérim, cabinets recrutement.
-    Tous les batches tournent en parallèle (pas de web search → pas de pression rate limit).
+    Pass 1 — filtre binaire séquentiel par batch de {_FILTER_BATCH_SIZE} avec web search Perplexity.
+    Batches traités un par un pour ne pas bombarder le rate limit Perplexity.
+    Le rate limiter global de ai_caller (1.5s entre appels) gère l'espacement.
     """
     if not companies:
         return []
 
     batches = [companies[i: i + _FILTER_BATCH_SIZE] for i in range(0, len(companies), _FILTER_BATCH_SIZE)]
-    logger.info(f"[P1] {len(companies)} entreprises → {len(batches)} batch(s) de {_FILTER_BATCH_SIZE}")
-
-    results = await asyncio.gather(*[_p1_batch(b, model) for b in batches])
+    logger.info(f"[P1] {len(companies)} entreprises → {len(batches)} batch(s) de {_FILTER_BATCH_SIZE} (séquentiel, web search)")
 
     excluded: set[int] = set()
-    for batch_idx, local_indices in enumerate(results):
+    for batch_idx, batch in enumerate(batches):
+        local_indices = await _p1_batch(batch, model)
         offset = batch_idx * _FILTER_BATCH_SIZE
         for li in local_indices:
             excluded.add(offset + li)
@@ -247,8 +297,13 @@ async def rank_companies(
 
     models = await get_models()
 
+    # ── URL check ─────────────────────────────────────────────────────────────
+    after_url = await _url_filter(companies)
+    if not after_url:
+        return []
+
     # ── Pass 1 ───────────────────────────────────────────────────────────────
-    after_filter = await _hard_filter(companies, model=models.MODEL_FILTER)
+    after_filter = await _hard_filter(after_url, model=models.MODEL_FILTER)
     if not after_filter:
         return []
 

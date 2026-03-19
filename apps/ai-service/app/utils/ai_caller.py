@@ -218,6 +218,7 @@ async def _perplexity(
                 await asyncio.sleep(wait_before)
             _perplexity_last_call = time.monotonic()
 
+        rate_limit_retried = False
         for attempt in range(_MAX_RETRIES):
             try:
                 response = await client.chat.completions.create(
@@ -229,13 +230,10 @@ async def _perplexity(
             except Exception as e:
                 err_str = str(e)
                 is_rate_limit = "429" in err_str or "rate_limit" in err_str.lower()
-                if is_rate_limit and attempt < _MAX_RETRIES - 1:
-                    wait = 20 * (attempt + 1)
-                    logger.warning(
-                        f"[PERPLEXITY] 429 rate limit — tentative {attempt + 1}/{_MAX_RETRIES}, "
-                        f"retry dans {wait}s..."
-                    )
-                    await asyncio.sleep(wait)
+                if is_rate_limit and not rate_limit_retried:
+                    rate_limit_retried = True
+                    logger.warning("[PERPLEXITY] 429 rate limit — attente 60s avant retry...")
+                    await asyncio.sleep(60)
                 else:
                     logger.error(f"[PERPLEXITY] Erreur : {e.__class__.__name__}: {e}")
                     raise
