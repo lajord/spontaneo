@@ -10,7 +10,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ── BetterAuth tables ─────────────────────────────────────────────────────────
@@ -91,6 +90,7 @@ model Campaign {
   duration    String?
   prompt      String?
   status        String    @default("draft")
+  autoStart     Boolean   @default(false)
   dailyLimit    Int?
   launchedAt    DateTime?
   sendStartHour Int?      @default(8)

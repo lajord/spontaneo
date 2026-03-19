@@ -17,6 +17,8 @@ class Company(BaseModel):
     site_web: Optional[str] = None
     telephone: Optional[str] = None
     source: Optional[str] = None
+    type_activite: Optional[str] = None  # categoryName Google Maps ou secteur Apollo
+    score: Optional[int] = None          # score de pertinence 0-100 (après ranking)
 
 
 class EnrichedCompany(Company):

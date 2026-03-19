@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     MODEL_RANKING: str = "gemini-2.5-flash"
     MODEL_FILTER: str = "sonar-pro"
 
+    # NeverBounce (validation emails)
+    NEVER_BOUNCE_API: str = ""
+
     # Apollo.io
     APOLLO_API_KEY: str = ""
 

@@ -374,11 +374,13 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
           try {
             const event = JSON.parse(jsonStr)
 
-            if (event.type === 'company' && event.company) {
+            if (event.type === 'ranking') {
+              setScrapePhase('filtrage')
+              addLog('progress', `Filtrage IA de ${event.count} entreprises...`)
+            } else if (event.type === 'company' && event.company) {
               if (!filterStarted) {
                 filterStarted = true
                 setScrapePhase('filtrage')
-                addLog('progress', 'Filtrage IA des entreprises...')
               }
               setCompanies(prev => [...prev, event.company])
             } else if (event.type === 'done') {
@@ -421,6 +423,10 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         userMailTemplate: opts.userMailTemplate || null,
         userMailSubject: opts.userMailSubject || null,
         poolLimit: opts.poolLimit || null,
+        autoStart: opts.autoStart,
+        dailyLimit: opts.autoStart ? opts.dailyLimit : null,
+        sendStartHour: opts.autoStart ? opts.sendStartHour : null,
+        sendEndHour: opts.autoStart ? opts.sendEndHour : null,
       }),
     })
     if (!res.ok) {

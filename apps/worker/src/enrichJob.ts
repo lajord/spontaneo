@@ -1,7 +1,9 @@
 import { prisma, appendJobEvent } from './eventStore'
 import { saveLmDocx, saveLmDocxBytes } from './fileStorage'
+import { verifyEmails } from './neverbounceClient'
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? 'http://localhost:8000'
+const NEVER_BOUNCE_API_KEY = process.env.NEVER_BOUNCE_API_KEY ?? ''
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -205,6 +207,50 @@ export async function runEnrichJob(payload: JobPayload): Promise<void> {
         enrichedMap.set(c.id, {})
       }))
     )
+  }
+
+  // ── Phase 1.5 : Vérification NeverBounce ─────────────────────────────────
+
+  if (NEVER_BOUNCE_API_KEY) {
+    // Indexer tous les mails uniques → [{companyId, contactIndex}]
+    const emailRefs = new Map<string, Array<{ companyId: string; contactIndex: number }>>()
+
+    for (const [companyId, enriched] of enrichedMap.entries()) {
+      for (let i = 0; i < (enriched.resultats ?? []).length; i++) {
+        const mail = enriched.resultats![i].mail
+        if (!mail) continue
+        if (!emailRefs.has(mail)) emailRefs.set(mail, [])
+        emailRefs.get(mail)!.push({ companyId, contactIndex: i })
+      }
+    }
+
+    const uniqueEmails = [...emailRefs.keys()]
+
+    if (uniqueEmails.length > 0) {
+      await emit({ type: 'verifying_emails', total: uniqueEmails.length })
+
+      const results = await verifyEmails(uniqueEmails, NEVER_BOUNCE_API_KEY)
+
+      let removedCount = 0
+      for (const [email, result] of results.entries()) {
+        if (result === 'invalid' || result === 'disposable') {
+          for (const { companyId, contactIndex } of emailRefs.get(email) ?? []) {
+            const enriched = enrichedMap.get(companyId)
+            if (enriched?.resultats?.[contactIndex]) {
+              enriched.resultats[contactIndex] = { ...enriched.resultats[contactIndex], mail: null }
+            }
+          }
+          removedCount++
+        }
+      }
+
+      await emit({
+        type: 'emails_verified',
+        total: uniqueEmails.length,
+        valid: uniqueEmails.length - removedCount,
+        removed: removedCount,
+      })
+    }
   }
 
   // ── Phase 2 : Génération des mails ───────────────────────────────────────

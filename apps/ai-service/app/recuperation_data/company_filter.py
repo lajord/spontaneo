@@ -1,112 +1,142 @@
 import asyncio
-import json
 import logging
 import re
+import unicodedata
 
 from app.core.model_config import get_models
 from app.models.schemas import Company
-from app.utils.ai_caller import call_ai
+from app.utils.ai_caller import call_ai_with_search
 
 logger = logging.getLogger(__name__)
 
-_BATCH_SIZE = 50  # Max entreprises par appel IA (évite les réponses tronquées)
+# Sémaphore : 15 appels IA en parallèle (sonar-pro supporte ce débit)
+_FILTER_SEMAPHORE = asyncio.Semaphore(15)
 
-_SYSTEM_PROMPT = (
-    "Tu reçois une liste d'entreprises trouvées pour un candidat.\n"
-    "Pour chaque entreprise, dis si elle est cohérente avec la recherche du candidat.\n"
-    "Base-toi sur le nom de l'entreprise et son activité probable.\n"
-    "Si le candidat a exprimé des critères ou des exclusions spécifiques, tu DOIS les respecter à la lettre et en priorité absolue.\n\n"
-    "Réponds UNIQUEMENT avec un tableau JSON de booléens dans le même ordre.\n"
-    "true = pertinent, false = pas pertinent.\n"
-    "Pas de markdown, pas de texte autour, juste le tableau JSON.\n"
-    "Exemple pour 5 entreprises : [true, false, true, true, false]\n"
-)
+# ── Normalisation pour déduplication ─────────────────────────────────────────
 
-_USER_PROMPT = (
-    "## Candidat\n"
-    "Poste recherché : {secteur}\n"
-    "{sectors_context}\n"
-    "{user_instructions_section}\n"
-    "## Entreprises à évaluer ({count} entreprises)\n"
-    "{companies_list}\n\n"
-    "Réponds avec un tableau JSON de {count} booléens (un par entreprise, dans l'ordre)."
+_LEGAL_FORMS = re.compile(
+    r"\b(sarl|sas|sasu|sa|snc|sci|eurl|gie|eirl|ei|se|selarl|selas|sca|scop|scp|sel)\b",
+    re.IGNORECASE,
 )
 
 
-def _extract_json(raw: str) -> str:
-    """Extrait le JSON d'une réponse potentiellement enrobée de markdown."""
-    # Tenter d'extraire depuis un bloc ```json ... ``` ou ``` ... ```
-    match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", raw, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    # Tenter d'extraire un tableau JSON brut
-    match = re.search(r"\[.*\]", raw, re.DOTALL)
-    if match:
-        return match.group(0).strip()
-    return raw.strip()
+def _normalize_name(name: str) -> str:
+    """Supprime accents, formes juridiques et ponctuation pour la comparaison."""
+    nfkd = unicodedata.normalize("NFKD", name)
+    ascii_name = nfkd.encode("ascii", "ignore").decode()
+    lower = ascii_name.lower()
+    no_legal = _LEGAL_FORMS.sub("", lower)
+    clean = re.sub(r"[^\w\s]", "", no_legal)
+    return re.sub(r"\s+", " ", clean).strip()
 
 
-async def _filter_batch(
-    batch: list[Company],
+def _extract_postal_code(adresse: str | None) -> str:
+    if not adresse:
+        return ""
+    match = re.search(r"\b(\d{5})\b", adresse)
+    return match.group(1) if match else ""
+
+
+def dedup_companies(companies: list[Company]) -> list[Company]:
+    """Dédup par nom normalisé + code postal (si disponible)."""
+    seen: dict[str, Company] = {}
+    for c in companies:
+        norm = _normalize_name(c.nom)
+        postal = _extract_postal_code(c.adresse)
+        key = f"{norm}|{postal}" if postal else norm
+        if key not in seen:
+            seen[key] = c
+    return list(seen.values())
+
+
+# ── Scoring per-company avec web search ───────────────────────────────────────
+
+_SCORE_SYSTEM = (
+    "Tu es un expert en candidatures spontanées et en analyse d'entreprises en France.\n"
+    "Tu dois évaluer si une entreprise est une cible pertinente pour un candidat en recherche d'emploi.\n"
+    "Tu as accès à la recherche web — utilise-la pour vérifier l'activité réelle de l'entreprise.\n"
+    "Réponds UNIQUEMENT avec un entier entre 0 et 100, sans texte autour."
+)
+
+_SCORE_PROMPT = (
+    "## Candidat en recherche d'emploi\n"
+    "Poste visé : {secteur}\n"
+    "{sectors_context}"
+    "{user_instructions}"
+    "## Entreprise à évaluer\n"
+    "Nom : {nom}\n"
+    "{site_line}"
+    "{type_line}"
+    "{adresse_line}"
+    "\n## Mission\n"
+    "Recherche des informations sur cette entreprise (activité réelle, secteur, profils recrutés).\n"
+    "Évalue si elle représente une bonne cible pour une candidature spontanée "
+    "au poste de \"{secteur}\".\n\n"
+    "## Barème\n"
+    "- 0 à 49 : À exclure\n"
+    "  • Mauvais secteur d'activité\n"
+    "  • Administration publique, école, université, association caritative\n"
+    "  • Agence d'intérim ou cabinet de recrutement\n"
+    "  • Entreprise sans lien avec le métier du candidat\n"
+    "  • Explicitement interdit par les instructions du candidat\n"
+    "- 50 à 69 : Pertinence partielle\n"
+    "  • Secteur adjacent ou activité mixte\n"
+    "  • Doute sur le type de profils recrutés\n"
+    "  • Activité de l'entreprise pas totalement claire\n"
+    "- 70 à 100 : Excellente cible\n"
+    "  • Secteur aligné avec le poste recherché\n"
+    "  • Entreprise qui recrute probablement des profils similaires\n"
+    "  • Cohérence forte entre l'activité de l'entreprise et le métier du candidat\n\n"
+    "Réponds UNIQUEMENT avec un entier entre 0 et 100."
+)
+
+
+async def _score_one(
+    company: Company,
     secteur: str,
     sectors_context: str,
+    user_instructions_section: str,
     model: str,
-    user_instructions: str | None = None,
-) -> list[bool]:
-    """Filtre un batch d'entreprises. Retourne une liste de booléens."""
-    lines = []
-    for i, c in enumerate(batch, 1):
-        parts = [f"{i}. {c.nom}"]
-        if c.site_web:
-            parts.append(f"({c.site_web})")
-        lines.append(" ".join(parts))
-    companies_list = "\n".join(lines)
+) -> int:
+    """Score une entreprise (0-100) via IA avec web search."""
+    site_line = f"Site web : {company.site_web}\n" if company.site_web else ""
+    type_line = f"Type d'activité : {company.type_activite}\n" if company.type_activite else ""
+    adresse_line = f"Adresse : {company.adresse}\n" if company.adresse else ""
 
-    if user_instructions:
-        user_instructions_section = (
-            f"Instructions du candidat (à respecter absolument) :\n{user_instructions}\n"
-        )
-    else:
-        user_instructions_section = ""
-
-    prompt = _USER_PROMPT.format(
+    prompt = _SCORE_PROMPT.format(
         secteur=secteur,
         sectors_context=sectors_context,
-        user_instructions_section=user_instructions_section,
-        companies_list=companies_list,
-        count=len(batch),
+        user_instructions=user_instructions_section,
+        nom=company.nom,
+        site_line=site_line,
+        type_line=type_line,
+        adresse_line=adresse_line,
     )
 
-    raw = await call_ai(
-        model=model,
-        prompt=prompt,
-        system_prompt=_SYSTEM_PROMPT,
-        temperature=0.1,
-    )
+    async with _FILTER_SEMAPHORE:
+        try:
+            raw = await call_ai_with_search(
+                model=model,
+                prompt=prompt,
+                system_prompt=_SCORE_SYSTEM,
+            )
+        except Exception as e:
+            logger.error(f"[RANKING] Erreur scoring '{company.nom}': {e} — score=50 par défaut")
+            return 50
 
-    logger.info(f"[FILTER] Réponse brute ({len(raw)} chars) : {raw[:300]}")
+    raw = raw.strip()
+    match = re.search(r"\b(\d{1,3})\b", raw)
+    if not match:
+        logger.warning(f"[RANKING] Réponse inattendue pour '{company.nom}': '{raw[:80]}' — score=50")
+        return 50
 
-    if not raw or not raw.strip():
-        logger.warning("[FILTER] Réponse vide — on garde tout le batch")
-        return [True] * len(batch)
-
-    extracted = _extract_json(raw)
-    verdicts = json.loads(extracted)
-
-    if not isinstance(verdicts, list):
-        logger.warning(f"[FILTER] Réponse n'est pas une liste ({type(verdicts).__name__}) — on garde tout")
-        return [True] * len(batch)
-
-    if len(verdicts) != len(batch):
-        logger.warning(
-            f"[FILTER] Taille incohérente ({len(verdicts)} vs {len(batch)} attendus) — on garde tout"
-        )
-        return [True] * len(batch)
-
-    return [bool(v) for v in verdicts]
+    score = int(match.group(1))
+    score = max(0, min(100, score))
+    logger.info(f"[RANKING] '{company.nom}' → {score}")
+    return score
 
 
-async def filter_companies(
+async def rank_companies(
     companies: list[Company],
     secteur: str,
     sectors: list[str] | None = None,
@@ -114,45 +144,44 @@ async def filter_companies(
     user_instructions: str | None = None,
 ) -> list[Company]:
     """
-    Filtre des entreprises par lots en parallèle.
-    Retourne uniquement les entreprises pertinentes.
+    Score toutes les entreprises en parallèle (web search).
+    Retourne la liste triée par score décroissant, sans les entreprises < 50.
+    Chaque company.score est mis à jour en place.
     """
     if not companies:
         return []
 
     sectors_parts = []
     if categories:
-        sectors_parts.append(f"Domaines ciblés : {', '.join(categories)}")
+        sectors_parts.append(f"Domaines ciblés : {', '.join(categories)}\n")
     if sectors:
-        sectors_parts.append(f"Sous-secteurs ciblés : {', '.join(sectors)}")
-    sectors_context = "\n".join(sectors_parts) if sectors_parts else "Aucun secteur spécifique ciblé."
+        sectors_parts.append(f"Sous-secteurs ciblés : {', '.join(sectors)}\n")
+    sectors_context = "".join(sectors_parts) if sectors_parts else ""
+
+    user_instructions_section = (
+        f"## Instructions du candidat (à respecter absolument)\n{user_instructions}\n\n"
+        if user_instructions else ""
+    )
 
     models = await get_models()
     model = models.MODEL_FILTER
 
-    # Découper en batches
-    batches = [companies[i:i + _BATCH_SIZE] for i in range(0, len(companies), _BATCH_SIZE)]
     logger.info(
-        f"[FILTER] Filtrage de {len(companies)} entreprises "
-        f"avec {model} en {len(batches)} batch(s) de max {_BATCH_SIZE}"
+        f"[RANKING] Scoring de {len(companies)} entreprises "
+        f"avec {model} ({_FILTER_SEMAPHORE._value} slots parallèles)"
     )
 
-    # Exécuter tous les batches en parallèle
-    try:
-        all_verdicts_lists = await asyncio.gather(*[
-            _filter_batch(batch, secteur, sectors_context, model, user_instructions)
-            for batch in batches
-        ])
-    except Exception as e:
-        logger.error(f"[FILTER] Erreur globale: {e} — on garde tout par défaut")
-        return companies
+    scores = await asyncio.gather(*[
+        _score_one(c, secteur, sectors_context, user_instructions_section, model)
+        for c in companies
+    ])
 
-    # Fusionner les verdicts
-    all_verdicts: list[bool] = []
-    for verdicts in all_verdicts_lists:
-        all_verdicts.extend(verdicts)
+    for company, score in zip(companies, scores):
+        company.score = score
 
-    result = [c for c, keep in zip(companies, all_verdicts) if keep]
-    removed = len(companies) - len(result)
-    logger.info(f"[FILTER] {removed} entreprises filtrées, {len(result)} gardées")
-    return result
+    kept = [c for c in companies if c.score >= 50]
+    kept.sort(key=lambda c: c.score, reverse=True)  # type: ignore[arg-type]
+
+    removed = len(companies) - len(kept)
+    logger.info(f"[RANKING] {removed} éliminées (score < 50), {len(kept)} gardées")
+    return kept

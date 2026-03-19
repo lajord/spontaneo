@@ -11,6 +11,8 @@ interface CompanyEvent {
   site_web?: string
   telephone?: string
   source?: string
+  type_activite?: string
+  score?: number
 }
 
 function isAlreadyContacted(
@@ -112,7 +114,9 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
                   },
                 })
 
-                send({ type: 'company', company: saved })
+                send({ type: 'company', company: saved, tier: event.tier ?? 'high', score: c.score ?? null })
+              } else if (event.type === 'ranking') {
+                send(event)
               } else if (event.type === 'params') {
                 send(event)
               } else if (event.type === 'done') {

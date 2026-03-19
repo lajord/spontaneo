@@ -13,6 +13,10 @@ export type PreGenerateOptions = {
     }
     extraFiles: File[]
     poolLimit?: number
+    autoStart: boolean
+    dailyLimit: number
+    sendStartHour: number
+    sendEndHour: number
 }
 
 const DEFAULT_OPTIONS: PreGenerateOptions = {
@@ -20,6 +24,10 @@ const DEFAULT_OPTIONS: PreGenerateOptions = {
     userMailSubject: '',
     links: { linkedin: '', github: '', portfolio: '', custom: [] },
     extraFiles: [],
+    autoStart: false,
+    dailyLimit: 10,
+    sendStartHour: 8,
+    sendEndHour: 18,
 }
 
 const TAGS = [
@@ -342,7 +350,72 @@ export default function PreGenerateModal({ open, poolLimit, onConfirm, onCancel 
                         </section>
                     )}
 
-                    {/* ── Section 3 : Pièces jointes ── */}
+                    {/* ── Section 3 : Envoi automatique ── */}
+                    <section className="pt-2">
+                        <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">
+                            Envoi automatique
+                        </h3>
+
+                        <button
+                            type="button"
+                            onClick={() => setOpts(prev => ({ ...prev, autoStart: !prev.autoStart }))}
+                            className={`w-full text-left rounded-xl border-2 px-5 py-4 transition-colors ${opts.autoStart
+                                ? 'border-brand-500 bg-brand-50/50 shadow-sm'
+                                : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50 bg-white'
+                            }`}
+                        >
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-900">Lancer l&apos;envoi automatiquement</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">Une fois la génération terminée, la campagne démarre sans intervention</p>
+                                </div>
+                                <div className={`w-10 h-6 rounded-full transition-colors shrink-0 ml-4 ${opts.autoStart ? 'bg-brand-500' : 'bg-slate-200'}`}>
+                                    <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform mt-1 mx-1 ${opts.autoStart ? 'translate-x-4' : 'translate-x-0'}`} />
+                                </div>
+                            </div>
+                        </button>
+
+                        {opts.autoStart && (
+                            <div className="mt-4 space-y-4 border border-slate-200 rounded-xl p-5 bg-slate-50/50">
+                                <div className="flex items-center gap-4">
+                                    <label className="w-40 text-sm font-medium text-slate-600 shrink-0">Emails / jour</label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        max={500}
+                                        value={opts.dailyLimit}
+                                        onChange={e => setOpts(prev => ({ ...prev, dailyLimit: Number(e.target.value) }))}
+                                        className="w-24 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-sm"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <label className="w-40 text-sm font-medium text-slate-600 shrink-0">Plage horaire</label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            max={23}
+                                            value={opts.sendStartHour}
+                                            onChange={e => setOpts(prev => ({ ...prev, sendStartHour: Number(e.target.value) }))}
+                                            className="w-16 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-sm"
+                                        />
+                                        <span className="text-sm text-slate-500">h — </span>
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            max={24}
+                                            value={opts.sendEndHour}
+                                            onChange={e => setOpts(prev => ({ ...prev, sendEndHour: Number(e.target.value) }))}
+                                            className="w-16 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-sm"
+                                        />
+                                        <span className="text-sm text-slate-500">h</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </section>
+
+                    {/* ── Section 4 : Pièces jointes ── */}
                     <section className="pt-2">
                         <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">
                             Pièces jointes additionnelles

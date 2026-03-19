@@ -62,6 +62,7 @@ async def _search_single_keyword(
                 adresse=item.get("address"),
                 telephone=item.get("phone"),
                 source="google_maps",
+                type_activite=item.get("categoryName"),
             ))
 
         logger.info(f"[GOOGLE MAPS] '{keyword}' → {len(companies)} résultats")
