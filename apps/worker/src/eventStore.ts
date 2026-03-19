@@ -19,7 +19,7 @@ const prisma = createPrismaClient()
 
 
 /**
- * Appends an SSE event to the JobEvent table with a monotonically increasing seq per job.
+ * Appends anazd SSE event to the JobEvent table with a monotonically increasing seq per job.
  * Uses a subquery INSERT to compute the next seq atomically.
  */
 export async function appendJobEvent(jobId: string, payload: object): Promise<void> {
