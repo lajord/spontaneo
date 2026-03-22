@@ -14,14 +14,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # ─── Ajout du chemin Test_IA_CANDIDATURE au sys.path ────────────────
-# router.py est dans : spontaneo/apps/ai-service/app/agent_recherche/
-#   dirname = agent_recherche/ -> .. = app/ -> .. = ai-service/ -> .. = apps/
+# Docker : /app/agent_pkg/
+# Local  : spontaneo/apps/Test_IA_CANDIDATURE/Agent_Extraction_Data/
+_DOCKER_PKG = os.path.normpath(os.path.join("/app", "agent_pkg"))
 _APPS_DIR = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..")
 )
-_AGENT_PKG = os.path.join(
+_LOCAL_PKG = os.path.join(
     _APPS_DIR, "Test_IA_CANDIDATURE", "Agent_Extraction_Data"
 )
+
+_AGENT_PKG = _DOCKER_PKG if os.path.isdir(_DOCKER_PKG) else _LOCAL_PKG
 
 if _AGENT_PKG not in sys.path:
     sys.path.insert(0, _AGENT_PKG)
