@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { betterFetch } from '@better-fetch/fetch'
 import type { Session } from '@/lib/auth'
 
-const PROTECTED = ['/dashboard', '/campaigns', '/settings', '/admin']
+const PROTECTED = ['/dashboard', '/campaigns', '/settings', '/admin', '/agent']
 const AUTH_PAGES = ['/login', '/register']
 const ADMIN_ONLY = ['/admin']
 
@@ -37,5 +37,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/campaigns/:path*', '/settings/:path*', '/admin/:path*', '/login', '/register'],
+  matcher: ['/dashboard/:path*', '/campaigns/:path*', '/settings/:path*', '/admin/:path*', '/agent/:path*', '/login', '/register'],
 }

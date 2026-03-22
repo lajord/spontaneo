@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     MODEL_RANKING: str = "gemini-2.5-flash"
     MODEL_FILTER: str = "sonar-pro"
 
+    # Anthropic (Agent LangGraph)
+    ANTHROPIC_API_KEY: str = ""
+
     # NeverBounce (validation emails)
     NEVER_BOUNCE_API: str = ""
 
