@@ -2,25 +2,44 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 
-const ROLES: Record<number, string> = { 1: 'Juriste', 2: 'Avocat' }
+const ROLES: Record<number, string> = { 1: 'Banques', 2: "Cabinets d'Avocats", 3: 'Fonds / Investissement' }
 
-const SPECIALTIES: Record<number, { name_fr: string; name_en: string }> = {
-  1:  { name_fr: 'Contentieux des Affaires', name_en: 'Business Litigation' },
-  2:  { name_fr: 'Arbitrage', name_en: 'Arbitration' },
-  3:  { name_fr: 'Concurrence / Antitrust', name_en: 'Competition & Antitrust' },
-  4:  { name_fr: 'Distribution & Conso', name_en: 'Distribution & Consumer' },
-  5:  { name_fr: 'IP / IT', name_en: 'Intellectual Property & Tech' },
-  6:  { name_fr: 'Droit Fiscal', name_en: 'Tax Law' },
-  7:  { name_fr: 'Droit Boursier', name_en: 'Capital Markets' },
-  8:  { name_fr: 'Debt Finance', name_en: 'Debt Finance' },
-  9:  { name_fr: 'Corporate M&A / Fusions-Acquisitions', name_en: 'Corporate M&A' },
-  10: { name_fr: 'Restructuring / Entreprises en difficulté', name_en: 'Restructuring' },
-  11: { name_fr: 'Private Equity / Capital-Investissement', name_en: 'Private Equity' },
-  12: { name_fr: 'Droit Immobilier / Real Estate', name_en: 'Real Estate' },
-  13: { name_fr: 'Financement de Projets', name_en: 'Project Finance' },
-  14: { name_fr: 'Banque & Finance', name_en: 'Banking & Finance' },
-  15: { name_fr: 'Droit Social', name_en: 'Employment & Labor Law' },
-  16: { name_fr: 'Droit Pénal', name_en: 'Criminal Law' },
+const SPECIALTIES_BY_ROLE: Record<number, Record<number, string>> = {
+  1: {
+    1: 'Juriste Droit Bancaire',
+    2: 'Juriste Financier',
+    3: 'Juriste Contentieux',
+    4: 'Juriste Compliance',
+    5: 'Juriste Corporate / M&A',
+  },
+  2: {
+    1: 'Contentieux des Affaires',
+    2: 'Arbitrage',
+    3: 'Concurrence / Antitrust',
+    4: 'Distribution & Consommation',
+    5: 'IP / IT',
+    6: 'Droit Fiscal',
+    7: 'Droit Boursier',
+    8: 'Debt Finance',
+    9: 'Corporate M&A / Fusions-Acquisitions',
+    10: 'Restructuring / Entreprises en difficulté',
+    11: 'Private Equity / Capital-Investissement',
+    12: 'Droit Immobilier / Real Estate',
+    13: 'Financement de Projets',
+    14: 'Banque & Finance',
+    15: 'Droit Social',
+    16: 'Droit Pénal',
+  },
+  3: {
+    1: 'Private Equity / Capital-investissement',
+    2: 'Venture Capital / Capital-risque',
+    3: 'Dette privée',
+    4: 'Immobilier',
+    5: 'Infrastructure',
+    6: 'Fonds de fonds',
+    7: 'Impact / ESG',
+    8: 'Situations spéciales / Distressed',
+  }
 }
 
 interface CsvRow {
@@ -40,7 +59,8 @@ export default function AgentPage() {
   const [logs, setLogs] = useState<LogLine[]>([])
   const [candidates, setCandidates] = useState<CsvRow[]>([])
   const [verified, setVerified] = useState<CsvRow[]>([])
-  const [csvTab, setCsvTab] = useState<'candidates' | 'verified'>('candidates')
+  const [enriched, setEnriched] = useState<CsvRow[]>([])
+  const [csvTab, setCsvTab] = useState<'candidates' | 'enriched'>('candidates')
 
   const logsEndRef = useRef<HTMLDivElement>(null)
 
@@ -58,6 +78,7 @@ export default function AgentPage() {
       addLog('[STOP] Arrêt forcé demandé — CSV vidés.', '#f97316')
       setCandidates([])
       setVerified([])
+      setEnriched([])
     } catch (err: any) {
       addLog(`[ERROR] ${err.message}`, '#ef4444')
     }
@@ -70,6 +91,7 @@ export default function AgentPage() {
     setLogs([])
     setCandidates([])
     setVerified([])
+    setEnriched([])
 
     const body = {
       role,
@@ -79,8 +101,14 @@ export default function AgentPage() {
       extra: extra.trim(),
     }
 
+    const specName = SPECIALTIES_BY_ROLE[role]?.[specialtyNum] || 'Général'
+
     addLog(
-      `[START] ${ROLES[role]} — ${SPECIALTIES[specialtyNum].name_fr} — ${location} — ${targetCount} cabinets`,
+      `[INIT] 🚀 Démarrage du nouvel Agent V1 (apps/agent)`,
+      '#a855f7', // Purple color for visibility
+    )
+    addLog(
+      `[START] ${ROLES[role]} — ${specName} — ${location} — ${targetCount} entités`,
       '#34d399',
     )
 
@@ -125,7 +153,7 @@ export default function AgentPage() {
       setRunning(false)
       addLog('[FIN] Pipeline terminé.', '#34d399')
       fetchCsv('candidates')
-      fetchCsv('verified')
+      fetchCsv('enriched')
     }
   }
 
@@ -158,6 +186,7 @@ export default function AgentPage() {
         case 'csv_update':
           if (event.csv_type === 'candidates') setCandidates(event.rows || [])
           else if (event.csv_type === 'verified') setVerified(event.rows || [])
+          else if (event.csv_type === 'enriched') setEnriched(event.rows || [])
           addLog(
             `[CSV] ${event.csv_type} mis à jour (${(event.rows || []).length} lignes)`,
             '#60a5fa',
@@ -179,35 +208,44 @@ export default function AgentPage() {
     [addLog],
   )
 
-  const fetchCsv = async (type: 'candidates' | 'verified') => {
+  const fetchCsv = async (type: 'candidates' | 'verified' | 'enriched') => {
     try {
       const res = await fetch(`/api/agent/csv/${type}`)
       const data = await res.json()
       if (type === 'candidates') setCandidates(data.rows || [])
-      else setVerified(data.rows || [])
+      else if (type === 'verified') setVerified(data.rows || [])
+      else if (type === 'enriched') setEnriched(data.rows || [])
     } catch {
       /* ignore */
     }
   }
 
-  const displayedCsv = csvTab === 'candidates' ? candidates : verified
+  const displayedCsv = csvTab === 'candidates' ? candidates : enriched
   const csvColumns =
     csvTab === 'candidates'
       ? ['name', 'website_url', 'city', 'source', 'status']
-      : ['name', 'website_url', 'city', 'specialty_confirmed', 'relevance_score', 'relevance_reason']
+      : ['company_name', 'contact_first_name', 'contact_last_name', 'contact_email', 'contact_title', 'source']
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto w-full">
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Agent Recherche Cabinets</h1>
+      <div className="flex items-center gap-3 mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">Agent Recherche V1</h1>
+        <span className="bg-purple-100 text-purple-700 text-xs px-2.5 py-1 rounded-full font-medium">Nouvelle Architecture</span>
+      </div>
 
       {/* Formulaire */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 mb-5 shadow-sm">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Role</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Cible / Secteur</label>
             <select
               value={role}
-              onChange={e => setRole(Number(e.target.value))}
+              onChange={e => {
+                const newRole = Number(e.target.value)
+                setRole(newRole)
+                const firstSpec = Object.keys(SPECIALTIES_BY_ROLE[newRole])[0]
+                if (firstSpec) setSpecialtyNum(Number(firstSpec))
+              }}
               disabled={running}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
             >
@@ -219,16 +257,16 @@ export default function AgentPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Specialite</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Spécialité / Poste</label>
             <select
               value={specialtyNum}
               onChange={e => setSpecialtyNum(Number(e.target.value))}
               disabled={running}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
             >
-              {Object.entries(SPECIALTIES).map(([k, v]) => (
+              {Object.entries(SPECIALTIES_BY_ROLE[role] || {}).map(([k, name]) => (
                 <option key={k} value={k}>
-                  {v.name_fr}
+                  {name}
                 </option>
               ))}
             </select>
@@ -332,16 +370,16 @@ export default function AgentPage() {
           </button>
           <button
             onClick={() => {
-              setCsvTab('verified')
-              fetchCsv('verified')
+              setCsvTab('enriched')
+              fetchCsv('enriched')
             }}
             className={`px-5 py-3 text-sm font-medium transition-colors ${
-              csvTab === 'verified'
+              csvTab === 'enriched'
                 ? 'text-brand-600 border-b-2 border-brand-500 bg-brand-50/50'
                 : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            Verified ({verified.length})
+            Enriched ({enriched.length})
           </button>
           <button
             onClick={() => fetchCsv(csvTab)}

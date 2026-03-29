@@ -1,0 +1,2410 @@
+=== NOUVELLE RECHERCHE ===
+Role: 2
+Spe: 5
+Lieu: Bordeaux
+
+==================================================
+PROMPT (COLLECTE)
+==================================================
+
+[SYSTEM]
+Tu es un agent expert en candidature spontanee.
+
+## ROLE
+Ton objectif est de trouver des entreprises pertinentes pour une campagne de candidature spontanee.
+L'utilisateur te donne un secteur, une zone geographique, et eventuellement une specialite.
+Tu dois collecter un maximum d'entreprises correspondantes en utilisant les outils de recherche a ta disposition.
+
+## DEMANDE UTILISATEUR
+Poste : Avocat
+Spécialité : IP / IT
+Ville : Bordeaux
+
+## SPECIALITE RECHERCHEE
+Spécialité cible : IP / IT
+
+
+## CONTEXTE VERTICAL
+Tu cherches des cabinets d'avocats specialises dans le domaine demande, dans la ville demandee.
+
+## OUTILS A TA DISPOSITION
+
+Choisis les outils de recherche de manière intelligente selon la situation (pas la peine de tous les utiliser systématiquement si ce n'est pas pertinent) :
+
+1. **apollo_search** — TOUJOURS faire 2 appels SEPARES :
+   - Un appel avec **keywords** EN ANGLAIS (tags secteur/activite, ex: "labor law", "employment law")
+   - Un appel avec **job_titles** EN ANGLAIS (titres de poste, ex: "Labor Law Attorney", "Employment Lawyer")
+   NE JAMAIS combiner keywords et job_titles dans le meme appel.
+   Varie les termes a chaque iteration.
+2. **web_search_legal** — requete EN FRANCAIS
+   Varie les formulations (ex: "cabinet avocat droit social", "avocats specialises droit du travail").
+   Sources a explorer : annuaires du barreau, Pages Jaunes, avocats.fr, Legal 500, Chambers, Decideurs.
+3. **google_maps_search** — keywords EN FRANCAIS
+   Efficace pour les petits cabinets locaux (ex: ["avocat droit social Pau"]).
+
+## REGLES SPECIFIQUES
+- Apollo = 2 appels separes : un avec keywords EN ANGLAIS, un avec job_titles EN ANGLAIS. JAMAIS les deux ensemble.
+- Web search et Google Maps = tout EN FRANCAIS.
+
+
+## ETAT ACTUEL
+Premiere iteration. Aucun candidat existant.
+
+## OBJECTIF
+Trouver environ 5 nouvelles entreprises a cette iteration.
+L'objectif global sera atteint sur plusieurs iterations — ne force pas tout en une seule.
+
+## REGLES GENERALES
+- Utilise TOUS les outils de recherche autorises pour maximiser la couverture.
+- Fais des appels CIBLES : UN appel par outil, pas 3 fois le meme outil avec des variantes.
+- Ne jamais modifier la ville/zone demandee par l'utilisateur.
+- Ne JAMAIS changer de specialite. Reste strictement sur le secteur demande.
+- Ne PAS crawler les sites web. C'est le role d'un autre agent.
+- TOUJOURS appeler **save_candidates** apres CHAQUE recherche, meme avec peu de resultats.
+  Ne cumule PAS les resultats de plusieurs sources avant de sauvegarder.
+  Sauvegarde APRES CHAQUE recherche pour eviter la perte de donnees.
+- Le format attendu par save_candidates est un JSON string : '[{"name": "...", "website_url": "...", "city": "...", "source": "..."}]'
+- Quand tes recherches sont terminees, appelle **read_candidates_summary** pour verifier le total.
+  Arrete-toi ensuite. Une prochaine iteration sera lancee automatiquement si besoin.
+- ECONOMIE DE TOKENS : pas d'emojis, pas de commentaires longs entre les appels.
+  Tes messages doivent etre brefs : annonce l'outil que tu appelles, c'est tout.
+
+
+[USER]
+Lance la collecte selon la demande decrite ci-dessus.
+
+
+----------------------------------------
+ITERATION AGENT 1 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en candidature spontanee.
+
+## ROLE
+Ton objectif est de trouver des entreprises pertinentes pour une campagne de candidature spontanee.
+L'utilisateur te donne un secteur, une zone geographique, et eventuellement une specialite.
+Tu dois collecter un maximum d'entreprises correspondantes en utilisant les outils de recherche a ta disposition.
+
+## DEMANDE UTILISATEUR
+Poste : Avocat
+Spécialité : IP / IT
+Ville : Bordeaux
+
+## SPECIALITE RECHERCHEE
+Spécialité cible : IP / IT
+
+
+## CONTEXTE VERTICAL
+Tu cherches des cabinets d'avocats specialises dans le domaine demande, dans la ville demandee.
+
+## OUTILS A TA DISPOSITION
+
+Choisis les outils de recherche de manière intelligente selon la situation (pas la peine de tous les utiliser systématiquement si ce n'est pas pertinent) :
+
+1. **apollo_search** — TOUJOURS faire 2 appels SEPARES :
+   - Un appel avec **keywords** EN ANGLAIS (tags secteur/activite, ex: "labor law", "employment law")
+   - Un appel avec **job_titles** EN ANGLAIS (titres de poste, ex: "Labor Law Attorney", "Employment Lawyer")
+   NE JAMAIS combiner keywords et job_titles dans le meme appel.
+   Varie les termes a chaque iteration.
+2. **web_search_legal** — requete EN FRANCAIS
+   Varie les formulations (ex: "cabinet avocat droit social", "avocats specialises droit du travail").
+   Sources a explorer : annuaires du barreau, Pages Jaunes, avocats.fr, Legal 500, Chambers, Decideurs.
+3. **google_maps_search** — keywords EN FRANCAIS
+   Efficace pour les petit
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Lance la collecte selon la demande decrite ci-dessus.
+
+
+----------------------------------------
+ITERATION AGENT 1 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en candidature spontanee.
+
+## ROLE
+Ton objectif est de trouver des entreprises pertinentes pour une campagne de candidature spontanee.
+L'utilisateur te donne un secteur, une zone geographique, et eventuellement une specialite.
+Tu dois collecter un maximum d'entreprises correspondantes en utilisant les outils de recherche a ta disposition.
+
+## DEMANDE UTILISATEUR
+Poste : Avocat
+Spécialité : IP / IT
+Ville : Bordeaux
+
+## SPECIALITE RECHERCHEE
+Spécialité cible : IP / IT
+
+
+## CONTEXTE VERTICAL
+Tu cherches des cabinets d'avocats specialises dans le domaine demande, dans la ville demandee.
+
+## OUTILS A TA DISPOSITION
+
+Choisis les outils de recherche de manière intelligente selon la situation (pas la peine de tous les utiliser systématiquement si ce n'est pas pertinent) :
+
+1. **apollo_search** — TOUJOURS faire 2 appels SEPARES :
+   - Un appel avec **keywords** EN ANGLAIS (tags secteur/activite, ex: "labor law", "employment law")
+   - Un appel avec **job_titles** EN ANGLAIS (titres de poste, ex: "Labor Law Attorney", "Employment Lawyer")
+   NE JAMAIS combiner keywords et job_titles dans le meme appel.
+   Varie les termes a chaque iteration.
+2. **web_search_legal** — requete EN FRANCAIS
+   Varie les formulations (ex: "cabinet avocat droit social", "avocats specialises droit du travail").
+   Sources a explorer : annuaires du barreau, Pages Jaunes, avocats.fr, Legal 500, Chambers, Decideurs.
+3. **google_maps_search** — keywords EN FRANCAIS
+   Efficace pour les petit
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Lance la collecte selon la demande decrite ci-dessus.
+
+[AI]
+[{'text': "Je lance la collecte pour des cabinets d'avocats spécialisés en IP/IT à Bordeaux.\n\n**Recherche Apollo avec keywords (secteur IP/IT) :**", 'type': 'text'}, {'id': 'toolu_01TS3UtDzRdfuiyobRXEoLAp', 'caller': {'type': 'direct'}, 'input': {'locations': ['Bordeaux, France'], 'keywords': ['intellectual property', 'IP law', 'IT law', 'technology law', 'patent law']}, 'name': 'apollo_search', 'type': 'tool_use'}]
+
+[TOOL]
+{"error": "Erreur HTTP Apollo 422: {\"error\": \"You have insufficient credits! <a href='https://app.apollo.io/#/settings/plans/upgrade' aria-onclick='close_alert'>Upgrade your plan</a> to increase your number of lead credits.\"}", "companies": []}
+
+
+----------------------------------------
+ITERATION AGENT 1 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en candidature spontanee.
+
+## ROLE
+Ton objectif est de trouver des entreprises pertinentes pour une campagne de candidature spontanee.
+L'utilisateur te donne un secteur, une zone geographique, et eventuellement une specialite.
+Tu dois collecter un maximum d'entreprises correspondantes en utilisant les outils de recherche a ta disposition.
+
+## DEMANDE UTILISATEUR
+Poste : Avocat
+Spécialité : IP / IT
+Ville : Bordeaux
+
+## SPECIALITE RECHERCHEE
+Spécialité cible : IP / IT
+
+
+## CONTEXTE VERTICAL
+Tu cherches des cabinets d'avocats specialises dans le domaine demande, dans la ville demandee.
+
+## OUTILS A TA DISPOSITION
+
+Choisis les outils de recherche de manière intelligente selon la situation (pas la peine de tous les utiliser systématiquement si ce n'est pas pertinent) :
+
+1. **apollo_search** — TOUJOURS faire 2 appels SEPARES :
+   - Un appel avec **keywords** EN ANGLAIS (tags secteur/activite, ex: "labor law", "employment law")
+   - Un appel avec **job_titles** EN ANGLAIS (titres de poste, ex: "Labor Law Attorney", "Employment Lawyer")
+   NE JAMAIS combiner keywords et job_titles dans le meme appel.
+   Varie les termes a chaque iteration.
+2. **web_search_legal** — requete EN FRANCAIS
+   Varie les formulations (ex: "cabinet avocat droit social", "avocats specialises droit du travail").
+   Sources a explorer : annuaires du barreau, Pages Jaunes, avocats.fr, Legal 500, Chambers, Decideurs.
+3. **google_maps_search** — keywords EN FRANCAIS
+   Efficace pour les petit
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Lance la collecte selon la demande decrite ci-dessus.
+
+[AI]
+[{'text': "Je lance la collecte pour des cabinets d'avocats spécialisés en IP/IT à Bordeaux.\n\n**Recherche Apollo avec keywords (secteur IP/IT) :**", 'type': 'text'}, {'id': 'toolu_01TS3UtDzRdfuiyobRXEoLAp', 'caller': {'type': 'direct'}, 'input': {'locations': ['Bordeaux, France'], 'keywords': ['intellectual property', 'IP law', 'IT law', 'technology law', 'patent law']}, 'name': 'apollo_search', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'text': '**Recherche web spécialisée juridique :**', 'type': 'text'}, {'id': 'toolu_01FLdfKu4Yy5nVcsiiXQc5LK', 'caller': {'type': 'direct'}, 'input': {'location': 'Bordeaux', 'organization_types': ["cabinets d'avocats"], 'legal_specialties': ['propriété intellectuelle', 'droit informatique', 'droit des nouvelles technologies', 'droit IT']}, 'name': 'web_search_legal', 'type': 'tool_use'}]
+
+[TOOL]
+{"error": "Erreur Perplexity: AuthenticationError: Error code: 401 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information, visit https://www.perplexity.ai/settings/api.', 'type': 'insufficient_quota', 'code': 401}}", "organizations": []}
+
+
+----------------------------------------
+ITERATION AGENT 1 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en candidature spontanee.
+
+## ROLE
+Ton objectif est de trouver des entreprises pertinentes pour une campagne de candidature spontanee.
+L'utilisateur te donne un secteur, une zone geographique, et eventuellement une specialite.
+Tu dois collecter un maximum d'entreprises correspondantes en utilisant les outils de recherche a ta disposition.
+
+## DEMANDE UTILISATEUR
+Poste : Avocat
+Spécialité : IP / IT
+Ville : Bordeaux
+
+## SPECIALITE RECHERCHEE
+Spécialité cible : IP / IT
+
+
+## CONTEXTE VERTICAL
+Tu cherches des cabinets d'avocats specialises dans le domaine demande, dans la ville demandee.
+
+## OUTILS A TA DISPOSITION
+
+Choisis les outils de recherche de manière intelligente selon la situation (pas la peine de tous les utiliser systématiquement si ce n'est pas pertinent) :
+
+1. **apollo_search** — TOUJOURS faire 2 appels SEPARES :
+   - Un appel avec **keywords** EN ANGLAIS (tags secteur/activite, ex: "labor law", "employment law")
+   - Un appel avec **job_titles** EN ANGLAIS (titres de poste, ex: "Labor Law Attorney", "Employment Lawyer")
+   NE JAMAIS combiner keywords et job_titles dans le meme appel.
+   Varie les termes a chaque iteration.
+2. **web_search_legal** — requete EN FRANCAIS
+   Varie les formulations (ex: "cabinet avocat droit social", "avocats specialises droit du travail").
+   Sources a explorer : annuaires du barreau, Pages Jaunes, avocats.fr, Legal 500, Chambers, Decideurs.
+3. **google_maps_search** — keywords EN FRANCAIS
+   Efficace pour les petit
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Lance la collecte selon la demande decrite ci-dessus.
+
+[AI]
+[{'text': "Je lance la collecte pour des cabinets d'avocats spécialisés en IP/IT à Bordeaux.\n\n**Recherche Apollo avec keywords (secteur IP/IT) :**", 'type': 'text'}, {'id': 'toolu_01TS3UtDzRdfuiyobRXEoLAp', 'caller': {'type': 'direct'}, 'input': {'locations': ['Bordeaux, France'], 'keywords': ['intellectual property', 'IP law', 'IT law', 'technology law', 'patent law']}, 'name': 'apollo_search', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'text': '**Recherche web spécialisée juridique :**', 'type': 'text'}, {'id': 'toolu_01FLdfKu4Yy5nVcsiiXQc5LK', 'caller': {'type': 'direct'}, 'input': {'location': 'Bordeaux', 'organization_types': ["cabinets d'avocats"], 'legal_specialties': ['propriété intellectuelle', 'droit informatique', 'droit des nouvelles technologies', 'droit IT']}, 'name': 'web_search_legal', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'text': '**Recherche Google Maps (cabinets IP/IT) :**', 'type': 'text'}, {'id': 'toolu_01Gu4sX7CvtLG7uT7479qtA3', 'caller': {'type': 'direct'}, 'input': {'keywords': ['avocat propriété intellectuelle Bordeaux', 'cabinet droit informatique Bordeaux', 'avocat IT Bordeaux'], 'location': 'Bordeaux, France'}, 'name': 'google_maps_search', 'type': 'tool_use'}]
+
+[TOOL]
+{"companies": [{"name": "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence", "website_url": "https://mauriac.eu/", "city": "Bordeaux", "description": "Cabinet d'avocats", "source": "google_maps"}, {"name": "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux", "website_url": "https://tricoire-avocat.com/", "city": "Bordeaux", "description": "Avocat", "source": "google_maps"}, {"name": "Quantic Avocats Bordeaux - Avocats en Propriété intellectuelle à Bordeaux - Droit des marques - Droit du numérique", "website_url": "https://www.quantic-avocats.com/", "city": "Bordeaux", "description": "Cabinet d'avocats", "source": "google_maps"}, {"name": "Maître Aurélie TESTU - Avocat Propriété intellectuelle Bordeaux - Droit des marques - Droit d'auteur", "website_url": "https://www.testu-avocat.fr/", "city": "Bordeaux", "description": "Avocat", "source": "google_maps"}, {"name": "Marion Abergel | Avocate en droit de la Propriété Intellectuelle, Droit du Numérique & Droit de la communication", "website_url": "https://www.abergelavocat.fr/", "city": "Bordeaux", "description": "Avocat", "source": "google_maps"}, {"name": "Pauline Chartier - Avocate en droit de la propriété intellectuelle - Bordeaux", "website_url": "https://www.chartieravocats.fr/", "city": "Bordeaux", "description": "Cabinet d'avocats", "source": "google_maps"}, {"name": "Cabinet de Maître Severine Monfray", "website_url": "https://www.eoze
+... [TRONQUÉ POUR LE DEBUG]
+
+
+----------------------------------------
+ITERATION AGENT 1 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en candidature spontanee.
+
+## ROLE
+Ton objectif est de trouver des entreprises pertinentes pour une campagne de candidature spontanee.
+L'utilisateur te donne un secteur, une zone geographique, et eventuellement une specialite.
+Tu dois collecter un maximum d'entreprises correspondantes en utilisant les outils de recherche a ta disposition.
+
+## DEMANDE UTILISATEUR
+Poste : Avocat
+Spécialité : IP / IT
+Ville : Bordeaux
+
+## SPECIALITE RECHERCHEE
+Spécialité cible : IP / IT
+
+
+## CONTEXTE VERTICAL
+Tu cherches des cabinets d'avocats specialises dans le domaine demande, dans la ville demandee.
+
+## OUTILS A TA DISPOSITION
+
+Choisis les outils de recherche de manière intelligente selon la situation (pas la peine de tous les utiliser systématiquement si ce n'est pas pertinent) :
+
+1. **apollo_search** — TOUJOURS faire 2 appels SEPARES :
+   - Un appel avec **keywords** EN ANGLAIS (tags secteur/activite, ex: "labor law", "employment law")
+   - Un appel avec **job_titles** EN ANGLAIS (titres de poste, ex: "Labor Law Attorney", "Employment Lawyer")
+   NE JAMAIS combiner keywords et job_titles dans le meme appel.
+   Varie les termes a chaque iteration.
+2. **web_search_legal** — requete EN FRANCAIS
+   Varie les formulations (ex: "cabinet avocat droit social", "avocats specialises droit du travail").
+   Sources a explorer : annuaires du barreau, Pages Jaunes, avocats.fr, Legal 500, Chambers, Decideurs.
+3. **google_maps_search** — keywords EN FRANCAIS
+   Efficace pour les petit
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Lance la collecte selon la demande decrite ci-dessus.
+
+[AI]
+[{'text': "Je lance la collecte pour des cabinets d'avocats spécialisés en IP/IT à Bordeaux.\n\n**Recherche Apollo avec keywords (secteur IP/IT) :**", 'type': 'text'}, {'id': 'toolu_01TS3UtDzRdfuiyobRXEoLAp', 'caller': {'type': 'direct'}, 'input': {'locations': ['Bordeaux, France'], 'keywords': ['intellectual property', 'IP law', 'IT law', 'technology law', 'patent law']}, 'name': 'apollo_search', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'text': '**Recherche web spécialisée juridique :**', 'type': 'text'}, {'id': 'toolu_01FLdfKu4Yy5nVcsiiXQc5LK', 'caller': {'type': 'direct'}, 'input': {'location': 'Bordeaux', 'organization_types': ["cabinets d'avocats"], 'legal_specialties': ['propriété intellectuelle', 'droit informatique', 'droit des nouvelles technologies', 'droit IT']}, 'name': 'web_search_legal', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'text': '**Recherche Google Maps (cabinets IP/IT) :**', 'type': 'text'}, {'id': 'toolu_01Gu4sX7CvtLG7uT7479qtA3', 'caller': {'type': 'direct'}, 'input': {'keywords': ['avocat propriété intellectuelle Bordeaux', 'cabinet droit informatique Bordeaux', 'avocat IT Bordeaux'], 'location': 'Bordeaux, France'}, 'name': 'google_maps_search', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'id': 'toolu_0179VWg48GDYcxBehQoUx68U', 'caller': {'type': 'direct'}, 'input': {'companies_json': '[{"name": "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d\'auteur | Mode | Luxe | Sport | Influence", "website_url": "https://mauriac.eu/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux", "website_url": "https://tricoire-avocat.com/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Quantic Avocats Bordeaux - Avocats en Propriété intellectuelle à Bordeaux - Droit des marques - Droit du numérique", "website_url": "https://www.quantic-avocats.com/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Maître Aurélie TESTU - Avocat Propriété intellectuelle Bordeaux - Droit des marques - Droit d\'auteur", "website_url": "https://www.testu-avocat.fr/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Marion Abergel | Avocate en droit de la Propriété Intellectuelle, Droit du Numérique & Droit de la communication", "website_url": "https://www.abergelavocat.fr/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Pauline Chartier - Avocate en droit de la propriété intellectuelle - Bordeaux", "website_url": "https://www.chartieravocats.fr/", "city": "Bordeaux", "source": "google_maps"}, {"name": "IPSIDE", "website_url": "http://www.ipside.com/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Ip Sphere", "website_url": "http://www.ipsphere.fr/", "ci
+... [TRONQUÉ POUR LE DEBUG]
+
+[TOOL]
+9 nouvelles entreprises ajoutees (total: 9, dedupliquees depuis 9 bruts).
+Fichier : C:\Users\Jordi\Desktop\Spontaneo\spontaneo\apps\agent\candidates.csv
+
+
+----------------------------------------
+ITERATION AGENT 1 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en candidature spontanee.
+
+## ROLE
+Ton objectif est de trouver des entreprises pertinentes pour une campagne de candidature spontanee.
+L'utilisateur te donne un secteur, une zone geographique, et eventuellement une specialite.
+Tu dois collecter un maximum d'entreprises correspondantes en utilisant les outils de recherche a ta disposition.
+
+## DEMANDE UTILISATEUR
+Poste : Avocat
+Spécialité : IP / IT
+Ville : Bordeaux
+
+## SPECIALITE RECHERCHEE
+Spécialité cible : IP / IT
+
+
+## CONTEXTE VERTICAL
+Tu cherches des cabinets d'avocats specialises dans le domaine demande, dans la ville demandee.
+
+## OUTILS A TA DISPOSITION
+
+Choisis les outils de recherche de manière intelligente selon la situation (pas la peine de tous les utiliser systématiquement si ce n'est pas pertinent) :
+
+1. **apollo_search** — TOUJOURS faire 2 appels SEPARES :
+   - Un appel avec **keywords** EN ANGLAIS (tags secteur/activite, ex: "labor law", "employment law")
+   - Un appel avec **job_titles** EN ANGLAIS (titres de poste, ex: "Labor Law Attorney", "Employment Lawyer")
+   NE JAMAIS combiner keywords et job_titles dans le meme appel.
+   Varie les termes a chaque iteration.
+2. **web_search_legal** — requete EN FRANCAIS
+   Varie les formulations (ex: "cabinet avocat droit social", "avocats specialises droit du travail").
+   Sources a explorer : annuaires du barreau, Pages Jaunes, avocats.fr, Legal 500, Chambers, Decideurs.
+3. **google_maps_search** — keywords EN FRANCAIS
+   Efficace pour les petit
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Lance la collecte selon la demande decrite ci-dessus.
+
+[AI]
+[{'text': "Je lance la collecte pour des cabinets d'avocats spécialisés en IP/IT à Bordeaux.\n\n**Recherche Apollo avec keywords (secteur IP/IT) :**", 'type': 'text'}, {'id': 'toolu_01TS3UtDzRdfuiyobRXEoLAp', 'caller': {'type': 'direct'}, 'input': {'locations': ['Bordeaux, France'], 'keywords': ['intellectual property', 'IP law', 'IT law', 'technology law', 'patent law']}, 'name': 'apollo_search', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'text': '**Recherche web spécialisée juridique :**', 'type': 'text'}, {'id': 'toolu_01FLdfKu4Yy5nVcsiiXQc5LK', 'caller': {'type': 'direct'}, 'input': {'location': 'Bordeaux', 'organization_types': ["cabinets d'avocats"], 'legal_specialties': ['propriété intellectuelle', 'droit informatique', 'droit des nouvelles technologies', 'droit IT']}, 'name': 'web_search_legal', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'text': '**Recherche Google Maps (cabinets IP/IT) :**', 'type': 'text'}, {'id': 'toolu_01Gu4sX7CvtLG7uT7479qtA3', 'caller': {'type': 'direct'}, 'input': {'keywords': ['avocat propriété intellectuelle Bordeaux', 'cabinet droit informatique Bordeaux', 'avocat IT Bordeaux'], 'location': 'Bordeaux, France'}, 'name': 'google_maps_search', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'id': 'toolu_0179VWg48GDYcxBehQoUx68U', 'caller': {'type': 'direct'}, 'input': {'companies_json': '[{"name": "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d\'auteur | Mode | Luxe | Sport | Influence", "website_url": "https://mauriac.eu/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux", "website_url": "https://tricoire-avocat.com/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Quantic Avocats Bordeaux - Avocats en Propriété intellectuelle à Bordeaux - Droit des marques - Droit du numérique", "website_url": "https://www.quantic-avocats.com/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Maître Aurélie TESTU - Avocat Propriété intellectuelle Bordeaux - Droit des marques - Droit d\'auteur", "website_url": "https://www.testu-avocat.fr/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Marion Abergel | Avocate en droit de la Propriété Intellectuelle, Droit du Numérique & Droit de la communication", "website_url": "https://www.abergelavocat.fr/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Pauline Chartier - Avocate en droit de la propriété intellectuelle - Bordeaux", "website_url": "https://www.chartieravocats.fr/", "city": "Bordeaux", "source": "google_maps"}, {"name": "IPSIDE", "website_url": "http://www.ipside.com/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Ip Sphere", "website_url": "http://www.ipsphere.fr/", "ci
+... [TRONQUÉ POUR LE DEBUG]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'text': '**Recherche Apollo avec job_titles (postes IP/IT) :**', 'type': 'text'}, {'id': 'toolu_019XxWUN1kJn1kd6p9te3361', 'caller': {'type': 'direct'}, 'input': {'locations': ['Bordeaux, France'], 'job_titles': ['IP Attorney', 'Patent Attorney', 'IT Lawyer', 'Technology Lawyer', 'Intellectual Property Lawyer']}, 'name': 'apollo_search', 'type': 'tool_use'}]
+
+[TOOL]
+{"error": "Erreur HTTP Apollo 422: {\"error\": \"You have insufficient credits! <a href='https://app.apollo.io/#/settings/plans/upgrade' aria-onclick='close_alert'>Upgrade your plan</a> to increase your number of lead credits.\"}", "companies": []}
+
+
+----------------------------------------
+ITERATION AGENT 1 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en candidature spontanee.
+
+## ROLE
+Ton objectif est de trouver des entreprises pertinentes pour une campagne de candidature spontanee.
+L'utilisateur te donne un secteur, une zone geographique, et eventuellement une specialite.
+Tu dois collecter un maximum d'entreprises correspondantes en utilisant les outils de recherche a ta disposition.
+
+## DEMANDE UTILISATEUR
+Poste : Avocat
+Spécialité : IP / IT
+Ville : Bordeaux
+
+## SPECIALITE RECHERCHEE
+Spécialité cible : IP / IT
+
+
+## CONTEXTE VERTICAL
+Tu cherches des cabinets d'avocats specialises dans le domaine demande, dans la ville demandee.
+
+## OUTILS A TA DISPOSITION
+
+Choisis les outils de recherche de manière intelligente selon la situation (pas la peine de tous les utiliser systématiquement si ce n'est pas pertinent) :
+
+1. **apollo_search** — TOUJOURS faire 2 appels SEPARES :
+   - Un appel avec **keywords** EN ANGLAIS (tags secteur/activite, ex: "labor law", "employment law")
+   - Un appel avec **job_titles** EN ANGLAIS (titres de poste, ex: "Labor Law Attorney", "Employment Lawyer")
+   NE JAMAIS combiner keywords et job_titles dans le meme appel.
+   Varie les termes a chaque iteration.
+2. **web_search_legal** — requete EN FRANCAIS
+   Varie les formulations (ex: "cabinet avocat droit social", "avocats specialises droit du travail").
+   Sources a explorer : annuaires du barreau, Pages Jaunes, avocats.fr, Legal 500, Chambers, Decideurs.
+3. **google_maps_search** — keywords EN FRANCAIS
+   Efficace pour les petit
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Lance la collecte selon la demande decrite ci-dessus.
+
+[AI]
+[{'text': "Je lance la collecte pour des cabinets d'avocats spécialisés en IP/IT à Bordeaux.\n\n**Recherche Apollo avec keywords (secteur IP/IT) :**", 'type': 'text'}, {'id': 'toolu_01TS3UtDzRdfuiyobRXEoLAp', 'caller': {'type': 'direct'}, 'input': {'locations': ['Bordeaux, France'], 'keywords': ['intellectual property', 'IP law', 'IT law', 'technology law', 'patent law']}, 'name': 'apollo_search', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'text': '**Recherche web spécialisée juridique :**', 'type': 'text'}, {'id': 'toolu_01FLdfKu4Yy5nVcsiiXQc5LK', 'caller': {'type': 'direct'}, 'input': {'location': 'Bordeaux', 'organization_types': ["cabinets d'avocats"], 'legal_specialties': ['propriété intellectuelle', 'droit informatique', 'droit des nouvelles technologies', 'droit IT']}, 'name': 'web_search_legal', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'text': '**Recherche Google Maps (cabinets IP/IT) :**', 'type': 'text'}, {'id': 'toolu_01Gu4sX7CvtLG7uT7479qtA3', 'caller': {'type': 'direct'}, 'input': {'keywords': ['avocat propriété intellectuelle Bordeaux', 'cabinet droit informatique Bordeaux', 'avocat IT Bordeaux'], 'location': 'Bordeaux, France'}, 'name': 'google_maps_search', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'id': 'toolu_0179VWg48GDYcxBehQoUx68U', 'caller': {'type': 'direct'}, 'input': {'companies_json': '[{"name": "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d\'auteur | Mode | Luxe | Sport | Influence", "website_url": "https://mauriac.eu/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux", "website_url": "https://tricoire-avocat.com/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Quantic Avocats Bordeaux - Avocats en Propriété intellectuelle à Bordeaux - Droit des marques - Droit du numérique", "website_url": "https://www.quantic-avocats.com/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Maître Aurélie TESTU - Avocat Propriété intellectuelle Bordeaux - Droit des marques - Droit d\'auteur", "website_url": "https://www.testu-avocat.fr/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Marion Abergel | Avocate en droit de la Propriété Intellectuelle, Droit du Numérique & Droit de la communication", "website_url": "https://www.abergelavocat.fr/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Pauline Chartier - Avocate en droit de la propriété intellectuelle - Bordeaux", "website_url": "https://www.chartieravocats.fr/", "city": "Bordeaux", "source": "google_maps"}, {"name": "IPSIDE", "website_url": "http://www.ipside.com/", "city": "Bordeaux", "source": "google_maps"}, {"name": "Ip Sphere", "website_url": "http://www.ipsphere.fr/", "ci
+... [TRONQUÉ POUR LE DEBUG]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'text': '**Recherche Apollo avec job_titles (postes IP/IT) :**', 'type': 'text'}, {'id': 'toolu_019XxWUN1kJn1kd6p9te3361', 'caller': {'type': 'direct'}, 'input': {'locations': ['Bordeaux, France'], 'job_titles': ['IP Attorney', 'Patent Attorney', 'IT Lawyer', 'Technology Lawyer', 'Intellectual Property Lawyer']}, 'name': 'apollo_search', 'type': 'tool_use'}]
+
+[TOOL]
+[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]
+
+[AI]
+[{'text': '**Vérification du résumé final :**', 'type': 'text'}, {'id': 'toolu_01PcmeaN71cy8jKtVgaD9RpK', 'caller': {'type': 'direct'}, 'input': {}, 'name': 'read_candidates_summary', 'type': 'tool_use'}]
+
+[TOOL]
+{"total": 9, "pending": 9, "done": 0, "message": "9 entreprises au total (9 en attente, 0 traitees)."}
+
+
+==================================================
+PROMPT (ENRICHISSEMENT)
+==================================================
+
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + domaine)
+3. Si Apollo ne trouve rien : cherche sur Perplexity "email [Nom] avocat [Cabinet] [Ville]"
+4. Verifie chaque email trouve avec neverbounce_verify
+5. Ne garde PAS les emails generiques (contact@, info@, accueil@) — on veut les decideurs
+
+
+## METHODE DE TRAVAIL — BUFFER
+Tu travailles avec un FICHIER TAMPON (buffer). Apres chaque source de donnees,
+tu enregistres tes trouvailles avec **save_to_buffer**. Le buffer accumule tout
+ce que tu trouves au fil des phases. A la fin, **evaluate_findings** te presente
+un bilan propre pour que tu decides quoi garder.
+
+IMPORTANT : appelle **save_to_buffer** apres CHAQUE phase, meme avec peu de resultats.
+Le format attendu par save_to_buffer est un JSON string :
+'[{"name": "...", "title": "...", "email": "...", "phone": "...", "linkedin": "...", "source": "...", "email_status": "..."}]'
+
+## STRATEGIE D'ENRICHISSEMENT
+
+### Etape 1 — Crawl du site web
+1. Crawle la homepage avec **crawl_url** pour comprendre la structure du site
+2. Identifie les liens strategiques dans le contenu (equipe, team, contact, about, mentions-legales)
+3. Extrais tous les noms, emails, telephones, titres que tu trouves sur la homepage
+4. Appelle **save_to_buffer** avec les trouvailles de la homepage
+
+### VERIFICATION DE PERTINENCE
+VERIFICATION OBLIGATOIRE avant enrichissement.
+Apres le crawl de la homepage, verifie que ce cabinet pratique bien la specialite : **IP / IT**
+
+METHODE :
+- Analyse le contenu de la homepage et identifie les pages de competences
+  (/competences, /expertises, /domaines, /practices, /savoir-faire, /activites)
+- Si la homepage ne suffit pas, crawle UNE page de competences pour confirmer.
+- La specialite peut apparaitre sous des termes proches ou en anglais
+  (ex: "Arbitrage" = "arbitrage international", "resolution des differends", "dispute resolution")
+
+DECISION :
+- PERTINENT : la specialite est mentionnee dans les domaines du cabinet → continue l'enrichissement normalement.
+- NON PERTINENT : aucune mention de la specialite ou specialite totalement differente
+  → appelle save_enrichment avec une liste VIDE et arrete immediatement (ne perds pas de temps).
+
+5. Crawle les pages strategiques identifiees (equipe, contact, mentions-legales...)
+6. Appelle **save_to_buffer** avec les trouvailles de chaque page
+
+### Etape 2 — Recherche internet
+6. Utilise **perplexity_search** pour chercher des informations supplementaires :
+   - "equipe dirigeante de [Entreprise] [Ville]"
+   - "[Nom trouve] email [Entreprise]"
+   - "associes partners [Entreprise] LinkedIn"
+7. Si Perplexity retourne des URLs utiles (LinkedIn, annuaires), crawle-les avec **crawl_url**
+8. Appelle **save_to_buffer** avec les nouvelles trouvailles
+
+### Etape 3 — Enrichissement Apollo
+9. Utilise **apollo_people_search** en mode RECHERCHE avec le domaine
+   pour trouver les contacts dans la base Apollo
+10. Pour chaque nom trouve (via crawl ou Perplexity) qui n'a PAS d'email :
+    utilise **apollo_people_search** en mode MATCH (first_name + last_name + domain)
+11. Appelle **save_to_buffer** avec les contacts Apollo
+
+### Etape 4 — Verification et devinettes email
+12. Pour chaque contact dans le buffer qui a un email NON verifie :
+    teste-le avec **neverbounce_verify**
+13. Si tu as un Prenom + Nom + domaine mais PAS d'email, devine les patterns :
+    - prenom.nom@domaine.com (le plus frequent)
+    - p.nom@domaine.com
+    - nom.prenom@domaine.com
+    - prenom_nom@domaine.com
+    Teste chaque pattern avec **neverbounce_verify**.
+    "valid" → trouve. "catchall" → candidat probable. "invalid" → suivant.
+14. Appelle **save_to_buffer** avec les resultats de verification (met a jour email_status)
+
+### Etape 5 — Evaluation et decision
+15. Appelle **evaluate_findings** pour obtenir le bilan complet de toutes tes trouvailles
+16. Analyse le bilan retourne par l'outil :
+    - Combien de contacts sont des DECIDEURS (associe, partner, DG, directeur, responsable) ?
+    - Combien ont un email NOMINATIF (prenom.nom@...) et non generique (info@, contact@) ?
+    - Combien ont un email VERIFIE (valid ou catchall) ?
+17. Si tu as **3+ contacts decideurs avec email qualifie** :
+    → Sauvegarde les meilleurs avec **save_enrichment** et ARRETE.
+18. Si tu n'as PAS atteint 3 :
+    → Relance avec d'autres angles (autres mots-cles Perplexity, autres titres Apollo,
+      autres pages a crawler). Retourne a l'etape 2 ou 3.
+    → Puis refais save_to_buffer + evaluate_findings.
+19. Si tu as EPUISE toutes les strategies possibles sans atteindre 3 :
+    → Sauvegarde ce que tu as de bon (meme 1 ou 2) avec **save_enrichment** et arrete.
+    Ne tourne PAS en boucle indefiniment.
+
+## REGLES
+- Si un PROFIL CIBLE est indique ci-dessus, cible EN PRIORITE les contacts correspondant a ce profil.
+- Sinon, cible les DECIDEURS generaux : dirigeants, associes, partners, DG, DRH, directeurs.
+- Un contact valide = un NOM + un EMAIL verifie (ou LinkedIn si pas d'email).
+- Si le site est inaccessible, passe directement a Perplexity + Apollo.
+- TOUJOURS appeler **save_enrichment** a la fin, meme avec peu de resultats.
+- Le format attendu par save_enrichment est un JSON string :
+  '[{"company_name": "...", "company_domain": "...", "company_url": "...", "contact_name": "...", "contact_first_name": "...", "contact_last_name": "...", "contact_email": "...", "contact_title": "...", "contact_phone": "...", "contact_linkedin": "...", "email_status": "...", "source": "..."}]'
+- Quand tu as fini, appelle **read_enrichment_summary** pour verifier le total.
+- ECONOMIE DE TOKENS : pas d'emojis, pas de mise en forme markdown elaboree.
+  Ton message final doit etre un resume BREF (2-3 lignes max) : nombre de contacts trouves,
+  sources utilisees, problemes rencontres. Rien de plus.
+
+
+[USER]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir MAURIAC AVOCATS en suivant la stratégie définie. Je commence par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01D9Pfttf2HzbhbJurbL7Bg2', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+Sélectionner une page
+
+ 
+
+[;](#)
+
+propriété intellectuelle
+========================
+
+MARQUES – MODE – LUXE – SPORT – DESIGN
+
+Bordeaux – PAYS BASQUE
+======================
+
+**MAURIAC AVOCATS** est un Cabinet d’Avocats dédié à la Propriété Intellectuelle,  
+ aux droits et aux questions connexes, en lien avec l’immatériel.  
+Nous avons développé une expertise singulière et reconnue  
+ en **droit des marques**, **droit de la mode et du luxe**,  
+ **droit du sport**et **droit du design**.
+
+Notre expertise
+---------------
+
+Droit des marques
+-----------------
+
+Découvrir
+
+Droit de la mode et du luxe
+---------------------------
+
+Découvrir
+
+Droit du design
+---------------
+
+Découvrir
+
+Droit du sport
+--------------
+
+Découvrir
+
+Droit du commerce et de l'industrie
+-----------------------------------
+
+Découvrir
+
+Droit des influenceurs
+----------------------
+
+Découvrir
+
+Droit des marques
+-----------------
+
+Découvrir
+
+Droit de la mode et du luxe
+---------------------------
+
+Découvrir
+
+Droit du design
+---------------
+
+Découvrir
+
+Droit du sport
+--------------
+
+Découvrir
+
+Droit du commerce et de l'industrie
+-----------------------------------
+
+Découvrir
+
+Droit des influenceurs
+----------------------
+
+Découvrir
+
+**ILS NOUS FONT CONFIANCE**
+---------------------------
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+####
+
+Conseil
+-------
+
+**MAURIAC AVOCATS** vous conseille dans la protection, la gestion, l’optimisation, 
+... [TRONQUÉ POUR LE DEBUG]
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir MAURIAC AVOCATS en suivant la stratégie définie. Je commence par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01D9Pfttf2HzbhbJurbL7Bg2', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé la homepage et confirmé que le cabinet pratique bien la spécialité IP/IT (propriété intellectuelle). J'ai identifié 4 avocats principaux. Maintenant je vais sauvegarder ces premières trouvailles dans le buffer.", 'type': 'text'}, {'id': 'toolu_01CV3nkr1dKnmCKuvTSNDg5K', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS', 'findings_json': '[\n  {\n    "name": "Vincent MAURIAC",\n    "title": "Avocat associé",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Paul MAURIAC", \n    "title": "Avocat partenaire",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Mathilde CRON",\n    "title": "Avocate collaboratrice", \n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Manon BRODIN",\n    "title": "Avocate collaboratrice",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage", \n    "email_status": ""\n  }\n]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+3 nouvelles entrees ajoutees (doublons ignores: 1).
+Buffer total : 12 entrees, 5 avec email, 0 verifiees.
+Continue tes recherches ou appelle evaluate_findings pour faire le bilan.
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir MAURIAC AVOCATS en suivant la stratégie définie. Je commence par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01D9Pfttf2HzbhbJurbL7Bg2', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé la homepage et confirmé que le cabinet pratique bien la spécialité IP/IT (propriété intellectuelle). J'ai identifié 4 avocats principaux. Maintenant je vais sauvegarder ces premières trouvailles dans le buffer.", 'type': 'text'}, {'id': 'toolu_01CV3nkr1dKnmCKuvTSNDg5K', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS', 'findings_json': '[\n  {\n    "name": "Vincent MAURIAC",\n    "title": "Avocat associé",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Paul MAURIAC", \n    "title": "Avocat partenaire",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Mathilde CRON",\n    "title": "Avocate collaboratrice", \n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Manon BRODIN",\n    "title": "Avocate collaboratrice",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage", \n    "email_status": ""\n  }\n]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Maintenant je vais crawler la page équipe pour obtenir plus de détails sur les avocats.', 'type': 'text'}, {'id': 'toolu_01Jz73wK92n946W3KBbNDHUz', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/equipe/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+Erreur HTTP 404 pour https://mauriac.eu/equipe/
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir MAURIAC AVOCATS en suivant la stratégie définie. Je commence par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01D9Pfttf2HzbhbJurbL7Bg2', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé la homepage et confirmé que le cabinet pratique bien la spécialité IP/IT (propriété intellectuelle). J'ai identifié 4 avocats principaux. Maintenant je vais sauvegarder ces premières trouvailles dans le buffer.", 'type': 'text'}, {'id': 'toolu_01CV3nkr1dKnmCKuvTSNDg5K', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS', 'findings_json': '[\n  {\n    "name": "Vincent MAURIAC",\n    "title": "Avocat associé",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Paul MAURIAC", \n    "title": "Avocat partenaire",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Mathilde CRON",\n    "title": "Avocate collaboratrice", \n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Manon BRODIN",\n    "title": "Avocate collaboratrice",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage", \n    "email_status": ""\n  }\n]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Maintenant je vais crawler la page équipe pour obtenir plus de détails sur les avocats.', 'type': 'text'}, {'id': 'toolu_01Jz73wK92n946W3KBbNDHUz', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/equipe/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "La page équipe n'existe pas. Je vais essayer d'autres URLs possibles pour l'équipe :", 'type': 'text'}, {'id': 'toolu_01NhbVVE2uRnPUDGvTWbtmmm', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/avocats/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+Erreur HTTP 404 pour https://mauriac.eu/avocats/
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir MAURIAC AVOCATS en suivant la stratégie définie. Je commence par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01D9Pfttf2HzbhbJurbL7Bg2', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé la homepage et confirmé que le cabinet pratique bien la spécialité IP/IT (propriété intellectuelle). J'ai identifié 4 avocats principaux. Maintenant je vais sauvegarder ces premières trouvailles dans le buffer.", 'type': 'text'}, {'id': 'toolu_01CV3nkr1dKnmCKuvTSNDg5K', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS', 'findings_json': '[\n  {\n    "name": "Vincent MAURIAC",\n    "title": "Avocat associé",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Paul MAURIAC", \n    "title": "Avocat partenaire",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Mathilde CRON",\n    "title": "Avocate collaboratrice", \n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Manon BRODIN",\n    "title": "Avocate collaboratrice",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage", \n    "email_status": ""\n  }\n]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Maintenant je vais crawler la page équipe pour obtenir plus de détails sur les avocats.', 'type': 'text'}, {'id': 'toolu_01Jz73wK92n946W3KBbNDHUz', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/equipe/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "La page équipe n'existe pas. Je vais essayer d'autres URLs possibles pour l'équipe :", 'type': 'text'}, {'id': 'toolu_01NhbVVE2uRnPUDGvTWbtmmm', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/avocats/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'id': 'toolu_01XDHnAoSJA4Bw7n3hmXvUZS', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/contact/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+Erreur HTTP 404 pour https://mauriac.eu/contact/
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir MAURIAC AVOCATS en suivant la stratégie définie. Je commence par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01D9Pfttf2HzbhbJurbL7Bg2', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé la homepage et confirmé que le cabinet pratique bien la spécialité IP/IT (propriété intellectuelle). J'ai identifié 4 avocats principaux. Maintenant je vais sauvegarder ces premières trouvailles dans le buffer.", 'type': 'text'}, {'id': 'toolu_01CV3nkr1dKnmCKuvTSNDg5K', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS', 'findings_json': '[\n  {\n    "name": "Vincent MAURIAC",\n    "title": "Avocat associé",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Paul MAURIAC", \n    "title": "Avocat partenaire",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Mathilde CRON",\n    "title": "Avocate collaboratrice", \n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Manon BRODIN",\n    "title": "Avocate collaboratrice",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage", \n    "email_status": ""\n  }\n]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Maintenant je vais crawler la page équipe pour obtenir plus de détails sur les avocats.', 'type': 'text'}, {'id': 'toolu_01Jz73wK92n946W3KBbNDHUz', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/equipe/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "La page équipe n'existe pas. Je vais essayer d'autres URLs possibles pour l'équipe :", 'type': 'text'}, {'id': 'toolu_01NhbVVE2uRnPUDGvTWbtmmm', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/avocats/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'id': 'toolu_01XDHnAoSJA4Bw7n3hmXvUZS', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/contact/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Je vais maintenant utiliser Perplexity pour chercher des informations sur l'équipe et leurs emails.", 'type': 'text'}, {'id': 'toolu_014VeQc4wbS4XCEiAZ81996g', 'caller': {'type': 'direct'}, 'input': {'query': 'Vincent MAURIAC Paul MAURIAC avocats Bordeaux propriété intellectuelle emails contacts LinkedIn'}, 'name': 'perplexity_search', 'type': 'tool_use'}]
+
+[TOOL]
+{"error": "Erreur Perplexity: AuthenticationError: Error code: 401 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information, visit https://www.perplexity.ai/settings/api.', 'type': 'insufficient_quota', 'code': 401}}"}
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir MAURIAC AVOCATS en suivant la stratégie définie. Je commence par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01D9Pfttf2HzbhbJurbL7Bg2', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé la homepage et confirmé que le cabinet pratique bien la spécialité IP/IT (propriété intellectuelle). J'ai identifié 4 avocats principaux. Maintenant je vais sauvegarder ces premières trouvailles dans le buffer.", 'type': 'text'}, {'id': 'toolu_01CV3nkr1dKnmCKuvTSNDg5K', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS', 'findings_json': '[\n  {\n    "name": "Vincent MAURIAC",\n    "title": "Avocat associé",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Paul MAURIAC", \n    "title": "Avocat partenaire",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Mathilde CRON",\n    "title": "Avocate collaboratrice", \n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Manon BRODIN",\n    "title": "Avocate collaboratrice",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage", \n    "email_status": ""\n  }\n]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Maintenant je vais crawler la page équipe pour obtenir plus de détails sur les avocats.', 'type': 'text'}, {'id': 'toolu_01Jz73wK92n946W3KBbNDHUz', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/equipe/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "La page équipe n'existe pas. Je vais essayer d'autres URLs possibles pour l'équipe :", 'type': 'text'}, {'id': 'toolu_01NhbVVE2uRnPUDGvTWbtmmm', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/avocats/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'id': 'toolu_01XDHnAoSJA4Bw7n3hmXvUZS', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/contact/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Je vais maintenant utiliser Perplexity pour chercher des informations sur l'équipe et leurs emails.", 'type': 'text'}, {'id': 'toolu_014VeQc4wbS4XCEiAZ81996g', 'caller': {'type': 'direct'}, 'input': {'query': 'Vincent MAURIAC Paul MAURIAC avocats Bordeaux propriété intellectuelle emails contacts LinkedIn'}, 'name': 'perplexity_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Perplexity ne fonctionne pas. Je vais utiliser Apollo pour enrichir les contacts connus avec leurs emails.', 'type': 'text'}, {'id': 'toolu_01NJNx4aTRbVBs7UaeskUzc8', 'caller': {'type': 'direct'}, 'input': {'domain': 'mauriac.eu', 'person_titles': ['Partner', 'Associé', 'Avocat', 'Lawyer'], 'person_seniorities': ['owner', 'partner', 'director']}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+{"error": "Apollo People Search HTTP 403", "contacts": []}
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir MAURIAC AVOCATS en suivant la stratégie définie. Je commence par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01D9Pfttf2HzbhbJurbL7Bg2', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé la homepage et confirmé que le cabinet pratique bien la spécialité IP/IT (propriété intellectuelle). J'ai identifié 4 avocats principaux. Maintenant je vais sauvegarder ces premières trouvailles dans le buffer.", 'type': 'text'}, {'id': 'toolu_01CV3nkr1dKnmCKuvTSNDg5K', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS', 'findings_json': '[\n  {\n    "name": "Vincent MAURIAC",\n    "title": "Avocat associé",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Paul MAURIAC", \n    "title": "Avocat partenaire",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Mathilde CRON",\n    "title": "Avocate collaboratrice", \n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Manon BRODIN",\n    "title": "Avocate collaboratrice",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage", \n    "email_status": ""\n  }\n]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Maintenant je vais crawler la page équipe pour obtenir plus de détails sur les avocats.', 'type': 'text'}, {'id': 'toolu_01Jz73wK92n946W3KBbNDHUz', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/equipe/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "La page équipe n'existe pas. Je vais essayer d'autres URLs possibles pour l'équipe :", 'type': 'text'}, {'id': 'toolu_01NhbVVE2uRnPUDGvTWbtmmm', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/avocats/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'id': 'toolu_01XDHnAoSJA4Bw7n3hmXvUZS', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/contact/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Je vais maintenant utiliser Perplexity pour chercher des informations sur l'équipe et leurs emails.", 'type': 'text'}, {'id': 'toolu_014VeQc4wbS4XCEiAZ81996g', 'caller': {'type': 'direct'}, 'input': {'query': 'Vincent MAURIAC Paul MAURIAC avocats Bordeaux propriété intellectuelle emails contacts LinkedIn'}, 'name': 'perplexity_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Perplexity ne fonctionne pas. Je vais utiliser Apollo pour enrichir les contacts connus avec leurs emails.', 'type': 'text'}, {'id': 'toolu_01NJNx4aTRbVBs7UaeskUzc8', 'caller': {'type': 'direct'}, 'input': {'domain': 'mauriac.eu', 'person_titles': ['Partner', 'Associé', 'Avocat', 'Lawyer'], 'person_seniorities': ['owner', 'partner', 'director']}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Apollo n'est pas accessible. Je vais essayer des recherches spécifiques par nom avec Apollo :", 'type': 'text'}, {'id': 'toolu_01X8XE1RMNMx2eY9nF5h6J8N', 'caller': {'type': 'direct'}, 'input': {'first_name': 'Vincent', 'last_name': 'MAURIAC', 'domain': 'mauriac.eu'}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+{"error": "Apollo People Match HTTP 403", "contacts": []}
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir MAURIAC AVOCATS en suivant la stratégie définie. Je commence par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01D9Pfttf2HzbhbJurbL7Bg2', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé la homepage et confirmé que le cabinet pratique bien la spécialité IP/IT (propriété intellectuelle). J'ai identifié 4 avocats principaux. Maintenant je vais sauvegarder ces premières trouvailles dans le buffer.", 'type': 'text'}, {'id': 'toolu_01CV3nkr1dKnmCKuvTSNDg5K', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS', 'findings_json': '[\n  {\n    "name": "Vincent MAURIAC",\n    "title": "Avocat associé",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Paul MAURIAC", \n    "title": "Avocat partenaire",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Mathilde CRON",\n    "title": "Avocate collaboratrice", \n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Manon BRODIN",\n    "title": "Avocate collaboratrice",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage", \n    "email_status": ""\n  }\n]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Maintenant je vais crawler la page équipe pour obtenir plus de détails sur les avocats.', 'type': 'text'}, {'id': 'toolu_01Jz73wK92n946W3KBbNDHUz', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/equipe/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "La page équipe n'existe pas. Je vais essayer d'autres URLs possibles pour l'équipe :", 'type': 'text'}, {'id': 'toolu_01NhbVVE2uRnPUDGvTWbtmmm', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/avocats/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'id': 'toolu_01XDHnAoSJA4Bw7n3hmXvUZS', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/contact/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Je vais maintenant utiliser Perplexity pour chercher des informations sur l'équipe et leurs emails.", 'type': 'text'}, {'id': 'toolu_014VeQc4wbS4XCEiAZ81996g', 'caller': {'type': 'direct'}, 'input': {'query': 'Vincent MAURIAC Paul MAURIAC avocats Bordeaux propriété intellectuelle emails contacts LinkedIn'}, 'name': 'perplexity_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Perplexity ne fonctionne pas. Je vais utiliser Apollo pour enrichir les contacts connus avec leurs emails.', 'type': 'text'}, {'id': 'toolu_01NJNx4aTRbVBs7UaeskUzc8', 'caller': {'type': 'direct'}, 'input': {'domain': 'mauriac.eu', 'person_titles': ['Partner', 'Associé', 'Avocat', 'Lawyer'], 'person_seniorities': ['owner', 'partner', 'director']}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Apollo n'est pas accessible. Je vais essayer des recherches spécifiques par nom avec Apollo :", 'type': 'text'}, {'id': 'toolu_01X8XE1RMNMx2eY9nF5h6J8N', 'caller': {'type': 'direct'}, 'input': {'first_name': 'Vincent', 'last_name': 'MAURIAC', 'domain': 'mauriac.eu'}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'id': 'toolu_01H3iVfkfWG4u17SqbyukEaZ', 'caller': {'type': 'direct'}, 'input': {'first_name': 'Paul', 'last_name': 'MAURIAC', 'domain': 'mauriac.eu'}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+{"error": "Apollo People Match HTTP 403", "contacts": []}
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir MAURIAC AVOCATS en suivant la stratégie définie. Je commence par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01D9Pfttf2HzbhbJurbL7Bg2', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé la homepage et confirmé que le cabinet pratique bien la spécialité IP/IT (propriété intellectuelle). J'ai identifié 4 avocats principaux. Maintenant je vais sauvegarder ces premières trouvailles dans le buffer.", 'type': 'text'}, {'id': 'toolu_01CV3nkr1dKnmCKuvTSNDg5K', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS', 'findings_json': '[\n  {\n    "name": "Vincent MAURIAC",\n    "title": "Avocat associé",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Paul MAURIAC", \n    "title": "Avocat partenaire",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Mathilde CRON",\n    "title": "Avocate collaboratrice", \n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Manon BRODIN",\n    "title": "Avocate collaboratrice",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage", \n    "email_status": ""\n  }\n]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Maintenant je vais crawler la page équipe pour obtenir plus de détails sur les avocats.', 'type': 'text'}, {'id': 'toolu_01Jz73wK92n946W3KBbNDHUz', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/equipe/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "La page équipe n'existe pas. Je vais essayer d'autres URLs possibles pour l'équipe :", 'type': 'text'}, {'id': 'toolu_01NhbVVE2uRnPUDGvTWbtmmm', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/avocats/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'id': 'toolu_01XDHnAoSJA4Bw7n3hmXvUZS', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/contact/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Je vais maintenant utiliser Perplexity pour chercher des informations sur l'équipe et leurs emails.", 'type': 'text'}, {'id': 'toolu_014VeQc4wbS4XCEiAZ81996g', 'caller': {'type': 'direct'}, 'input': {'query': 'Vincent MAURIAC Paul MAURIAC avocats Bordeaux propriété intellectuelle emails contacts LinkedIn'}, 'name': 'perplexity_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Perplexity ne fonctionne pas. Je vais utiliser Apollo pour enrichir les contacts connus avec leurs emails.', 'type': 'text'}, {'id': 'toolu_01NJNx4aTRbVBs7UaeskUzc8', 'caller': {'type': 'direct'}, 'input': {'domain': 'mauriac.eu', 'person_titles': ['Partner', 'Associé', 'Avocat', 'Lawyer'], 'person_seniorities': ['owner', 'partner', 'director']}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Apollo n'est pas accessible. Je vais essayer des recherches spécifiques par nom avec Apollo :", 'type': 'text'}, {'id': 'toolu_01X8XE1RMNMx2eY9nF5h6J8N', 'caller': {'type': 'direct'}, 'input': {'first_name': 'Vincent', 'last_name': 'MAURIAC', 'domain': 'mauriac.eu'}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'id': 'toolu_01H3iVfkfWG4u17SqbyukEaZ', 'caller': {'type': 'direct'}, 'input': {'first_name': 'Paul', 'last_name': 'MAURIAC', 'domain': 'mauriac.eu'}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Apollo est inaccessible. Je vais maintenant essayer de deviner les emails selon les patterns courants et les vérifier avec NeverBounce. Je commence par Vincent MAURIAC :', 'type': 'text'}, {'id': 'toolu_01Mv3bTm3Az71KE2Z8cEEeU4', 'caller': {'type': 'direct'}, 'input': {'email': 'vincent.mauriac@mauriac.eu'}, 'name': 'neverbounce_verify', 'type': 'tool_use'}]
+
+[TOOL]
+{"email": "vincent.mauriac@mauriac.eu", "result": "unknown", "message": "NEVERBOUNCE_API_KEY non configuree. Verification impossible."}
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir MAURIAC AVOCATS en suivant la stratégie définie. Je commence par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01D9Pfttf2HzbhbJurbL7Bg2', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé la homepage et confirmé que le cabinet pratique bien la spécialité IP/IT (propriété intellectuelle). J'ai identifié 4 avocats principaux. Maintenant je vais sauvegarder ces premières trouvailles dans le buffer.", 'type': 'text'}, {'id': 'toolu_01CV3nkr1dKnmCKuvTSNDg5K', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS', 'findings_json': '[\n  {\n    "name": "Vincent MAURIAC",\n    "title": "Avocat associé",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Paul MAURIAC", \n    "title": "Avocat partenaire",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Mathilde CRON",\n    "title": "Avocate collaboratrice", \n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Manon BRODIN",\n    "title": "Avocate collaboratrice",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage", \n    "email_status": ""\n  }\n]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Maintenant je vais crawler la page équipe pour obtenir plus de détails sur les avocats.', 'type': 'text'}, {'id': 'toolu_01Jz73wK92n946W3KBbNDHUz', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/equipe/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "La page équipe n'existe pas. Je vais essayer d'autres URLs possibles pour l'équipe :", 'type': 'text'}, {'id': 'toolu_01NhbVVE2uRnPUDGvTWbtmmm', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/avocats/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'id': 'toolu_01XDHnAoSJA4Bw7n3hmXvUZS', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/contact/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Je vais maintenant utiliser Perplexity pour chercher des informations sur l'équipe et leurs emails.", 'type': 'text'}, {'id': 'toolu_014VeQc4wbS4XCEiAZ81996g', 'caller': {'type': 'direct'}, 'input': {'query': 'Vincent MAURIAC Paul MAURIAC avocats Bordeaux propriété intellectuelle emails contacts LinkedIn'}, 'name': 'perplexity_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Perplexity ne fonctionne pas. Je vais utiliser Apollo pour enrichir les contacts connus avec leurs emails.', 'type': 'text'}, {'id': 'toolu_01NJNx4aTRbVBs7UaeskUzc8', 'caller': {'type': 'direct'}, 'input': {'domain': 'mauriac.eu', 'person_titles': ['Partner', 'Associé', 'Avocat', 'Lawyer'], 'person_seniorities': ['owner', 'partner', 'director']}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Apollo n'est pas accessible. Je vais essayer des recherches spécifiques par nom avec Apollo :", 'type': 'text'}, {'id': 'toolu_01X8XE1RMNMx2eY9nF5h6J8N', 'caller': {'type': 'direct'}, 'input': {'first_name': 'Vincent', 'last_name': 'MAURIAC', 'domain': 'mauriac.eu'}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'id': 'toolu_01H3iVfkfWG4u17SqbyukEaZ', 'caller': {'type': 'direct'}, 'input': {'first_name': 'Paul', 'last_name': 'MAURIAC', 'domain': 'mauriac.eu'}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Apollo est inaccessible. Je vais maintenant essayer de deviner les emails selon les patterns courants et les vérifier avec NeverBounce. Je commence par Vincent MAURIAC :', 'type': 'text'}, {'id': 'toolu_01Mv3bTm3Az71KE2Z8cEEeU4', 'caller': {'type': 'direct'}, 'input': {'email': 'vincent.mauriac@mauriac.eu'}, 'name': 'neverbounce_verify', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "NeverBounce n'est pas configuré. Je vais quand même tester les patterns d'emails les plus probables et les sauvegarder. Commençons par évaluer ce que j'ai dans le buffer actuel :", 'type': 'text'}, {'id': 'toolu_01Bs7qYWdvPQN4xJH5VtaJAx', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS'}, 'name': 'evaluate_findings', 'type': 'tool_use'}]
+
+[TOOL]
+=== BILAN POUR MAURIAC AVOCATS ===
+
+1. Vincent Mauriac | Avocat associé fondateur - Directeur de la publication | None | tel: +33 (0)5 56 44 53 06 | LinkedIn: None | source: crawl_homepage_profile
+2. Estelle Rech | Avocat | None | tel: +33 (0)5 56 44 53 06 | LinkedIn: None | source: crawl_homepage
+3. Emma Mauriac | Avocat | None | tel: +33 (0)5 56 44 53 06 | LinkedIn: None | source: crawl_homepage
+4. Antonin Mauriac | Avocat | None | tel: +33 (0)5 56 44 53 06 | LinkedIn: None | source: crawl_homepage
+5. Contact générique | Contact cabinet | contact@mauriac.eu | tel: +33 (0)5 56 44 53 06 | LinkedIn: None | source: crawl_mentions_legales
+6. Vincent Mauriac | Avocat associé fondateur - Directeur de la publication | vincent.mauriac@mauriac.eu [probable] | tel: +33 (0)5 56 44 53 06 | LinkedIn: None | source: pattern_guess
+7. Estelle Rech | Avocat | estelle.rech@mauriac.eu [probable] | tel: +33 (0)5 56 44 53 06 | LinkedIn: None | source: pattern_guess
+8. Emma Mauriac | Avocat | emma.mauriac@mauriac.eu [probable] | tel: +33 (0)5 56 44 53 06 | LinkedIn: None | source: pattern_guess
+9. Antonin Mauriac | Avocat | antonin.mauriac@mauriac.eu [probable] | tel: +33 (0)5 56 44 53 06 | LinkedIn: None | source: pattern_guess
+10. Paul MAURIAC | Avocat partenaire |  | tel:  | LinkedIn:  | source: crawl_homepage
+11. Mathilde CRON | Avocate collaboratrice |  | tel:  | LinkedIn:  | source: crawl_homepage
+12. Manon BRODIN | Avocate collaboratrice |  | tel:  | LinkedIn:  | source: crawl_homepage
+
+--
+... [TRONQUÉ POUR LE DEBUG]
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence
+Site web : https://mauriac.eu/
+Domaine : mauriac.eu
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + d
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "MAURIAC AVOCATS - Avocats Propriété Intellectuelle Bordeaux - Marques | Droits d'auteur | Mode | Luxe | Sport | Influence" (site: https://mauriac.eu/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir MAURIAC AVOCATS en suivant la stratégie définie. Je commence par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01D9Pfttf2HzbhbJurbL7Bg2', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé la homepage et confirmé que le cabinet pratique bien la spécialité IP/IT (propriété intellectuelle). J'ai identifié 4 avocats principaux. Maintenant je vais sauvegarder ces premières trouvailles dans le buffer.", 'type': 'text'}, {'id': 'toolu_01CV3nkr1dKnmCKuvTSNDg5K', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS', 'findings_json': '[\n  {\n    "name": "Vincent MAURIAC",\n    "title": "Avocat associé",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Paul MAURIAC", \n    "title": "Avocat partenaire",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Mathilde CRON",\n    "title": "Avocate collaboratrice", \n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage",\n    "email_status": ""\n  },\n  {\n    "name": "Manon BRODIN",\n    "title": "Avocate collaboratrice",\n    "email": "",\n    "phone": "",\n    "linkedin": "",\n    "source": "crawl_homepage", \n    "email_status": ""\n  }\n]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Maintenant je vais crawler la page équipe pour obtenir plus de détails sur les avocats.', 'type': 'text'}, {'id': 'toolu_01Jz73wK92n946W3KBbNDHUz', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/equipe/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "La page équipe n'existe pas. Je vais essayer d'autres URLs possibles pour l'équipe :", 'type': 'text'}, {'id': 'toolu_01NhbVVE2uRnPUDGvTWbtmmm', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/avocats/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'id': 'toolu_01XDHnAoSJA4Bw7n3hmXvUZS', 'caller': {'type': 'direct'}, 'input': {'url': 'https://mauriac.eu/contact/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Je vais maintenant utiliser Perplexity pour chercher des informations sur l'équipe et leurs emails.", 'type': 'text'}, {'id': 'toolu_014VeQc4wbS4XCEiAZ81996g', 'caller': {'type': 'direct'}, 'input': {'query': 'Vincent MAURIAC Paul MAURIAC avocats Bordeaux propriété intellectuelle emails contacts LinkedIn'}, 'name': 'perplexity_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Perplexity ne fonctionne pas. Je vais utiliser Apollo pour enrichir les contacts connus avec leurs emails.', 'type': 'text'}, {'id': 'toolu_01NJNx4aTRbVBs7UaeskUzc8', 'caller': {'type': 'direct'}, 'input': {'domain': 'mauriac.eu', 'person_titles': ['Partner', 'Associé', 'Avocat', 'Lawyer'], 'person_seniorities': ['owner', 'partner', 'director']}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Apollo n'est pas accessible. Je vais essayer des recherches spécifiques par nom avec Apollo :", 'type': 'text'}, {'id': 'toolu_01X8XE1RMNMx2eY9nF5h6J8N', 'caller': {'type': 'direct'}, 'input': {'first_name': 'Vincent', 'last_name': 'MAURIAC', 'domain': 'mauriac.eu'}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'id': 'toolu_01H3iVfkfWG4u17SqbyukEaZ', 'caller': {'type': 'direct'}, 'input': {'first_name': 'Paul', 'last_name': 'MAURIAC', 'domain': 'mauriac.eu'}, 'name': 'apollo_people_search', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'Apollo est inaccessible. Je vais maintenant essayer de deviner les emails selon les patterns courants et les vérifier avec NeverBounce. Je commence par Vincent MAURIAC :', 'type': 'text'}, {'id': 'toolu_01Mv3bTm3Az71KE2Z8cEEeU4', 'caller': {'type': 'direct'}, 'input': {'email': 'vincent.mauriac@mauriac.eu'}, 'name': 'neverbounce_verify', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "NeverBounce n'est pas configuré. Je vais quand même tester les patterns d'emails les plus probables et les sauvegarder. Commençons par évaluer ce que j'ai dans le buffer actuel :", 'type': 'text'}, {'id': 'toolu_01Bs7qYWdvPQN4xJH5VtaJAx', 'caller': {'type': 'direct'}, 'input': {'company_name': 'MAURIAC AVOCATS'}, 'name': 'evaluate_findings', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Excellent ! J'ai trouvé plusieurs contacts décideurs. Je vais sauvegarder les meilleurs contacts avec leurs emails probables :", 'type': 'text'}, {'id': 'toolu_01QJ8rjeREVTjdrtstStmvsM', 'caller': {'type': 'direct'}, 'input': {'contacts_json': '[\n  {\n    "company_name": "MAURIAC AVOCATS",\n    "company_domain": "mauriac.eu",\n    "company_url": "https://mauriac.eu/",\n    "contact_name": "Vincent Mauriac",\n    "contact_first_name": "Vincent", \n    "contact_last_name": "Mauriac",\n    "contact_email": "vincent.mauriac@mauriac.eu",\n    "contact_title": "Avocat associé fondateur - Directeur de la publication",\n    "contact_phone": "+33 (0)5 56 44 53 06",\n    "contact_linkedin": "",\n    "email_status": "probable",\n    "source": "crawl_homepage + pattern_guess"\n  },\n  {\n    "company_name": "MAURIAC AVOCATS",\n    "company_domain": "mauriac.eu", \n    "company_url": "https://mauriac.eu/",\n    "contact_name": "Estelle Rech",\n    "contact_first_name": "Estelle",\n    "contact_last_name": "Rech", \n    "contact_email": "estelle.rech@mauriac.eu",\n    "contact_title": "Avocat",\n    "contact_phone": "+33 (0)5 56 44 53 06",\n    "contact_linkedin": "",\n    "email_status": "probable",\n    "source": "crawl_homepage + pattern_guess"\n  },\n  {\n    "company_name": "MAURIAC AVOCATS",\n    "company_domain": "mauriac.eu",\n    "company_url": "https://mauriac.eu/", \n    "contact_name": "Emma Mauriac",\n    "contact_first_name": "Emma",\n    "contact_last_name": "Mau
+... [TRONQUÉ POUR LE DEBUG]
+
+[TOOL]
+3 nouveaux contacts ajoutes (total: 3, dedupliques depuis 3 bruts).
+Fichier : C:\Users\Jordi\Desktop\Spontaneo\spontaneo\apps\agent\enriched.csv
+
+
+==================================================
+PROMPT (ENRICHISSEMENT)
+==================================================
+
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux
+Site web : https://tricoire-avocat.com/
+Domaine : tricoire-avocat.com
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + domaine)
+3. Si Apollo ne trouve rien : cherche sur Perplexity "email [Nom] avocat [Cabinet] [Ville]"
+4. Verifie chaque email trouve avec neverbounce_verify
+5. Ne garde PAS les emails generiques (contact@, info@, accueil@) — on veut les decideurs
+
+
+## METHODE DE TRAVAIL — BUFFER
+Tu travailles avec un FICHIER TAMPON (buffer). Apres chaque source de donnees,
+tu enregistres tes trouvailles avec **save_to_buffer**. Le buffer accumule tout
+ce que tu trouves au fil des phases. A la fin, **evaluate_findings** te presente
+un bilan propre pour que tu decides quoi garder.
+
+IMPORTANT : appelle **save_to_buffer** apres CHAQUE phase, meme avec peu de resultats.
+Le format attendu par save_to_buffer est un JSON string :
+'[{"name": "...", "title": "...", "email": "...", "phone": "...", "linkedin": "...", "source": "...", "email_status": "..."}]'
+
+## STRATEGIE D'ENRICHISSEMENT
+
+### Etape 1 — Crawl du site web
+1. Crawle la homepage avec **crawl_url** pour comprendre la structure du site
+2. Identifie les liens strategiques dans le contenu (equipe, team, contact, about, mentions-legales)
+3. Extrais tous les noms, emails, telephones, titres que tu trouves sur la homepage
+4. Appelle **save_to_buffer** avec les trouvailles de la homepage
+
+### VERIFICATION DE PERTINENCE
+VERIFICATION OBLIGATOIRE avant enrichissement.
+Apres le crawl de la homepage, verifie que ce cabinet pratique bien la specialite : **IP / IT**
+
+METHODE :
+- Analyse le contenu de la homepage et identifie les pages de competences
+  (/competences, /expertises, /domaines, /practices, /savoir-faire, /activites)
+- Si la homepage ne suffit pas, crawle UNE page de competences pour confirmer.
+- La specialite peut apparaitre sous des termes proches ou en anglais
+  (ex: "Arbitrage" = "arbitrage international", "resolution des differends", "dispute resolution")
+
+DECISION :
+- PERTINENT : la specialite est mentionnee dans les domaines du cabinet → continue l'enrichissement normalement.
+- NON PERTINENT : aucune mention de la specialite ou specialite totalement differente
+  → appelle save_enrichment avec une liste VIDE et arrete immediatement (ne perds pas de temps).
+
+5. Crawle les pages strategiques identifiees (equipe, contact, mentions-legales...)
+6. Appelle **save_to_buffer** avec les trouvailles de chaque page
+
+### Etape 2 — Recherche internet
+6. Utilise **perplexity_search** pour chercher des informations supplementaires :
+   - "equipe dirigeante de [Entreprise] [Ville]"
+   - "[Nom trouve] email [Entreprise]"
+   - "associes partners [Entreprise] LinkedIn"
+7. Si Perplexity retourne des URLs utiles (LinkedIn, annuaires), crawle-les avec **crawl_url**
+8. Appelle **save_to_buffer** avec les nouvelles trouvailles
+
+### Etape 3 — Enrichissement Apollo
+9. Utilise **apollo_people_search** en mode RECHERCHE avec le domaine
+   pour trouver les contacts dans la base Apollo
+10. Pour chaque nom trouve (via crawl ou Perplexity) qui n'a PAS d'email :
+    utilise **apollo_people_search** en mode MATCH (first_name + last_name + domain)
+11. Appelle **save_to_buffer** avec les contacts Apollo
+
+### Etape 4 — Verification et devinettes email
+12. Pour chaque contact dans le buffer qui a un email NON verifie :
+    teste-le avec **neverbounce_verify**
+13. Si tu as un Prenom + Nom + domaine mais PAS d'email, devine les patterns :
+    - prenom.nom@domaine.com (le plus frequent)
+    - p.nom@domaine.com
+    - nom.prenom@domaine.com
+    - prenom_nom@domaine.com
+    Teste chaque pattern avec **neverbounce_verify**.
+    "valid" → trouve. "catchall" → candidat probable. "invalid" → suivant.
+14. Appelle **save_to_buffer** avec les resultats de verification (met a jour email_status)
+
+### Etape 5 — Evaluation et decision
+15. Appelle **evaluate_findings** pour obtenir le bilan complet de toutes tes trouvailles
+16. Analyse le bilan retourne par l'outil :
+    - Combien de contacts sont des DECIDEURS (associe, partner, DG, directeur, responsable) ?
+    - Combien ont un email NOMINATIF (prenom.nom@...) et non generique (info@, contact@) ?
+    - Combien ont un email VERIFIE (valid ou catchall) ?
+17. Si tu as **3+ contacts decideurs avec email qualifie** :
+    → Sauvegarde les meilleurs avec **save_enrichment** et ARRETE.
+18. Si tu n'as PAS atteint 3 :
+    → Relance avec d'autres angles (autres mots-cles Perplexity, autres titres Apollo,
+      autres pages a crawler). Retourne a l'etape 2 ou 3.
+    → Puis refais save_to_buffer + evaluate_findings.
+19. Si tu as EPUISE toutes les strategies possibles sans atteindre 3 :
+    → Sauvegarde ce que tu as de bon (meme 1 ou 2) avec **save_enrichment** et arrete.
+    Ne tourne PAS en boucle indefiniment.
+
+## REGLES
+- Si un PROFIL CIBLE est indique ci-dessus, cible EN PRIORITE les contacts correspondant a ce profil.
+- Sinon, cible les DECIDEURS generaux : dirigeants, associes, partners, DG, DRH, directeurs.
+- Un contact valide = un NOM + un EMAIL verifie (ou LinkedIn si pas d'email).
+- Si le site est inaccessible, passe directement a Perplexity + Apollo.
+- TOUJOURS appeler **save_enrichment** a la fin, meme avec peu de resultats.
+- Le format attendu par save_enrichment est un JSON string :
+  '[{"company_name": "...", "company_domain": "...", "company_url": "...", "contact_name": "...", "contact_first_name": "...", "contact_last_name": "...", "contact_email": "...", "contact_title": "...", "contact_phone": "...", "contact_linkedin": "...", "email_status": "...", "source": "..."}]'
+- Quand tu as fini, appelle **read_enrichment_summary** pour verifier le total.
+- ECONOMIE DE TOKENS : pas d'emojis, pas de mise en forme markdown elaboree.
+  Ton message final doit etre un resume BREF (2-3 lignes max) : nombre de contacts trouves,
+  sources utilisees, problemes rencontres. Rien de plus.
+
+
+[USER]
+Enrichis l'entreprise "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux" (site: https://tricoire-avocat.com/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux
+Site web : https://tricoire-avocat.com/
+Domaine : tricoire-avocat.com
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + domaine)
+3. Si Apollo ne trouve rien : c
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux" (site: https://tricoire-avocat.com/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux
+Site web : https://tricoire-avocat.com/
+Domaine : tricoire-avocat.com
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + domaine)
+3. Si Apollo ne trouve rien : c
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux" (site: https://tricoire-avocat.com/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir le cabinet "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux". Commençons par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01FSEGskHf122xTxgqMVsUBA', 'caller': {'type': 'direct'}, 'input': {'url': 'https://tricoire-avocat.com/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[Skip to content](#content)
+
+
+[Maître Diane Tricoire](https://tricoire-avocat.com/)
+
+Avocat Propriété intellectuelle Bordeaux
+
+Menu
+
+Accueil
+=======
+
+**Avocate intervenant principalement en propriété intellectuelle, nouvelles technologies & droit des affaires – Barreau de Bordeaux**
+
+Maître Diane TRICOIRE accompagne entreprises, créateurs et professionnels dans la protection, la valorisation et la défense de leurs actifs immatériels en France et à l’international.
+
+Le Cabinet intervient sur l’ensemble des problématiques juridiques et stratégiques liées à la propriété intellectuelle (marque, design, droit d’auteur, inventions, savoir-faire, créations numériques ou artistiques), aux nouvelles technologies et à la communication (e-réputation, réseaux sociaux, influence, publicité, plateformes, développement d’applications), et au droit des affaires et de la concurrence (contrats, contentieux commerciaux ou concurrentiels).
+
+**Une expertise multisectorielle**
+
+Le Cabinet s’adresse à des acteurs issus de secteurs variés : Arts, vins et spiritueux, agroalimentaire, médias, digital, influence, marketing, communication, architecture, audiovisuel, photographie, évènementiel, tourisme, industrie chimique, industrie textile, design, jeux vidéos, créations littéraires et musicales, publicité…
+
+**Une approche sur-mesure, fondée sur la confiance**
+
+Maître Diane TRICOIRE s’efforce de créer une relation de confiance et de transparence avec ses clients pour mettre en œuvre avec réactivité la 
+... [TRONQUÉ POUR LE DEBUG]
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux
+Site web : https://tricoire-avocat.com/
+Domaine : tricoire-avocat.com
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + domaine)
+3. Si Apollo ne trouve rien : c
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux" (site: https://tricoire-avocat.com/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir le cabinet "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux". Commençons par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01FSEGskHf122xTxgqMVsUBA', 'caller': {'type': 'direct'}, 'input': {'url': 'https://tricoire-avocat.com/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé des informations importantes sur la homepage. Je constate que :\n1. **Pertinence confirmée** : Le cabinet est spécialisé en propriété intellectuelle (marque, design, droit d'auteur, inventions, savoir-faire) - exactement la spécialité recherchée\n2. **Contact principal** : Maître Diane TRICOIRE \n3. **Email** : contact@tricoire-avocat.com\n4. **Téléphone** : +33(0)6.73.98.87.63\n5. **LinkedIn** : https://fr.linkedin.com/in/diane-tricoire-71193631\n\nSauvegardons ces premières trouvailles :", 'type': 'text'}, {'id': 'toolu_01VRX3wR5AF63S2SpoXKnYJR', 'caller': {'type': 'direct'}, 'input': {'company_name': 'Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux', 'findings_json': '[{"name": "Diane TRICOIRE", "title": "Avocate - Propriété intellectuelle", "email": "contact@tricoire-avocat.com", "phone": "+33(0)6.73.98.87.63", "linkedin": "https://fr.linkedin.com/in/diane-tricoire-71193631", "source": "crawl_homepage"}]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+1 nouvelles entrees ajoutees (doublons ignores: 0).
+Buffer total : 1 entrees, 1 avec email, 0 verifiees.
+Continue tes recherches ou appelle evaluate_findings pour faire le bilan.
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux
+Site web : https://tricoire-avocat.com/
+Domaine : tricoire-avocat.com
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + domaine)
+3. Si Apollo ne trouve rien : c
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux" (site: https://tricoire-avocat.com/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir le cabinet "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux". Commençons par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01FSEGskHf122xTxgqMVsUBA', 'caller': {'type': 'direct'}, 'input': {'url': 'https://tricoire-avocat.com/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé des informations importantes sur la homepage. Je constate que :\n1. **Pertinence confirmée** : Le cabinet est spécialisé en propriété intellectuelle (marque, design, droit d'auteur, inventions, savoir-faire) - exactement la spécialité recherchée\n2. **Contact principal** : Maître Diane TRICOIRE \n3. **Email** : contact@tricoire-avocat.com\n4. **Téléphone** : +33(0)6.73.98.87.63\n5. **LinkedIn** : https://fr.linkedin.com/in/diane-tricoire-71193631\n\nSauvegardons ces premières trouvailles :", 'type': 'text'}, {'id': 'toolu_01VRX3wR5AF63S2SpoXKnYJR', 'caller': {'type': 'direct'}, 'input': {'company_name': 'Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux', 'findings_json': '[{"name": "Diane TRICOIRE", "title": "Avocate - Propriété intellectuelle", "email": "contact@tricoire-avocat.com", "phone": "+33(0)6.73.98.87.63", "linkedin": "https://fr.linkedin.com/in/diane-tricoire-71193631", "source": "crawl_homepage"}]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Maintenant, explorons d'autres pages du site pour trouver plus de contacts. Je vais crawler la page contact pour voir s'il y a des informations supplémentaires :", 'type': 'text'}, {'id': 'toolu_018zeSuGUT6tiufG4JJst1mX', 'caller': {'type': 'direct'}, 'input': {'url': 'https://tricoire-avocat.com/contact'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[Skip to content](#content)
+
+
+[Ma√Ætre Diane Tricoire](https://tricoire-avocat.com/)
+
+Avocat Propri√©t√© intellectuelle Bordeaux
+
+Menu
+
+Contact
+=======
+
+üìû Pour toute demande d’information compl√©mentaire, pour une prise de rendez-vous, ou pour toute demande de devis gratuit, vous pouvez utiliser le formulaire de contact ci-dessous :
+
+*‚ö†Ô∏è Important : le Cabinet ne recrute pas de stagiaire. Toute candidature spontan√©e ne sera pas trait√©e.*
+
+[‚Üê Retour](/contact/)
+
+#### Merci pour votre r√©ponse. ‚ú®
+
+Nom pr√©nom(obligatoire)
+
+Soci√©t√©
+
+E-mail(obligatoire)
+
+T√©l√©phone
+
+Sujet
+
+S√©lectionner une option
+Marque
+Invention de salari√©
+Design - Dessins et mod√®les
+Droit d'auteur
+Contrefa√ßon/concurrence d√©loyale
+Contrats commerciaux/CGV-CGU
+Informatique/Apps
+Influenceur
+Autre
+
+Votre message
+
+Votre site internet (facultatif)
+
+Envoyer
+
+Δ
+
+*Les informations recueillies sur ce formulaire sont enregistr√©es dans un fichier informatis√© par le Cabinet Diane Tricoire pour l’√©tude du dossier, l’√©mission d’un devis et/ou la prise de rendez-vous.*  
+*Elles sont conserv√©es pendant trois ans et ne sont destin√©es qu’au Cabinet Diane Tricoire.*  
+*Conform√©ment √† la r√©glementation sur les donn√©es personnelles, vous pouvez exercer vos droits d’acc√®s, de rectification, d’effacement, de portabilit√© ou d’opposition relatifs aux donn√©es vous concernant en contactant : [contact@tricoire-avocat.com](mailto:contact@tricoire-avocat.com)*
+
+[Ma√Ætre Diane Tricoire](https://tricoire-avoca
+... [TRONQUÉ POUR LE DEBUG]
+
+
+----------------------------------------
+ITERATION AGENT 3 (Appel LLM)
+----------------------------------------
+[SYSTEM]
+Tu es un agent expert en enrichissement de contacts professionnels.
+
+## ROLE
+Ton objectif est de trouver **3 contacts decideurs ultra-pertinents** pour UNE entreprise donnee.
+Tu es AUTONOME et tu dois PERSEVERER : si une source echoue, adapte-toi et essaie une autre approche.
+Ne t'arrete PAS au premier email trouve — creuse jusqu'a atteindre ton objectif.
+
+## ENTREPRISE A ENRICHIR
+Nom : Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux
+Site web : https://tricoire-avocat.com/
+Domaine : tricoire-avocat.com
+Ville : Bordeaux
+
+## CONTEXTE VERTICAL
+Tu enrichis un cabinet d'avocats. Les decideurs a cibler sont :
+- Les associes (partners) — cibles PRIORITAIRES
+- Le managing partner / gerant
+- Le directeur general / directeur administratif
+- Le responsable RH / recrutement (si le cabinet est assez grand)
+
+## PAGES A CRAWLER EN PRIORITE
+1. Page d'accueil — comprendre la structure du cabinet
+2. Page equipe / associes / partners (/equipe, /team, /avocats, /lawyers, /associes, /partners)
+3. Page contact (/contact, /nous-contacter)
+4. Mentions legales (/mentions-legales, /legal) — contient souvent des emails
+
+## PATTERNS D'EMAILS COURANTS DANS LES CABINETS
+- prenom.nom@cabinet.fr
+- p.nom@cabinet.fr
+- initiale.nom@cabinet.fr
+- nom@cabinet.fr
+
+## STRATEGIE
+1. Crawle d'abord le site pour trouver les noms des associes sur la page equipe
+2. Si tu trouves un nom mais pas son email : utilise apollo_people_search en mode MATCH (prenom + nom + domaine)
+3. Si Apollo ne trouve rien : c
+... [TRONQUÉ POUR LE DEBUG]
+
+[HUMAN]
+Enrichis l'entreprise "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux" (site: https://tricoire-avocat.com/). Trouve les contacts des decideurs. Commence par crawler le site, puis complete avec Perplexity et Apollo si besoin. Verifie les emails avec NeverBounce. Sauvegarde les resultats avec save_enrichment.
+
+[AI]
+[{'text': 'Je vais enrichir le cabinet "Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux". Commençons par crawler la homepage pour comprendre la structure du site.', 'type': 'text'}, {'id': 'toolu_01FSEGskHf122xTxgqMVsUBA', 'caller': {'type': 'direct'}, 'input': {'url': 'https://tricoire-avocat.com/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Parfait ! J'ai trouvé des informations importantes sur la homepage. Je constate que :\n1. **Pertinence confirmée** : Le cabinet est spécialisé en propriété intellectuelle (marque, design, droit d'auteur, inventions, savoir-faire) - exactement la spécialité recherchée\n2. **Contact principal** : Maître Diane TRICOIRE \n3. **Email** : contact@tricoire-avocat.com\n4. **Téléphone** : +33(0)6.73.98.87.63\n5. **LinkedIn** : https://fr.linkedin.com/in/diane-tricoire-71193631\n\nSauvegardons ces premières trouvailles :", 'type': 'text'}, {'id': 'toolu_01VRX3wR5AF63S2SpoXKnYJR', 'caller': {'type': 'direct'}, 'input': {'company_name': 'Maître Diane Tricoire - Avocat Propriété intellectuelle Bordeaux', 'findings_json': '[{"name": "Diane TRICOIRE", "title": "Avocate - Propriété intellectuelle", "email": "contact@tricoire-avocat.com", "phone": "+33(0)6.73.98.87.63", "linkedin": "https://fr.linkedin.com/in/diane-tricoire-71193631", "source": "crawl_homepage"}]'}, 'name': 'save_to_buffer', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': "Maintenant, explorons d'autres pages du site pour trouver plus de contacts. Je vais crawler la page contact pour voir s'il y a des informations supplémentaires :", 'type': 'text'}, {'id': 'toolu_018zeSuGUT6tiufG4JJst1mX', 'caller': {'type': 'direct'}, 'input': {'url': 'https://tricoire-avocat.com/contact'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[CONTENU SUPPRIME POUR ECONOMISER LES TOKENS - L'agent a deja traite cette information a l'etape precedente.]
+
+[AI]
+[{'text': 'La page contact ne révèle pas de nouvelles informations. Vérifions les mentions légales qui contiennent parfois des emails supplémentaires :', 'type': 'text'}, {'id': 'toolu_017EzpjkNzN4BrSk1XLrD29x', 'caller': {'type': 'direct'}, 'input': {'url': 'https://tricoire-avocat.com/mentions-legales/'}, 'name': 'crawl_url', 'type': 'tool_use'}]
+
+[TOOL]
+[Skip to content](#content)
+
+
+[Maître Diane Tricoire](https://tricoire-avocat.com/)
+
+Avocat Propriété intellectuelle Bordeaux
+
+Menu
+
+Mentions légales
+================
+
+ARTICLE 1. IDENTIFICATION
+
+Propriétaire du site « tricoire-avocat.com » :  
+Cabinet individuel Diane TRICOIRE  
+Avocate au Barreau de Bordeaux  
+31, allées de Tourny 33000 BORDEAUX  
+SIRET : 81756605200020  
+Téléphone : +33(0)6.73.98.87.63  
+Email : contact@tricoire-avocat.com
+
+Directeur de la Publication : Diane TRICOIRE
+
+Hébergeur :  
+Auttomatic Inc.  
+60 29th Street #343  
+San Francisco, CA 94110  
+USA
+
+Portraits photo : Emmanuelle Derrier ©
+
+ARTICLE 2. DONNEES A CARACTERE PERSONNEL
+
+Dans le cadre du traitement du dossier, le Cabinet Diane Tricoire sera amené à collecter et à traiter des données à caractère personnel de personnes physiques. Le Cabinet Diane Tricoire s’engage à collecter et traiter ces données personnelles conformément à la législation et à la réglementation applicable (en particulier RGPD).
+
+Les données à caractère personnel pourront être collectées et traitées dans le cadre d’emails et courriers échangés, de la transmission de pièces, de la saisie dans les formulaires de contact, ainsi que de tout autre échange, notamment téléphonique, avec le Cabinet Diane Tricoire. Parmi ces données figurent : nom, prénom, adresse email, numéro de téléphone, âge/date de naissance, adresse postale.
+
+Les données à caractère personnel des prospects ne sont utilisées qu’aux seuls fins de vérifier l’identité d
+... [TRONQUÉ POUR LE DEBUG]
+

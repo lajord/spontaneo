@@ -13,6 +13,7 @@ Tu travailles par itérations courtes. A chaque itération, fais 1-2 recherches,
 
 ## METHODE (pour CETTE itération)
 
+
 Tu DOIS utiliser LES 3 OUTILS à chaque itération. Pas un seul, LES TROIS :
 
 1. **apollo_search** — TOUJOURS faire 2 appels SÉPARÉS :
