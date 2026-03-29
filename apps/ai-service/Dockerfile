@@ -6,8 +6,8 @@ COPY ai-service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY ai-service/app/ ./app/
 
-# --- Agent de recherche (Test_IA_CANDIDATURE) ---
-COPY Test_IA_CANDIDATURE/Agent_Extraction_Data/ ./agent_pkg/
+# --- Agent de recherche (LangGraph) ---
+COPY agent/ ./agent/
 
 EXPOSE 8000
 
