@@ -48,6 +48,10 @@ def google_maps_search(
     Returns:
         JSON avec les entreprises trouvées (name, website_url, city, address, source).
     """
+    dev_mode = os.environ.get("AGENT_DEV_MODE") == "1"
+    if dev_mode:
+        max_per_keyword = min(max_per_keyword, 5)
+
     api_key = _get_apify_key()
     if not api_key:
         return json.dumps({

@@ -54,6 +54,7 @@ export default function AgentPage() {
   const [location, setLocation] = useState('')
   const [targetCount, setTargetCount] = useState(50)
   const [extra, setExtra] = useState('')
+  const [devMode, setDevMode] = useState(false)
 
   const [running, setRunning] = useState(false)
   const [logs, setLogs] = useState<LogLine[]>([])
@@ -99,6 +100,7 @@ export default function AgentPage() {
       location: location.trim(),
       target_count: targetCount,
       extra: extra.trim(),
+      dev_mode: devMode,
     }
 
     const specName = SPECIALTIES_BY_ROLE[role]?.[specialtyNum] || 'Général'
@@ -318,6 +320,21 @@ export default function AgentPage() {
           >
             {running ? 'En cours...' : 'Lancer la recherche'}
           </button>
+          
+          <div className="flex items-center gap-2 mb-2 ml-2">
+            <input
+              type="checkbox"
+              id="devMode"
+              checked={devMode}
+              onChange={e => setDevMode(e.target.checked)}
+              disabled={running}
+              className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500"
+            />
+            <label htmlFor="devMode" className="text-xs font-medium text-slate-600 cursor-pointer select-none">
+              Dev Mode (1 tour, - d'API)
+            </label>
+          </div>
+
           {running && (
             <button
               onClick={handleStop}

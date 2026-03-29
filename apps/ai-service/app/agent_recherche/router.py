@@ -53,6 +53,7 @@ class AgentRunRequest(BaseModel):
     location: str
     target_count: int = 50
     extra: str = ""
+    dev_mode: bool = False
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────
@@ -147,6 +148,13 @@ async def run_agent(request: AgentRunRequest):
                 
             if request.extra:
                 parts.append(f"Précisions : {request.extra}")
+
+            if request.dev_mode:
+                os.environ["AGENT_DEV_MODE"] = "1"
+                parts.append("ATTENTION MODE DEVELOPPEMENT : Tu n'as droit qu'a UN SEUL TOUR de recherche. Ne cherche pas a faire d'iterations supplementaires. Arrete-toi apres la toute premiere sauvegarde.")
+            else:
+                os.environ.pop("AGENT_DEV_MODE", None)
+
             user_query = "\n".join(parts)
 
             spec_name = subspecialty.name if subspecialty else "Général"

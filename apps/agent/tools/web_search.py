@@ -55,6 +55,10 @@ def web_search_legal(
     Returns:
         JSON avec la liste des organisations trouvées (name, url, description, type)
     """
+    dev_mode = os.environ.get("AGENT_DEV_MODE") == "1"
+    if dev_mode:
+        max_results = min(max_results, 5)
+
     api_key = _get_perplexity_key()
     if not api_key:
         return json.dumps({
