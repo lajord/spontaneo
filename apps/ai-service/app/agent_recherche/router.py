@@ -53,6 +53,7 @@ class AgentRunRequest(BaseModel):
     user_id: str = ""
     job_id: str = ""
     campaign_id: str
+    mode: str = "full"  # "full" | "collect" | "enrich"
 
 
 def _sse_event(data: dict) -> str:
@@ -166,6 +167,7 @@ async def run_agent(request: Request, payload: AgentRunRequest):
                     job_id=payload.job_id or None,
                     campaign_id=payload.campaign_id,
                     location=payload.location,
+                    mode=payload.mode,
                 )
             except InterruptedError:
                 loop.call_soon_threadsafe(queue.put_nowait, {"type": "stopped"})
