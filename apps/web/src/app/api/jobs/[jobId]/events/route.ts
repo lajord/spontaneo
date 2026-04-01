@@ -70,7 +70,7 @@ export async function GET(
         where: { id: jobId },
         select: { status: true },
       })
-      if (freshJob?.status === 'completed' || freshJob?.status === 'failed') {
+      if (freshJob?.status === 'completed' || freshJob?.status === 'failed' || freshJob?.status === 'cancelled') {
         close()
         return
       }
@@ -93,7 +93,7 @@ export async function GET(
             cursor = evt.seq
           }
 
-          if (currentJob?.status === 'completed' || currentJob?.status === 'failed') {
+          if (currentJob?.status === 'completed' || currentJob?.status === 'failed' || currentJob?.status === 'cancelled') {
             close()
             return
           }

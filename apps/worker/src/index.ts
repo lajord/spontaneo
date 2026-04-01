@@ -40,6 +40,7 @@ async function recoverStaleJobs(): Promise<void> {
   const cutoff = new Date(Date.now() - STALE_THRESHOLD_MS)
   const result = await prisma.job.updateMany({
     where: {
+      type: 'campaign_generate',
       status: 'running',
       startedAt: { lt: cutoff },
     },
@@ -60,6 +61,7 @@ async function claimNextJob(): Promise<string | null> {
 
   const pendingJob = await prisma.job.findFirst({
     where: {
+      type: 'campaign_generate',
       status: 'pending',
       id: { notIn: Array.from(activeJobIds) },
     },
@@ -95,6 +97,10 @@ async function handleJob(jobId: string): Promise<void> {
     }
 
     const payload = (job.payload ?? {}) as Record<string, unknown>
+    if (!job.campaignId) {
+      throw new Error(`Campaign generate job ${jobId} missing campaignId`)
+    }
+
     const jobPayload: JobPayload = {
       jobId,
       campaignId: job.campaignId,
@@ -104,7 +110,6 @@ async function handleJob(jobId: string): Promise<void> {
       poolLimit: (payload.poolLimit as number) ?? null,
       autoStart: (payload.autoStart as boolean) ?? false,
     }
-
     await runEnrichJob(jobPayload)
     console.log(`[worker] Completed job ${jobId}`)
   } catch (err) {

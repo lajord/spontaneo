@@ -1,153 +1,294 @@
-import csv
 import json
 import os
+import re
+import unicodedata
+
+import requests
 from langchain_core.tools import tool
 
+from runtime import get_run_context, raise_if_cancelled
 
-# Dossier de sortie = dossier parent (apps/agent/)
+_WEB_URL = os.getenv("WEB_URL", "http://web:3000")
+_API_ENDPOINT = f"{_WEB_URL}/api/agent/contacts"
+
+_GENERIC_EMAIL_PREFIXES = {
+    "contact",
+    "info",
+    "bonjour",
+    "hello",
+    "welcome",
+    "accueil",
+    "cabinet",
+    "office",
+    "admin",
+    "direction",
+    "secretariat",
+    "secrétariat",
+    "rh",
+    "recrutement",
+    "careers",
+    "jobs",
+}
+
+
+def _headers() -> dict[str, str]:
+    token = os.getenv("AGENT_INTERNAL_API_TOKEN") or os.getenv("CRON_SECRET")
+    if token:
+        return {"Authorization": f"Bearer {token}"}
+    return {"X-Agent-Dev-Internal": "1"}
+
+
+# Legacy path garde pour compatibilite debug
 OUTPUT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENRICHED_CSV = os.path.join(OUTPUT_DIR, "enriched.csv")
 
-ENRICHED_COLUMNS = [
-    "company_name",
-    "company_domain",
-    "company_url",
-    "contact_name",
-    "contact_first_name",
-    "contact_last_name",
-    "contact_email",
-    "contact_title",
-    "contact_phone",
-    "contact_linkedin",
-    "email_status",
-    "source",
-]
+
+def _normalize_domain(url: str) -> str:
+    if not url:
+        return ""
+    url = url.lower().strip().rstrip("/")
+    for prefix in ["https://www.", "http://www.", "https://", "http://"]:
+        if url.startswith(prefix):
+            url = url[len(prefix):]
+    return url.split("/")[0]
+
+
+def _normalize_text(value: str) -> str:
+    if not value:
+        return ""
+    value = unicodedata.normalize("NFKD", value)
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    value = value.lower()
+    value = re.sub(r"[^a-z0-9]+", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _city_matches(target_city: str, contact_city: str) -> bool:
+    target = _normalize_text(target_city)
+    contact = _normalize_text(contact_city)
+    if not target:
+        return True
+    if not contact:
+        return False
+    if target == contact:
+        return True
+    target_tokens = set(target.split())
+    contact_tokens = set(contact.split())
+    return bool(target_tokens) and target_tokens.issubset(contact_tokens)
 
 
 def _normalize_email(email: str) -> str:
-    """Normalise un email pour la deduplication."""
-    return email.lower().strip() if email else ""
+    return (email or "").strip().lower()
 
 
-def _normalize_name(name: str) -> str:
-    """Normalise un nom pour la deduplication."""
-    return name.lower().strip().replace("  ", " ") if name else ""
+def _is_generic_email(email: str) -> bool:
+    normalized = _normalize_email(email)
+    if not normalized or "@" not in normalized:
+        return True
+    local_part = normalized.split("@", 1)[0]
+    if local_part in _GENERIC_EMAIL_PREFIXES:
+        return True
+    return "." not in local_part and "_" not in local_part
+
+
+def _ctx() -> dict:
+    return get_run_context()
+
+
+def get_enriched_rows() -> list[dict]:
+    ctx = _ctx()
+    user_id = ctx.get("user_id")
+    job_id = ctx.get("job_id")
+    if not user_id or not job_id:
+        return []
+
+    try:
+        resp = requests.get(
+            _API_ENDPOINT,
+            params={"jobId": job_id},
+            headers=_headers(),
+            timeout=10,
+        )
+        resp.raise_for_status()
+        contacts = resp.json().get("contacts", [])
+        return [
+            {
+                "company_name": c.get("agentCandidate", {}).get("name", ""),
+                "company_domain": c.get("agentCandidate", {}).get("domain", ""),
+                "company_url": c.get("agentCandidate", {}).get("websiteUrl", ""),
+                "contact_name": c.get("name", ""),
+                "contact_first_name": c.get("firstName", ""),
+                "contact_last_name": c.get("lastName", ""),
+                "contact_email": c.get("email", ""),
+                "contact_title": c.get("title", ""),
+                "contact_phone": c.get("phone", ""),
+                "contact_linkedin": c.get("linkedin", ""),
+                "email_status": c.get("emailStatus", ""),
+                "source": c.get("source", ""),
+            }
+            for c in contacts
+        ]
+    except Exception:
+        return []
+
+
+def _save_to_db(
+    contacts: list[dict],
+    company_domain: str,
+    company_url: str = "",
+    company_name: str = "",
+) -> str | None:
+    ctx = _ctx()
+    user_id = ctx.get("user_id")
+    job_id = ctx.get("job_id")
+    if not user_id or not job_id:
+        return None
+
+    api_contacts = []
+    for c in contacts:
+        api_contacts.append({
+            "name": c.get("contact_name", ""),
+            "firstName": c.get("contact_first_name", ""),
+            "lastName": c.get("contact_last_name", ""),
+            "email": c.get("contact_email", ""),
+            "title": c.get("contact_title", ""),
+            "phone": c.get("contact_phone", ""),
+            "linkedin": c.get("contact_linkedin", ""),
+            "emailStatus": c.get("email_status", ""),
+            "source": c.get("source", ""),
+        })
+
+    payload = {
+        "jobId": job_id,
+        "companyDomain": company_domain,
+        "companyUrl": company_url,
+        "companyName": company_name,
+        "contacts": api_contacts,
+    }
+
+    try:
+        resp = requests.post(_API_ENDPOINT, json=payload, headers=_headers(), timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        return f"DB: {data.get('added', 0)} contacts sauvegardes (candidateId: {data.get('agentCandidateId', '?')})"
+    except requests.exceptions.HTTPError as e:
+        response = e.response
+        status = response.status_code if response is not None else "?"
+        text = response.text[:300] if response is not None else str(e)
+        return f"DB: Erreur sauvegarde - HTTP {status}: {text}"
+    except Exception as e:
+        return f"DB: Erreur sauvegarde - {type(e).__name__}: {e}"
+
+
+def _normalize_contact(contact: dict) -> dict:
+    return {
+        "company_name": contact.get("company_name", ""),
+        "company_domain": contact.get("company_domain", ""),
+        "company_url": contact.get("company_url", ""),
+        "contact_name": contact.get("contact_name", ""),
+        "contact_first_name": contact.get("contact_first_name", ""),
+        "contact_last_name": contact.get("contact_last_name", ""),
+        "contact_email": _normalize_email(contact.get("contact_email", "")),
+        "contact_title": contact.get("contact_title", ""),
+        "contact_phone": contact.get("contact_phone", ""),
+        "contact_linkedin": contact.get("contact_linkedin", ""),
+        "email_status": contact.get("email_status", ""),
+        "source": contact.get("source", ""),
+        "contact_city": contact.get("contact_city", "") or contact.get("city", ""),
+        "city_evidence": contact.get("city_evidence", ""),
+    }
 
 
 @tool
 def save_enrichment(contacts_json: str) -> str:
-    """Sauvegarde les contacts enrichis dans le fichier enriched.csv.
+    """Sauvegarde les contacts enrichis en base de donnees."""
+    raise_if_cancelled()
 
-    Utilise cet outil APRES avoir trouve et verifie des contacts
-    pour une entreprise. Passe TOUS les contacts trouves pour
-    cette entreprise en un seul appel.
-
-    Les doublons sont automatiquement filtres par email.
-    Si un contact n'a pas d'email, la deduplication se fait par (company_name + contact_name).
-
-    Args:
-        contacts_json: JSON string contenant une liste de contacts.
-            Chaque contact doit avoir au minimum : company_name, contact_name.
-            Champs recommandes : contact_email, contact_title, contact_first_name,
-            contact_last_name, contact_phone, contact_linkedin, email_status, source,
-            company_domain, company_url.
-
-    Returns:
-        Message indiquant combien de contacts ont ete sauvegardes (apres deduplication).
-    """
     try:
         contacts = json.loads(contacts_json)
     except json.JSONDecodeError as e:
-        return f"Erreur: JSON invalide — {e}"
+        return f"Erreur: JSON invalide - {e}"
 
     if not isinstance(contacts, list) or not contacts:
         return "Erreur: Le JSON doit contenir une liste non-vide de contacts."
 
-    # Lire les contacts existants
-    existing = []
-    seen = set()
-    if os.path.exists(ENRICHED_CSV):
-        with open(ENRICHED_CSV, "r", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f, delimiter=";")
-            existing = list(reader)
-        for row in existing:
-            email = _normalize_email(row.get("contact_email", ""))
-            if email:
-                seen.add(("email", email))
-            else:
-                company = _normalize_name(row.get("company_name", ""))
-                name = _normalize_name(row.get("contact_name", ""))
-                seen.add(("name", company, name))
+    ctx = _ctx()
+    target_city = str(ctx.get("location") or "")
 
-    # Ajouter les nouveaux (dedupliques)
-    added = 0
-    for contact in contacts:
-        email = _normalize_email(contact.get("contact_email", ""))
+    normalized_contacts = [_normalize_contact(contact) for contact in contacts]
 
-        if email:
-            key = ("email", email)
-        else:
-            company = _normalize_name(contact.get("company_name", ""))
-            name = _normalize_name(contact.get("contact_name", ""))
-            key = ("name", company, name)
+    filtered_contacts: list[dict] = []
+    rejected_no_email = 0
+    rejected_generic_email = 0
+    rejected_city = 0
 
-        if key in seen:
+    for contact in normalized_contacts:
+        email = contact.get("contact_email", "")
+        if not email:
+            rejected_no_email += 1
+            continue
+        if _is_generic_email(email):
+            rejected_generic_email += 1
             continue
 
-        seen.add(key)
-        existing.append({
-            "company_name": contact.get("company_name", ""),
-            "company_domain": contact.get("company_domain", ""),
-            "company_url": contact.get("company_url", ""),
-            "contact_name": contact.get("contact_name", ""),
-            "contact_first_name": contact.get("contact_first_name", ""),
-            "contact_last_name": contact.get("contact_last_name", ""),
-            "contact_email": contact.get("contact_email", ""),
-            "contact_title": contact.get("contact_title", ""),
-            "contact_phone": contact.get("contact_phone", ""),
-            "contact_linkedin": contact.get("contact_linkedin", ""),
-            "email_status": contact.get("email_status", ""),
-            "source": contact.get("source", ""),
-        })
-        added += 1
+        contact_city = str(contact.get("contact_city") or "")
+        if target_city and not _city_matches(target_city, contact_city):
+            rejected_city += 1
+            continue
 
-    # Ecrire le CSV complet
-    with open(ENRICHED_CSV, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=ENRICHED_COLUMNS, delimiter=";")
-        writer.writeheader()
-        writer.writerows(existing)
+        filtered_contacts.append(contact)
 
-    total = len(existing)
-    return (
-        f"{added} nouveaux contacts ajoutes (total: {total}, "
-        f"dedupliques depuis {len(contacts)} bruts).\n"
-        f"Fichier : {ENRICHED_CSV}"
-    )
+    if not filtered_contacts:
+        details = []
+        if rejected_no_email:
+            details.append(f"{rejected_no_email} sans email")
+        if rejected_generic_email:
+            details.append(f"{rejected_generic_email} emails generiques")
+        if rejected_city:
+            details.append(f"{rejected_city} hors ville ou ville non confirmee")
+        detail_text = ", ".join(details) if details else "aucun contact exploitable"
+        city_note = f" (ville cible: {target_city})" if target_city else ""
+        return (
+            f"Aucun contact sauvegarde: {detail_text}{city_note}. "
+            f"Continue avec Perplexity, crawl_url, puis verification email avant de rappeler save_enrichment."
+        )
+
+    company_domain = ""
+    company_url = ""
+    company_name = ""
+    for c in filtered_contacts:
+        domain = c.get("company_domain", "") or _normalize_domain(c.get("company_url", ""))
+        if domain:
+            company_domain = domain
+        if not company_url and c.get("company_url", ""):
+            company_url = c.get("company_url", "")
+        if not company_name and c.get("company_name", ""):
+            company_name = c.get("company_name", "")
+        if company_domain and company_url and company_name:
+            break
+
+    db_result = _save_to_db(filtered_contacts, company_domain, company_url, company_name)
+    if not db_result:
+        return "Aucun contact sauvegarde."
+
+    rejects = []
+    if rejected_no_email:
+        rejects.append(f"{rejected_no_email} sans email")
+    if rejected_generic_email:
+        rejects.append(f"{rejected_generic_email} emails generiques")
+    if rejected_city:
+        rejects.append(f"{rejected_city} hors ville")
+    rejects_text = f" Rejets: {', '.join(rejects)}." if rejects else ""
+    return f"{db_result}{rejects_text}"
 
 
 @tool
 def read_enrichment_summary() -> str:
-    """Retourne un resume de l'etat actuel du fichier enriched.csv.
+    """Retourne un resume de l'etat actuel des contacts enrichis."""
+    raise_if_cancelled()
 
-    Utilise cet outil pour verifier combien de contacts ont deja ete trouves,
-    au total et par entreprise.
-
-    Returns:
-        JSON avec le nombre total de contacts et la ventilation par entreprise.
-    """
-    if not os.path.exists(ENRICHED_CSV):
-        return json.dumps({
-            "total": 0,
-            "by_company": {},
-            "message": "Aucun contact enrichi. Le fichier enriched.csv n'existe pas encore.",
-        })
-
-    with open(ENRICHED_CSV, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f, delimiter=";")
-        rows = list(reader)
-
+    rows = get_enriched_rows()
     total = len(rows)
-
     by_company = {}
     for row in rows:
         company = row.get("company_name", "Inconnu")

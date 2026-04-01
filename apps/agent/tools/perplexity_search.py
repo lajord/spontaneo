@@ -57,7 +57,7 @@ def perplexity_search(query: str) -> str:
     if not query or not query.strip():
         return "Erreur: query vide."
 
-    print(f"  [PERPLEXITY] Recherche: {query[:100]}")
+    print(f"  [PERPLEXITY] Query: {query}")
 
     client = OpenAI(
         api_key=api_key,

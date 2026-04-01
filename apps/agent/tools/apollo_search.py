@@ -59,10 +59,6 @@ def apollo_search(
     Returns:
         JSON avec les entreprises trouvées et infos de pagination.
     """
-    dev_mode = os.environ.get("AGENT_DEV_MODE") == "1"
-    if dev_mode:
-        per_page = min(per_page, 5)
-
     # Bloquer la combinaison keywords + job_titles
     if keywords and job_titles:
         return json.dumps({
