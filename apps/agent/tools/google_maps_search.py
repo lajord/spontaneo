@@ -7,6 +7,7 @@ from apify_client import ApifyClient
 from config import RATE_LIMIT_GOOGLE_MAPS
 
 _ACTOR_ID = "nwua9Gu5YrADL7ZDj"  # Google Maps Scraper
+MAX_RESULTS_PER_KEYWORD = 10
 
 def _get_apify_key():
     return os.getenv("APIFY_API_KEY", "")
@@ -28,7 +29,7 @@ def _rate_limit():
 def google_maps_search(
     keywords: list[str],
     location: str,
-    max_per_keyword: int = 50,
+    max_per_keyword: int = MAX_RESULTS_PER_KEYWORD,
 ) -> str:
     """Recherche des entreprises sur Google Maps via Apify.
 
@@ -43,15 +44,11 @@ def google_maps_search(
         keywords: Mots-clés de recherche EN FRANCAIS (max 3 keywords).
             Exemples: ["cabinet avocat droit social Pau", "avocat droit du travail Pau"]
         location: Ville ou zone géographique, ex: "Pau, France"
-        max_per_keyword: Nombre max de résultats par keyword (défaut: 50)
+        max_per_keyword: Nombre max de résultats par keyword (capé à 10)
 
     Returns:
         JSON avec les entreprises trouvées (name, website_url, city, address, source).
     """
-    dev_mode = os.environ.get("AGENT_DEV_MODE") == "1"
-    if dev_mode:
-        max_per_keyword = min(max_per_keyword, 5)
-
     api_key = _get_apify_key()
     if not api_key:
         return json.dumps({
@@ -64,6 +61,7 @@ def google_maps_search(
 
     # Limiter à 3 keywords pour éviter trop d'appels
     keywords = keywords[:3]
+    max_per_keyword = max(1, min(max_per_keyword, MAX_RESULTS_PER_KEYWORD))
 
     client = ApifyClient(api_key)
     all_companies = []
@@ -73,7 +71,7 @@ def google_maps_search(
         run_input = {
             "searchStringsArray": [keyword],
             "locationQuery": location,
-            "maxCrawledPlacesPerSearch": min(max_per_keyword, 50),
+            "maxCrawledPlacesPerSearch": max_per_keyword,
             "language": "fr",
             "website": "withWebsite",
             "skipClosedPlaces": False,

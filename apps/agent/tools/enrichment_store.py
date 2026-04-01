@@ -1,5 +1,8 @@
 import json
 import os
+import re
+import unicodedata
+
 import requests
 from langchain_core.tools import tool
 
@@ -7,6 +10,33 @@ from runtime import get_run_context, raise_if_cancelled
 
 _WEB_URL = os.getenv("WEB_URL", "http://web:3000")
 _API_ENDPOINT = f"{_WEB_URL}/api/agent/contacts"
+
+_GENERIC_EMAIL_PREFIXES = {
+    "contact",
+    "info",
+    "bonjour",
+    "hello",
+    "welcome",
+    "accueil",
+    "cabinet",
+    "office",
+    "admin",
+    "direction",
+    "secretariat",
+    "secrétariat",
+    "rh",
+    "recrutement",
+    "careers",
+    "jobs",
+}
+
+
+def _headers() -> dict[str, str]:
+    token = os.getenv("AGENT_INTERNAL_API_TOKEN") or os.getenv("CRON_SECRET")
+    if token:
+        return {"Authorization": f"Bearer {token}"}
+    return {"X-Agent-Dev-Internal": "1"}
+
 
 # Legacy path garde pour compatibilite debug
 OUTPUT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -23,6 +53,44 @@ def _normalize_domain(url: str) -> str:
     return url.split("/")[0]
 
 
+def _normalize_text(value: str) -> str:
+    if not value:
+        return ""
+    value = unicodedata.normalize("NFKD", value)
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    value = value.lower()
+    value = re.sub(r"[^a-z0-9]+", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _city_matches(target_city: str, contact_city: str) -> bool:
+    target = _normalize_text(target_city)
+    contact = _normalize_text(contact_city)
+    if not target:
+        return True
+    if not contact:
+        return False
+    if target == contact:
+        return True
+    target_tokens = set(target.split())
+    contact_tokens = set(contact.split())
+    return bool(target_tokens) and target_tokens.issubset(contact_tokens)
+
+
+def _normalize_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+
+def _is_generic_email(email: str) -> bool:
+    normalized = _normalize_email(email)
+    if not normalized or "@" not in normalized:
+        return True
+    local_part = normalized.split("@", 1)[0]
+    if local_part in _GENERIC_EMAIL_PREFIXES:
+        return True
+    return "." not in local_part and "_" not in local_part
+
+
 def _ctx() -> dict:
     return get_run_context()
 
@@ -37,7 +105,8 @@ def get_enriched_rows() -> list[dict]:
     try:
         resp = requests.get(
             _API_ENDPOINT,
-            params={"userId": user_id, "jobId": job_id},
+            params={"jobId": job_id},
+            headers=_headers(),
             timeout=10,
         )
         resp.raise_for_status()
@@ -63,7 +132,12 @@ def get_enriched_rows() -> list[dict]:
         return []
 
 
-def _save_to_db(contacts: list[dict], company_domain: str) -> str | None:
+def _save_to_db(
+    contacts: list[dict],
+    company_domain: str,
+    company_url: str = "",
+    company_name: str = "",
+) -> str | None:
     ctx = _ctx()
     user_id = ctx.get("user_id")
     job_id = ctx.get("job_id")
@@ -85,19 +159,44 @@ def _save_to_db(contacts: list[dict], company_domain: str) -> str | None:
         })
 
     payload = {
-        "userId": user_id,
         "jobId": job_id,
         "companyDomain": company_domain,
+        "companyUrl": company_url,
+        "companyName": company_name,
         "contacts": api_contacts,
     }
 
     try:
-        resp = requests.post(_API_ENDPOINT, json=payload, timeout=15)
+        resp = requests.post(_API_ENDPOINT, json=payload, headers=_headers(), timeout=15)
         resp.raise_for_status()
         data = resp.json()
         return f"DB: {data.get('added', 0)} contacts sauvegardes (candidateId: {data.get('agentCandidateId', '?')})"
+    except requests.exceptions.HTTPError as e:
+        response = e.response
+        status = response.status_code if response is not None else "?"
+        text = response.text[:300] if response is not None else str(e)
+        return f"DB: Erreur sauvegarde - HTTP {status}: {text}"
     except Exception as e:
-        return f"DB: Erreur sauvegarde — {type(e).__name__}: {e}"
+        return f"DB: Erreur sauvegarde - {type(e).__name__}: {e}"
+
+
+def _normalize_contact(contact: dict) -> dict:
+    return {
+        "company_name": contact.get("company_name", ""),
+        "company_domain": contact.get("company_domain", ""),
+        "company_url": contact.get("company_url", ""),
+        "contact_name": contact.get("contact_name", ""),
+        "contact_first_name": contact.get("contact_first_name", ""),
+        "contact_last_name": contact.get("contact_last_name", ""),
+        "contact_email": _normalize_email(contact.get("contact_email", "")),
+        "contact_title": contact.get("contact_title", ""),
+        "contact_phone": contact.get("contact_phone", ""),
+        "contact_linkedin": contact.get("contact_linkedin", ""),
+        "email_status": contact.get("email_status", ""),
+        "source": contact.get("source", ""),
+        "contact_city": contact.get("contact_city", "") or contact.get("city", ""),
+        "city_evidence": contact.get("city_evidence", ""),
+    }
 
 
 @tool
@@ -108,36 +207,79 @@ def save_enrichment(contacts_json: str) -> str:
     try:
         contacts = json.loads(contacts_json)
     except json.JSONDecodeError as e:
-        return f"Erreur: JSON invalide — {e}"
+        return f"Erreur: JSON invalide - {e}"
 
     if not isinstance(contacts, list) or not contacts:
         return "Erreur: Le JSON doit contenir une liste non-vide de contacts."
 
-    normalized_contacts = []
-    for contact in contacts:
-        normalized_contacts.append({
-            "company_name": contact.get("company_name", ""),
-            "company_domain": contact.get("company_domain", ""),
-            "company_url": contact.get("company_url", ""),
-            "contact_name": contact.get("contact_name", ""),
-            "contact_first_name": contact.get("contact_first_name", ""),
-            "contact_last_name": contact.get("contact_last_name", ""),
-            "contact_email": contact.get("contact_email", ""),
-            "contact_title": contact.get("contact_title", ""),
-            "contact_phone": contact.get("contact_phone", ""),
-            "contact_linkedin": contact.get("contact_linkedin", ""),
-            "email_status": contact.get("email_status", ""),
-            "source": contact.get("source", ""),
-        })
+    ctx = _ctx()
+    target_city = str(ctx.get("location") or "")
+
+    normalized_contacts = [_normalize_contact(contact) for contact in contacts]
+
+    filtered_contacts: list[dict] = []
+    rejected_no_email = 0
+    rejected_generic_email = 0
+    rejected_city = 0
+
+    for contact in normalized_contacts:
+        email = contact.get("contact_email", "")
+        if not email:
+            rejected_no_email += 1
+            continue
+        if _is_generic_email(email):
+            rejected_generic_email += 1
+            continue
+
+        contact_city = str(contact.get("contact_city") or "")
+        if target_city and not _city_matches(target_city, contact_city):
+            rejected_city += 1
+            continue
+
+        filtered_contacts.append(contact)
+
+    if not filtered_contacts:
+        details = []
+        if rejected_no_email:
+            details.append(f"{rejected_no_email} sans email")
+        if rejected_generic_email:
+            details.append(f"{rejected_generic_email} emails generiques")
+        if rejected_city:
+            details.append(f"{rejected_city} hors ville ou ville non confirmee")
+        detail_text = ", ".join(details) if details else "aucun contact exploitable"
+        city_note = f" (ville cible: {target_city})" if target_city else ""
+        return (
+            f"Aucun contact sauvegarde: {detail_text}{city_note}. "
+            f"Continue avec Perplexity, crawl_url, puis verification email avant de rappeler save_enrichment."
+        )
 
     company_domain = ""
-    for c in normalized_contacts:
+    company_url = ""
+    company_name = ""
+    for c in filtered_contacts:
         domain = c.get("company_domain", "") or _normalize_domain(c.get("company_url", ""))
         if domain:
             company_domain = domain
+        if not company_url and c.get("company_url", ""):
+            company_url = c.get("company_url", "")
+        if not company_name and c.get("company_name", ""):
+            company_name = c.get("company_name", "")
+        if company_domain and company_url and company_name:
             break
 
-    return _save_to_db(normalized_contacts, company_domain) or "Aucun contact sauvegarde."
+    db_result = _save_to_db(filtered_contacts, company_domain, company_url, company_name)
+    if not db_result:
+        return "Aucun contact sauvegarde."
+
+    rejects = []
+    if rejected_no_email:
+        rejects.append(f"{rejected_no_email} sans email")
+    if rejected_generic_email:
+        rejects.append(f"{rejected_generic_email} emails generiques")
+    if rejected_city:
+        rejects.append(f"{rejected_city} hors ville")
+    rejects_text = f" Rejets: {', '.join(rejects)}." if rejects else ""
+    return f"{db_result}{rejects_text}"
 
 
 @tool

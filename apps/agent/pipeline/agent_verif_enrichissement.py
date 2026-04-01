@@ -33,6 +33,7 @@ from tools.apollo_people import apollo_people_search
 from tools.neverbounce_verify import neverbounce_verify
 from tools.enrichment_store import save_enrichment, read_enrichment_summary, get_enriched_rows
 from tools.buffer_store import save_to_buffer, evaluate_findings, cleanup_buffer, _read_buffer
+from runtime import get_context_value
 
 if TYPE_CHECKING:
     from typing import Callable
@@ -88,9 +89,10 @@ Tu dois evaluer la QUALITE des contacts trouves et decider si l'objectif est att
 
 ## CRITERES DE QUALITE (NON NEGOCIABLES)
 1. DECIDEUR : Le contact doit etre un decideur (associe, partner, directeur, chef de departement, DG, DRH).
-   Les stagiaires, assistants, charges de mission ne comptent PAS.
-2. EMAIL NOMINATIF : L'email doit etre nominatif (prenom.nom@...). Les emails generiques (contact@, info@, rh@, cabinet@) ne comptent PAS.
-3. EMAIL VERIFIE : L'email doit etre "valid" ou "catchall" (via NeverBounce). Les emails non verifies ou "invalid" ne comptent PAS.
+   Les stagiaires, assistants, charges de mission ne comptent pas.
+2. EMAIL NOMINATIF : L'email doit etre nominatif (prenom.nom@...). Les emails generiques (contact@, info@, rh@, cabinet@) ne comptent pas.
+3. EMAIL VERIFIE : L'email doit etre "valid" ou "catchall" (via NeverBounce). Les emails non verifies ou "invalid" ne comptent pas.
+4. LOCALISATION : Le contact doit etre explicitement rattache a la ville cible "{target_city}". Si la ville n'est pas explicite, le contact ne compte pas.
 
 ## BRIEF CONTACTS DE REFERENCE
 Ce brief decrit exactement qui on cherche :
@@ -100,10 +102,10 @@ Ce brief decrit exactement qui on cherche :
 {buffer_summary}
 
 ## TA REPONSE
-Reponds UNIQUEMENT avec un JSON valide, sans explication supplÃ©mentaire :
+Reponds UNIQUEMENT avec un JSON valide, sans explication supplementaire :
 {{
-  "qualified_count": <nombre de contacts qui respectent LES TROIS CRITERES ci-dessus>,
-  "qualified_contacts": ["Nom â€” Titre â€” Email â€” Status"],
+  "qualified_count": <nombre de contacts qui respectent TOUS les criteres ci-dessus>,
+  "qualified_contacts": ["Nom | Titre | Ville | Email | Status"],
   "verdict": "ok" ou "insuffisant",
   "reason": "<explication courte en 1 ligne>"
 }}
@@ -134,10 +136,16 @@ def _quality_check(
     if not entries:
         return {"qualified_count": 0, "verdict": "insuffisant", "reason": "Buffer vide."}
 
+    target_city = str(get_context_value("location", "") or "")
+
     # Formater le buffer en texte lisible
     lines = []
     for e in entries:
-        line = f"- {e.get('name', '?')} | {e.get('title', '?')} | {e.get('email', 'pas d email')} [{e.get('email_status', '?')}]"
+        city = e.get("city") or e.get("contact_city") or "ville inconnue"
+        line = (
+            f"- {e.get('name', '?')} | {e.get('title', '?')} | "
+            f"{city} | {e.get('email', 'pas d email')} [{e.get('email_status', '?')}]"
+        )
         lines.append(line)
     buffer_summary = "\n".join(lines) if lines else "Aucune entree."
 
@@ -145,12 +153,13 @@ def _quality_check(
         contact_brief=contact_brief or "Decideurs generaux : associes, partners, DG, directeurs.",
         buffer_summary=buffer_summary,
         target=AGENT3_TARGET_CONTACTS,
+        target_city=target_city or "non precisee",
     )
 
     import os
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     fast_llm = ChatAnthropic(
-        model="claude-haiku-4-20250514",
+        model="claude-haiku-4-5-20251001",
         api_key=api_key,
         max_tokens=512,
         max_retries=2,

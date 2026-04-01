@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { headers } from 'next/headers'
-
-const WORKER_URL = process.env.WORKER_URL ?? 'http://localhost:3001'
-const WORKER_SECRET = process.env.WORKER_SECRET ?? ''
+import { appendJobEvent } from '@/lib/job-events'
 
 interface Body {
   jobId?: string
@@ -32,10 +30,10 @@ export async function POST(req: NextRequest) {
       })
     : await prisma.job.findFirst({
         where: {
-          campaignId: body.campaignId,
           userId: session.user.id,
           type: 'agent_search',
           status: { in: ['pending', 'running'] },
+          ...(body.campaignId ? { campaignId: body.campaignId } : {}),
         },
         select: { id: true, status: true },
         orderBy: { createdAt: 'desc' },
@@ -46,26 +44,22 @@ export async function POST(req: NextRequest) {
   }
 
   if (job.status === 'pending') {
-    await prisma.job.update({
-      where: { id: job.id },
-      data: { status: 'cancelled', cancelRequestedAt: new Date(), completedAt: new Date() },
+    await prisma.$transaction(async (tx) => {
+      await tx.job.update({
+        where: { id: job.id },
+        data: { status: 'cancelled', cancelRequestedAt: new Date(), completedAt: new Date() },
+      })
+      await appendJobEvent(tx, job.id, {
+        type: 'cancelled',
+        message: 'Job agent annule avant demarrage',
+      })
     })
   } else {
     await prisma.job.update({
       where: { id: job.id },
       data: { cancelRequestedAt: new Date() },
     })
-    nudgeWorker()
   }
 
   return NextResponse.json({ ok: true, jobId: job.id })
-}
-
-function nudgeWorker(): void {
-  fetch(`${WORKER_URL}/nudge`, {
-    method: 'POST',
-    headers: {
-      ...(WORKER_SECRET ? { 'x-worker-secret': WORKER_SECRET } : {}),
-    },
-  }).catch(() => {})
 }

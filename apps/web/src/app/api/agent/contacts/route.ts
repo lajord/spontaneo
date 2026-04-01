@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { authorizeAgentRoute } from '@/lib/agent-auth'
 
 interface ContactInput {
   name: string
@@ -17,9 +18,10 @@ interface ContactInput {
 }
 
 interface SaveContactsBody {
-  userId: string
   jobId?: string
   companyDomain?: string
+  companyUrl?: string
+  companyName?: string
   agentCandidateId?: string
   contacts: ContactInput[]
 }
@@ -39,7 +41,16 @@ function normalizeEmail(email?: string | null): string | null {
   return trimmed || null
 }
 
+function normalizeName(name?: string | null): string | null {
+  if (!name) return null
+  const trimmed = name.toLowerCase().trim().replace(/\s+/g, ' ')
+  return trimmed || null
+}
+
 export async function POST(req: NextRequest) {
+  const access = await authorizeAgentRoute(req)
+  if (!access) return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
+
   let body: SaveContactsBody
   try {
     body = await req.json()
@@ -47,12 +58,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Corps de requete invalide' }, { status: 400 })
   }
 
-  const { userId, jobId, companyDomain, agentCandidateId, contacts } = body
+  const { jobId, companyDomain, companyUrl, companyName, agentCandidateId, contacts } = body
 
-  if (!userId) return NextResponse.json({ error: 'userId requis' }, { status: 400 })
   if (!jobId) return NextResponse.json({ error: 'jobId requis' }, { status: 400 })
   if (!Array.isArray(contacts) || contacts.length === 0) {
     return NextResponse.json({ error: 'contacts doit etre une liste non vide' }, { status: 400 })
+  }
+
+  const job = await prisma.job.findFirst({
+    where: { id: jobId, type: 'agent_search' },
+    select: { id: true, userId: true },
+  })
+
+  if (!job) {
+    return NextResponse.json({ error: 'Job agent introuvable' }, { status: 404 })
+  }
+
+  if (access.kind === 'session' && access.userId !== job.userId) {
+    return NextResponse.json({ error: 'Non autorise' }, { status: 403 })
   }
 
   let candidateId = agentCandidateId
@@ -60,22 +83,46 @@ export async function POST(req: NextRequest) {
     const domain = normalizeDomain(companyDomain)
     if (domain) {
       const candidate = await prisma.agentCandidate.findFirst({
-        where: { userId, jobId, domain },
+        where: { userId: job.userId, jobId, domain },
         select: { id: true },
       })
       candidateId = candidate?.id ?? undefined
     }
   }
 
+  if (!candidateId && companyUrl) {
+    const domain = normalizeDomain(companyUrl)
+    if (domain) {
+      const candidate = await prisma.agentCandidate.findFirst({
+        where: { userId: job.userId, jobId, domain },
+        select: { id: true },
+      })
+      candidateId = candidate?.id ?? undefined
+    }
+  }
+
+  if (!candidateId && companyName) {
+    const normalizedCompanyName = normalizeName(companyName)
+    if (normalizedCompanyName) {
+      const candidates = await prisma.agentCandidate.findMany({
+        where: { userId: job.userId, jobId },
+        select: { id: true, name: true },
+        take: 500,
+      })
+      const candidate = candidates.find((item) => normalizeName(item.name) === normalizedCompanyName)
+      candidateId = candidate?.id
+    }
+  }
+
   if (!candidateId) {
     return NextResponse.json(
-      { error: 'Impossible de resoudre agentCandidateId. Fournir agentCandidateId ou companyDomain.' },
+      { error: 'Impossible de resoudre agentCandidateId. Fournir agentCandidateId, companyDomain, companyUrl ou companyName.' },
       { status: 400 },
     )
   }
 
   const candidate = await prisma.agentCandidate.findFirst({
-    where: { id: candidateId, userId, jobId },
+    where: { id: candidateId, userId: job.userId, jobId },
     select: { id: true },
   })
   if (!candidate) {
@@ -106,7 +153,7 @@ export async function POST(req: NextRequest) {
   const created = await prisma.agentContact.createMany({
     data: toInsert.map((contact) => ({
       agentCandidateId: candidateId!,
-      userId,
+      userId: job.userId,
       name: contact.name,
       firstName: contact.firstName ?? null,
       lastName: contact.lastName ?? null,
@@ -140,16 +187,20 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const access = await authorizeAgentRoute(req)
+  if (!access) return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
+
   const { searchParams } = new URL(req.url)
-  const userId = searchParams.get('userId')
   const jobId = searchParams.get('jobId')
   const agentCandidateId = searchParams.get('agentCandidateId')
 
-  if (!userId) return NextResponse.json({ error: 'userId requis' }, { status: 400 })
+  if (access.kind === 'internal' && !jobId) {
+    return NextResponse.json({ error: 'jobId requis pour un appel interne' }, { status: 400 })
+  }
 
   const contacts = await prisma.agentContact.findMany({
     where: {
-      userId,
+      ...(access.kind === 'session' ? { userId: access.userId } : {}),
       ...(jobId ? { agentCandidate: { jobId } } : {}),
       ...(agentCandidateId ? { agentCandidateId } : {}),
     },

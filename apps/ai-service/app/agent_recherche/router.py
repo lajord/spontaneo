@@ -50,7 +50,6 @@ class AgentRunRequest(BaseModel):
     credit_budget: int | None = None
     target_count: int | None = None
     extra: str = ""
-    dev_mode: bool = False
     user_id: str = ""
     job_id: str = ""
     campaign_id: str
@@ -134,14 +133,6 @@ async def run_agent(request: Request, payload: AgentRunRequest):
             parts.append(f"Sous-secteur : {payload.sous_secteur}")
         if payload.extra:
             parts.append(f"Précisions : {payload.extra}")
-
-        if payload.dev_mode:
-            os.environ["AGENT_DEV_MODE"] = "1"
-            parts.append(
-                "ATTENTION MODE DEVELOPPEMENT : Tu n'as droit qu'a UN SEUL TOUR de recherche."
-            )
-        else:
-            os.environ.pop("AGENT_DEV_MODE", None)
 
         user_query = "\n".join(parts)
 

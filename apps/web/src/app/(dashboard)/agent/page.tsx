@@ -48,16 +48,61 @@ const SECTEURS: Record<string, { label: string; sousSecteurs: string[] }> = {
 }
 
 type CsvRow = Record<string, string>
-type LogLine = { text: string; color: string }
+type LogLine = { text: string; color: string; costText?: string; totalText?: string }
+type ActiveJobResponse = {
+  job: null | {
+    id: string
+    status: string
+    payload?: {
+      jobTitle?: string
+      location?: string
+      secteur?: string
+      sousSecteur?: string
+    }
+  }
+}
+
+const INPUT_COST_PER_MILLION_EUR = 3
+const OUTPUT_COST_PER_MILLION_EUR = 15
+const TOKEN_LOG_REGEX = /Tokens:\s*([\d,]+)\s+in\s*\|\s*([\d,]+)\s+out/i
+
+function formatEuroAmount(amount: number): string {
+  return amount.toLocaleString('fr-FR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+function getTokenLogCost(message: string): number | null {
+  const match = message.match(TOKEN_LOG_REGEX)
+  if (!match) return null
+
+  const inputTokens = Number(match[1].replace(/,/g, ''))
+  const outputTokens = Number(match[2].replace(/,/g, ''))
+  if (!Number.isFinite(inputTokens) || !Number.isFinite(outputTokens)) return null
+
+  return (
+    (inputTokens / 1_000_000) * INPUT_COST_PER_MILLION_EUR +
+    (outputTokens / 1_000_000) * OUTPUT_COST_PER_MILLION_EUR
+  )
+}
+
+function parseTokenLog(message: string, cumulativeCost: number): { text: string; costText?: string; totalText?: string } {
+  const cost = getTokenLogCost(message)
+  if (cost === null) return { text: message }
+
+  return {
+    text: message,
+    costText: `${formatEuroAmount(cost)}€`,
+    totalText: `Total = ${formatEuroAmount(cumulativeCost)}€`,
+  }
+}
 
 export default function AgentPage() {
-  const [campaignId, setCampaignId] = useState('')
   const [jobTitle, setJobTitle] = useState('')
   const [location, setLocation] = useState('')
   const [secteur, setSecteur] = useState('cabinet_avocat')
   const [sousSecteur, setSousSecteur] = useState('')
-  const [creditBudget, setCreditBudget] = useState('20')
-  const [devMode, setDevMode] = useState(false)
   const [running, setRunning] = useState(false)
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [logs, setLogs] = useState<LogLine[]>([])
@@ -67,6 +112,8 @@ export default function AgentPage() {
 
   const logsEndRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const sseStoppedRef = useRef(false)
+  const cumulativeTokenCostRef = useRef(0)
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -82,11 +129,17 @@ export default function AgentPage() {
     setLogs((prev) => [...prev, { text, color }])
   }, [])
 
+  const stopStreaming = useCallback(() => {
+    sseStoppedRef.current = true
+    eventSourceRef.current?.close()
+    eventSourceRef.current = null
+  }, [])
+
   const handleEvent = useCallback((event: any) => {
     switch (event.type) {
       case 'config':
         addLog(
-          `[CONFIG] ${event.secteur}${event.sous_secteur ? ` / ${event.sous_secteur}` : ''} / ${event.job_title} / ${event.location} / ${event.credit_budget ?? '-'} credits`,
+          `[CONFIG] ${event.secteur}${event.sous_secteur ? ` / ${event.sous_secteur}` : ''} / ${event.job_title} / ${event.location}`,
           '#60a5fa',
         )
         break
@@ -96,13 +149,26 @@ export default function AgentPage() {
         addLog(`${'='.repeat(50)}`, '#34d399')
         break
       case 'log':
-        addLog(`[${event.phase || 'LOG'}] ${event.message}`, '#d4d4d4')
+        {
+          const rawMessage = String(event.message || '')
+          const tokenCost = getTokenLogCost(rawMessage)
+          if (tokenCost !== null) {
+            cumulativeTokenCostRef.current += tokenCost
+          }
+          const parsed = parseTokenLog(rawMessage, cumulativeTokenCostRef.current)
+          setLogs((prev) => [...prev, {
+            text: `[${event.phase || 'LOG'}] ${parsed.text}`,
+            color: '#d4d4d4',
+            costText: parsed.costText,
+            totalText: parsed.totalText,
+          }])
+        }
         break
       case 'tool_call':
+        if (event.name === 'crawl_url') break
         addLog(`[TOOL] ${event.name}(${event.args})`, '#fbbf24')
         break
       case 'tool_result':
-        addLog(`[RESULT] ${event.message}`, '#9ca3af')
         break
       case 'progress':
         addLog(`[PROGRESS] ${event.message}`, '#a78bfa')
@@ -114,28 +180,44 @@ export default function AgentPage() {
         break
       case 'error':
         addLog(`[ERROR] ${event.message}`, '#ef4444')
+        setRunning(false)
+        setCurrentJobId(null)
+        stopStreaming()
         break
       case 'stopped':
         addLog(`[STOPPED] ${event.message || 'Agent arrete.'}`, '#f97316')
         setRunning(false)
+        setCurrentJobId(null)
+        stopStreaming()
         break
       case 'cancelled':
         addLog(`[CANCELLED] ${event.message || 'Job annule.'}`, '#f97316')
         setRunning(false)
+        setCurrentJobId(null)
+        stopStreaming()
         break
       case 'complete':
         addLog('[FIN] Pipeline termine.', '#34d399')
         setRunning(false)
+        setCurrentJobId(null)
+        stopStreaming()
         break
       default:
         if (event.message) addLog(`[${event.type}] ${event.message}`, '#d4d4d4')
     }
-  }, [addLog])
+  }, [addLog, stopStreaming])
 
   const connectToJob = useCallback((jobId: string) => {
-    eventSourceRef.current?.close()
+    stopStreaming()
+    sseStoppedRef.current = false
+    setRunning(true)
+
     const es = new EventSource(`/api/jobs/${jobId}/events`)
     eventSourceRef.current = es
+
+    es.onopen = () => {
+      addLog(`[SSE] Connecte au job ${jobId}`, '#60a5fa')
+    }
 
     es.onmessage = (message) => {
       try {
@@ -146,24 +228,60 @@ export default function AgentPage() {
     }
 
     es.onerror = () => {
-      es.close()
-      eventSourceRef.current = null
+      if (sseStoppedRef.current) return
+      addLog(`[SSE] Connexion interrompue pour ${jobId}`, '#f59e0b')
       setRunning(false)
+      stopStreaming()
     }
-  }, [handleEvent])
+  }, [addLog, handleEvent, stopStreaming])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const restoreActiveJob = async () => {
+      try {
+        const response = await fetch('/api/agent/job/active', { cache: 'no-store' })
+        if (!response.ok) return
+
+        const data = await response.json() as ActiveJobResponse
+        const activeJob = data.job
+        if (!activeJob || cancelled) return
+
+        setCurrentJobId(activeJob.id)
+        if (typeof activeJob.payload?.jobTitle === 'string') setJobTitle(activeJob.payload.jobTitle)
+        if (typeof activeJob.payload?.location === 'string') setLocation(activeJob.payload.location)
+        if (activeJob.payload?.secteur && SECTEURS[activeJob.payload.secteur]) {
+          setSecteur(activeJob.payload.secteur)
+        }
+        if (typeof activeJob.payload?.sousSecteur === 'string') setSousSecteur(activeJob.payload.sousSecteur)
+
+        cumulativeTokenCostRef.current = 0
+        setLogs([{ text: `[RESUME] Reconnexion au job ${activeJob.id}`, color: '#60a5fa' }])
+        connectToJob(activeJob.id)
+      } catch {
+        // ignore restore failures in dev page
+      }
+    }
+
+    void restoreActiveJob()
+
+    return () => {
+      cancelled = true
+    }
+  }, [connectToJob])
 
   const handleSubmit = async () => {
-    if (!campaignId.trim() || !jobTitle.trim() || !location.trim() || running) return
+    if (!jobTitle.trim() || !location.trim() || running) return
 
+    const secteurLabel = SECTEURS[secteur]?.label || secteur
     setRunning(true)
+    cumulativeTokenCostRef.current = 0
     setLogs([])
     setCandidates([])
     setEnriched([])
-
-    const secteurLabel = SECTEURS[secteur]?.label || secteur
     addLog('[INIT] Creation du job agent', '#a855f7')
     addLog(
-      `[START] ${secteurLabel}${sousSecteur ? ` / ${sousSecteur}` : ''} - ${jobTitle} - ${location}`,
+      `[START] ${secteurLabel}${sousSecteur ? ` / ${sousSecteur}` : ''} - ${jobTitle.trim()} - ${location.trim()}`,
       '#34d399',
     )
 
@@ -172,11 +290,10 @@ export default function AgentPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          campaignId: campaignId.trim(),
           secteur,
           sous_secteur: sousSecteur || undefined,
-          credit_budget: Number(creditBudget) || null,
-          dev_mode: devMode,
+          job_title: jobTitle.trim(),
+          location: location.trim(),
         }),
       })
 
@@ -193,6 +310,7 @@ export default function AgentPage() {
         return
       }
 
+      addLog(`[JOB] ${data.jobId} cree, attente du worker...`, '#60a5fa')
       setCurrentJobId(data.jobId)
       connectToJob(data.jobId)
     } catch (err: any) {
@@ -206,7 +324,7 @@ export default function AgentPage() {
       await fetch('/api/agent/stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId: currentJobId, campaignId: campaignId || undefined }),
+        body: JSON.stringify({ jobId: currentJobId }),
       })
       addLog('[STOP] Annulation demandee.', '#f97316')
     } catch (err: any) {
@@ -223,24 +341,10 @@ export default function AgentPage() {
     <div className="p-6 max-w-[1600px] mx-auto w-full">
       <div className="flex items-center gap-3 mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Agent Recherche V2</h1>
-        <span className="bg-purple-100 text-purple-700 text-xs px-2.5 py-1 rounded-full font-medium">Jobs + Worker</span>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl p-5 mb-5 shadow-sm">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Campaign ID <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              value={campaignId}
-              onChange={(e) => setCampaignId(e.target.value)}
-              disabled={running}
-              placeholder="cm..."
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
               Poste vise <span className="text-red-400">*</span>
@@ -251,6 +355,19 @@ export default function AgentPage() {
               onChange={(e) => setJobTitle(e.target.value)}
               disabled={running}
               placeholder="Ex: Juriste Compliance"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Ville <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              disabled={running}
+              placeholder="Paris, Lyon, Bordeaux..."
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
             />
           </div>
@@ -288,49 +405,9 @@ export default function AgentPage() {
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Ville <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              disabled={running}
-              placeholder="Paris, Lyon, Bordeaux..."
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Credit budget <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={creditBudget}
-              onChange={(e) => setCreditBudget(e.target.value)}
-              disabled={running}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
         </div>
 
         <div className="flex items-center gap-4 mt-4 justify-end">
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="devMode"
-              checked={devMode}
-              onChange={(e) => setDevMode(e.target.checked)}
-              disabled={running}
-              className="w-4 h-4 text-brand-600 rounded border-slate-300 focus:ring-brand-500"
-            />
-            <label htmlFor="devMode" className="text-xs font-medium text-slate-600 cursor-pointer select-none">
-              Dev Mode
-            </label>
-          </div>
-
           {running && (
             <button
               onClick={handleStop}
@@ -342,9 +419,9 @@ export default function AgentPage() {
 
           <button
             onClick={handleSubmit}
-            disabled={running || !campaignId.trim() || !location.trim() || !jobTitle.trim()}
+            disabled={running || !jobTitle.trim() || !location.trim()}
             className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
-              running || !campaignId.trim() || !location.trim() || !jobTitle.trim()
+              running || !jobTitle.trim() || !location.trim()
                 ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                 : 'bg-brand-600 hover:bg-brand-700 text-white shadow-sm'
             }`}
@@ -367,6 +444,12 @@ export default function AgentPage() {
           {logs.map((line, index) => (
             <div key={index} style={{ color: line.color }}>
               {line.text}
+              {line.costText && (
+                <>
+                  <span style={{ color: '#a78bfa' }}>{' => '}{line.costText}</span>
+                  <span style={{ color: '#fbbf24', fontWeight: 700 }}>{' ; '}{line.totalText}</span>
+                </>
+              )}
             </div>
           ))}
           <div ref={logsEndRef} />

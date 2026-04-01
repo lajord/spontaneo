@@ -20,18 +20,26 @@ const prisma = createPrismaClient()
 
 /**
  * Appends anazd SSE event to the JobEvent table with a monotonically increasing seq per job.
- * Uses a subquery INSERT to compute the next seq atomically.
+ * Locks the parent job row so concurrent writers for the same job are serialized.
  */
 export async function appendJobEvent(jobId: string, payload: object): Promise<void> {
   await prisma.$executeRaw`
+    WITH locked_job AS (
+      SELECT id
+      FROM "Job"
+      WHERE id = ${jobId}
+      FOR UPDATE
+    )
     INSERT INTO "JobEvent" ("id", "jobId", "seq", "payload", "createdAt")
-    VALUES (
+    SELECT
       gen_random_uuid()::text,
-      ${jobId},
-      (SELECT COALESCE(MAX(seq), 0) + 1 FROM "JobEvent" WHERE "jobId" = ${jobId}),
+      locked_job.id,
+      COALESCE(MAX(evt.seq), 0) + 1,
       ${JSON.stringify(payload)}::jsonb,
       NOW()
-    )
+    FROM locked_job
+    LEFT JOIN "JobEvent" evt ON evt."jobId" = locked_job.id
+    GROUP BY locked_job.id
   `
 }
 

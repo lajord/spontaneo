@@ -10,6 +10,13 @@ from runtime import get_run_context, raise_if_cancelled, set_run_context
 _WEB_URL = os.getenv("WEB_URL", "http://web:3000")
 _API_ENDPOINT = f"{_WEB_URL}/api/agent/candidates"
 
+
+def _headers() -> dict[str, str]:
+    token = os.getenv("AGENT_INTERNAL_API_TOKEN") or os.getenv("CRON_SECRET")
+    if token:
+        return {"Authorization": f"Bearer {token}"}
+    return {"X-Agent-Dev-Internal": "1"}
+
 # Legacy paths gardes pour compatibilite debug
 OUTPUT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CANDIDATES_CSV = os.path.join(OUTPUT_DIR, "candidates.csv")
@@ -44,6 +51,36 @@ def _ctx() -> dict:
     return get_run_context()
 
 
+def _normalize_domain(url: str) -> str:
+    if not url:
+        return ""
+    value = url.lower().strip().rstrip("/")
+    for prefix in ["https://www.", "http://www.", "https://", "http://"]:
+        if value.startswith(prefix):
+            value = value[len(prefix):]
+    return value.split("/")[0]
+
+
+def _normalize_company_payload(company: dict) -> dict:
+    website = (
+        company.get("websiteUrl")
+        or company.get("website_url")
+        or company.get("website")
+        or company.get("url")
+        or ""
+    )
+    domain = company.get("domain") or _normalize_domain(website)
+
+    return {
+        "name": company.get("name", ""),
+        "websiteUrl": website or None,
+        "domain": domain or None,
+        "city": company.get("city", ""),
+        "description": company.get("description", ""),
+        "source": company.get("source", ""),
+    }
+
+
 def _candidate_to_row(candidate: dict) -> dict:
     return {
         "name": candidate.get("name", ""),
@@ -66,7 +103,8 @@ def get_candidates_rows() -> list[dict]:
     try:
         resp = requests.get(
             _API_ENDPOINT,
-            params={"userId": user_id, "jobId": job_id},
+            params={"jobId": job_id},
+            headers=_headers(),
             timeout=10,
         )
         resp.raise_for_status()
@@ -92,21 +130,23 @@ def save_candidates(companies_json: str) -> str:
     user_id = ctx.get("user_id")
     job_id = ctx.get("job_id")
     campaign_id = ctx.get("campaign_id")
-    if not user_id or not job_id or not campaign_id:
-        return "Erreur: Contexte incomplet. user_id, job_id et campaign_id sont requis."
+    if not user_id or not job_id:
+        return "Erreur: Contexte incomplet. user_id et job_id sont requis."
+
+    normalized_companies = [_normalize_company_payload(company) for company in companies]
 
     payload = {
-        "userId": user_id,
         "jobId": job_id,
-        "campaignId": campaign_id,
         "secteur": ctx.get("secteur"),
         "jobTitle": ctx.get("job_title"),
         "location": ctx.get("location"),
-        "companies": companies,
+        "companies": normalized_companies,
     }
+    if campaign_id:
+        payload["campaignId"] = campaign_id
 
     try:
-        resp = requests.post(_API_ENDPOINT, json=payload, timeout=15)
+        resp = requests.post(_API_ENDPOINT, json=payload, headers=_headers(), timeout=15)
         resp.raise_for_status()
         data = resp.json()
         return (

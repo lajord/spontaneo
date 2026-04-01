@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { authorizeAgentRoute } from '@/lib/agent-auth'
 
 interface CompanyInput {
   name: string
   websiteUrl?: string
+  website_url?: string
+  website?: string
+  url?: string
   domain?: string
   city?: string
   description?: string
@@ -11,7 +15,6 @@ interface CompanyInput {
 }
 
 interface SaveCandidatesBody {
-  userId: string
   jobId?: string
   campaignId?: string
   secteur?: string
@@ -33,7 +36,14 @@ function normalizeName(name: string): string {
   return name.toLowerCase().trim().replace(/\s+/g, ' ')
 }
 
+function getCompanyWebsite(company: CompanyInput): string | undefined {
+  return company.websiteUrl ?? company.website_url ?? company.website ?? company.url
+}
+
 export async function POST(req: NextRequest) {
+  const access = await authorizeAgentRoute(req)
+  if (!access) return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
+
   let body: SaveCandidatesBody
   try {
     body = await req.json()
@@ -41,17 +51,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Corps de requete invalide' }, { status: 400 })
   }
 
-  const { userId, jobId, campaignId, secteur, jobTitle, location, companies } = body
+  const { jobId, campaignId, secteur, jobTitle, location, companies } = body
 
-  if (!userId) return NextResponse.json({ error: 'userId requis' }, { status: 400 })
   if (!jobId) return NextResponse.json({ error: 'jobId requis' }, { status: 400 })
-  if (!campaignId) return NextResponse.json({ error: 'campaignId requis' }, { status: 400 })
   if (!Array.isArray(companies) || companies.length === 0) {
     return NextResponse.json({ error: 'companies doit etre une liste non vide' }, { status: 400 })
   }
 
+  const job = await prisma.job.findFirst({
+    where: { id: jobId, ...(campaignId ? { campaignId } : {}), type: 'agent_search' },
+    select: { id: true, userId: true, campaignId: true, payload: true },
+  })
+
+  if (!job) {
+    return NextResponse.json({ error: 'Job agent introuvable' }, { status: 404 })
+  }
+
+  if (access.kind === 'session' && access.userId !== job.userId) {
+    return NextResponse.json({ error: 'Non autorise' }, { status: 403 })
+  }
+
+  const payload = (job.payload ?? {}) as Record<string, unknown>
+  const resolvedSecteur = secteur ?? (typeof payload.secteur === 'string' ? payload.secteur : null)
+  const resolvedJobTitle = jobTitle ?? (typeof payload.jobTitle === 'string' ? payload.jobTitle : null)
+  const resolvedLocation = location ?? (typeof payload.location === 'string' ? payload.location : null)
+
   const incomingDomains = companies
-    .map((company) => normalizeDomain(company.websiteUrl || company.domain))
+    .map((company) => normalizeDomain(getCompanyWebsite(company) || company.domain))
     .filter(Boolean) as string[]
 
   const existingByDomain = await prisma.agentCandidate.findMany({
@@ -61,7 +87,7 @@ export async function POST(req: NextRequest) {
   const existingDomains = new Set(existingByDomain.map((item) => item.domain).filter(Boolean))
 
   const incomingNames = companies
-    .filter((company) => !normalizeDomain(company.websiteUrl || company.domain))
+    .filter((company) => !normalizeDomain(getCompanyWebsite(company) || company.domain))
     .map((company) => normalizeName(company.name))
 
   const existingByName = incomingNames.length > 0
@@ -73,7 +99,7 @@ export async function POST(req: NextRequest) {
   const existingNames = new Set(existingByName.map((item) => normalizeName(item.name)))
 
   const toInsert = companies.filter((company) => {
-    const domain = normalizeDomain(company.websiteUrl || company.domain)
+    const domain = normalizeDomain(getCompanyWebsite(company) || company.domain)
     if (domain) return !existingDomains.has(domain)
     return !existingNames.has(normalizeName(company.name))
   })
@@ -85,18 +111,18 @@ export async function POST(req: NextRequest) {
 
   const created = await prisma.agentCandidate.createMany({
     data: toInsert.map((company) => ({
-      userId,
+      userId: job.userId,
       jobId,
-      campaignId,
+      campaignId: job.campaignId,
       name: company.name,
-      domain: normalizeDomain(company.websiteUrl || company.domain),
-      websiteUrl: company.websiteUrl ?? null,
+      domain: normalizeDomain(getCompanyWebsite(company) || company.domain),
+      websiteUrl: getCompanyWebsite(company) ?? null,
       city: company.city ?? null,
       description: company.description ? company.description.slice(0, 300) : null,
       source: company.source ?? null,
-      secteur: secteur ?? null,
-      jobTitle: jobTitle ?? null,
-      location: location ?? null,
+      secteur: resolvedSecteur,
+      jobTitle: resolvedJobTitle,
+      location: resolvedLocation,
       status: 'pending',
     })),
     skipDuplicates: true,
@@ -114,17 +140,21 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const access = await authorizeAgentRoute(req)
+  if (!access) return NextResponse.json({ error: 'Non autorise' }, { status: 401 })
+
   const { searchParams } = new URL(req.url)
-  const userId = searchParams.get('userId')
   const jobId = searchParams.get('jobId')
   const campaignId = searchParams.get('campaignId')
   const status = searchParams.get('status')
 
-  if (!userId) return NextResponse.json({ error: 'userId requis' }, { status: 400 })
+  if (access.kind === 'internal' && !jobId) {
+    return NextResponse.json({ error: 'jobId requis pour un appel interne' }, { status: 400 })
+  }
 
   const candidates = await prisma.agentCandidate.findMany({
     where: {
-      userId,
+      ...(access.kind === 'session' ? { userId: access.userId } : {}),
       ...(jobId ? { jobId } : {}),
       ...(campaignId ? { campaignId } : {}),
       ...(status ? { status } : {}),
