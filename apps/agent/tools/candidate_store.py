@@ -1,4 +1,3 @@
-import csv
 import json
 import os
 import requests
@@ -16,17 +15,6 @@ def _headers() -> dict[str, str]:
     if token:
         return {"Authorization": f"Bearer {token}"}
     return {"X-Agent-Dev-Internal": "1"}
-
-# Legacy paths gardes pour compatibilite debug
-OUTPUT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CANDIDATES_CSV = os.path.join(OUTPUT_DIR, "candidates.csv")
-VERIFIED_CSV = os.path.join(OUTPUT_DIR, "verified.csv")
-
-VERIFIED_COLUMNS = [
-    "name", "website_url", "city", "source",
-    "specialty_confirmed", "specialties_found", "relevance_score", "relevance_reason",
-    "siren", "company_activity", "is_hiring",
-]
 
 
 def set_agent_context(
@@ -201,45 +189,3 @@ def read_next_candidate() -> str:
     }, ensure_ascii=False)
 
 
-def save_verification(
-    candidate_name: str,
-    specialty_confirmed: bool,
-    relevance_score: int,
-    relevance_reason: str,
-    specialties_found: str = "",
-    siren: str = "",
-    company_activity: str = "",
-    is_hiring: bool = None,
-    website_url: str = "",
-    city: str = "",
-    source: str = "",
-) -> str:
-    """Sauvegarde le resultat de la verification d'un cabinet dans verified.csv (legacy)."""
-    file_exists = os.path.exists(VERIFIED_CSV)
-    row = {
-        "name": candidate_name,
-        "website_url": website_url,
-        "city": city,
-        "source": source,
-        "specialty_confirmed": str(specialty_confirmed),
-        "specialties_found": specialties_found,
-        "relevance_score": str(relevance_score),
-        "relevance_reason": relevance_reason,
-        "siren": siren,
-        "company_activity": company_activity,
-        "is_hiring": str(is_hiring) if is_hiring is not None else "",
-    }
-    with open(VERIFIED_CSV, "a", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=VERIFIED_COLUMNS, delimiter=";")
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(row)
-
-    status = "CONFIRME" if specialty_confirmed else "NON CONFIRME"
-    return json.dumps({
-        "name": candidate_name,
-        "status": status,
-        "score": relevance_score,
-        "reason": relevance_reason,
-        "specialties": specialties_found,
-    }, ensure_ascii=False)

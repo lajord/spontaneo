@@ -38,10 +38,6 @@ def _headers() -> dict[str, str]:
     return {"X-Agent-Dev-Internal": "1"}
 
 
-# Legacy path garde pour compatibilite debug
-OUTPUT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ENRICHED_CSV = os.path.join(OUTPUT_DIR, "enriched.csv")
-
 
 def _normalize_domain(url: str) -> str:
     if not url:

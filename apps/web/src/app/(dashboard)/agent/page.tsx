@@ -111,13 +111,24 @@ export default function AgentPage() {
   const [csvTab, setCsvTab] = useState<'candidates' | 'enriched'>('candidates')
 
   const logsEndRef = useRef<HTMLDivElement>(null)
+  const logsContainerRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
   const sseStoppedRef = useRef(false)
   const cumulativeTokenCostRef = useRef(0)
+  const userScrolledUpRef = useRef(false)
 
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!userScrolledUpRef.current) {
+      logsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [logs])
+
+  const handleLogsScroll = useCallback(() => {
+    const el = logsContainerRef.current
+    if (!el) return
+    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+    userScrolledUpRef.current = !isAtBottom
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -176,7 +187,7 @@ export default function AgentPage() {
       case 'csv_update':
         if (event.csv_type === 'candidates') setCandidates(event.rows || [])
         if (event.csv_type === 'enriched') setEnriched(event.rows || [])
-        addLog(`[CSV] ${event.csv_type} mis a jour (${(event.rows || []).length} lignes)`, '#60a5fa')
+        addLog(`[DB] ${event.csv_type} mis a jour (${(event.rows || []).length} lignes)`, '#60a5fa')
         break
       case 'error':
         addLog(`[ERROR] ${event.message}`, '#ef4444')
@@ -439,7 +450,7 @@ export default function AgentPage() {
           <span className="text-slate-400 text-xs ml-2 font-mono">Agent Logs</span>
           {running && <span className="ml-auto text-xs text-green-400 animate-pulse">Running...</span>}
         </div>
-        <div className="font-mono text-xs leading-5 overflow-y-auto max-h-[400px] whitespace-pre-wrap" style={{ minHeight: '200px' }}>
+        <div ref={logsContainerRef} onScroll={handleLogsScroll} className="font-mono text-xs leading-5 overflow-y-auto max-h-[600px] whitespace-pre-wrap" style={{ minHeight: '300px' }}>
           {logs.length === 0 && <span className="text-slate-500">En attente du lancement...</span>}
           {logs.map((line, index) => (
             <div key={index} style={{ color: line.color }}>
