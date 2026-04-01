@@ -199,6 +199,16 @@ def stream_agent(
             return last_ai_text
         except Exception as e:
             error_str = str(e).lower()
+            if "recursion_limit" in error_str or "recursion limit" in error_str:
+                emit(
+                    {
+                        "type": "log",
+                        "phase": phase_name,
+                        "message": f"[RECURSION LIMIT] Limite atteinte pour {phase_name}. On passe a la suite.",
+                    },
+                    log_callback,
+                )
+                return last_ai_text
             if "rate_limit" in error_str or "429" in error_str:
                 wait = STREAM_RETRY_DELAY * (attempt + 1)
                 emit(

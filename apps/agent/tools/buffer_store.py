@@ -190,8 +190,6 @@ def evaluate_findings(company_name: str) -> str:
         name = e.get("name", "-")
         title = e.get("title", "-")
         email = e.get("email", "-")
-        phone = e.get("phone", "-")
-        linkedin = e.get("linkedin", "-")
         source = e.get("source", "?")
         status = e.get("email_status", "")
         city = e.get("city") or e.get("contact_city") or "-"
@@ -204,10 +202,6 @@ def evaluate_findings(company_name: str) -> str:
         if email != "-":
             status_str = f" [{status}]" if status else ""
             parts.append(f"| {email}{status_str}")
-        if phone != "-":
-            parts.append(f"| tel: {phone}")
-        if linkedin != "-":
-            parts.append(f"| LinkedIn: {linkedin}")
         parts.append(f"| source: {source}")
         lines.append(" ".join(parts))
 
@@ -230,15 +224,10 @@ def evaluate_findings(company_name: str) -> str:
         f"Email verifie (valid) : {verified_valid}\n"
         f"Email verifie (catchall) : {verified_catchall}\n"
         f"Objectif : {target} contacts decideurs avec email nominatif et bonne ville\n\n"
-        f"--- DECISION ---\n"
-        f"Analyse chaque contact ci-dessus :\n"
-        f"- Est-ce un DECIDEUR (associe, partner, DG, directeur, responsable) ?\n"
-        f"- Son email est-il NOMINATIF et non generique ?\n"
-        f"- Son email est-il VERIFIE (valid ou catchall) ?\n"
-        f"- Sa ville est-elle explicitement la ville cible ?\n\n"
-        f"Si tu as au moins {target} contacts decideurs avec email qualifie et ville confirmee :\n"
-        f"-> Sauvegarde-les avec save_enrichment et ARRETE.\n\n"
-        f"Sinon :\n"
-        f"-> Relance une recherche avec d'autres angles.\n"
-        f"-> Puis appelle a nouveau save_to_buffer et evaluate_findings."
+        f"--- ACTION FINALE ---\n"
+        f"Sauvegarde MAINTENANT avec save_enrichment :\n"
+        f"1. Tous les contacts decideurs avec email nominatif verifie (valid/catchall).\n"
+        f"2. Si MOINS de {target} emails nominatifs verifies, ajoute un email generique (contact@, info@) trouve sur le site.\n"
+        f"3. Sauvegarde TOUJOURS au moins 1 contact, meme generique.\n\n"
+        f"Puis appelle read_enrichment_summary. TERMINE, pas de boucle."
     )
