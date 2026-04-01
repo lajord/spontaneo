@@ -1,16 +1,19 @@
 import csv
 import json
 import os
+import requests
 from langchain_core.tools import tool
 
-# Dossier de sortie = dossier parent (apps/agent/)
+from runtime import get_run_context, raise_if_cancelled, set_run_context
+
+# URL du service Next.js web (pour l'API agent/candidates)
+_WEB_URL = os.getenv("WEB_URL", "http://web:3000")
+_API_ENDPOINT = f"{_WEB_URL}/api/agent/candidates"
+
+# Legacy paths gardes pour compatibilite debug
 OUTPUT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CANDIDATES_CSV = os.path.join(OUTPUT_DIR, "candidates.csv")
 VERIFIED_CSV = os.path.join(OUTPUT_DIR, "verified.csv")
-
-CANDIDATES_COLUMNS = [
-    "name", "website_url", "domain", "city", "description", "source", "status",
-]
 
 VERIFIED_COLUMNS = [
     "name", "website_url", "city", "source",
@@ -19,37 +22,64 @@ VERIFIED_COLUMNS = [
 ]
 
 
-def _normalize(name: str) -> str:
-    """Normalise un nom pour la déduplication."""
-    return name.lower().strip().replace("  ", " ")
+def set_agent_context(
+    user_id: str,
+    job_id: str | None = None,
+    campaign_id: str | None = None,
+    secteur: str | None = None,
+    job_title: str | None = None,
+    location: str | None = None,
+) -> None:
+    set_run_context(
+        user_id=user_id,
+        job_id=job_id,
+        campaign_id=campaign_id,
+        secteur=secteur,
+        job_title=job_title,
+        location=location,
+    )
 
 
-def _normalize_domain(url: str) -> str:
-    """Extrait le domaine normalisé d'une URL."""
-    if not url:
-        return ""
-    url = url.lower().strip().rstrip("/")
-    for prefix in ["https://www.", "http://www.", "https://", "http://"]:
-        if url.startswith(prefix):
-            url = url[len(prefix):]
-    return url.split("/")[0]
+def _ctx() -> dict:
+    return get_run_context()
+
+
+def _candidate_to_row(candidate: dict) -> dict:
+    return {
+        "name": candidate.get("name", ""),
+        "website_url": candidate.get("websiteUrl", ""),
+        "domain": candidate.get("domain", ""),
+        "city": candidate.get("city", ""),
+        "description": candidate.get("description", ""),
+        "source": candidate.get("source", ""),
+        "status": candidate.get("status", ""),
+    }
+
+
+def get_candidates_rows() -> list[dict]:
+    ctx = _ctx()
+    user_id = ctx.get("user_id")
+    job_id = ctx.get("job_id")
+    if not user_id or not job_id:
+        return []
+
+    try:
+        resp = requests.get(
+            _API_ENDPOINT,
+            params={"userId": user_id, "jobId": job_id},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return [_candidate_to_row(c) for c in resp.json().get("candidates", [])]
+    except Exception:
+        return []
 
 
 @tool
 def save_candidates(companies_json: str) -> str:
-    """Sauvegarde la liste d'entreprises candidates dans un fichier CSV.
+    """Sauvegarde la liste d'entreprises candidates en base de donnees."""
+    raise_if_cancelled()
 
-    Utilise cet outil APRES chaque recherche (Apollo, web_search, Google Maps).
-    Les resultats seront dedupliques automatiquement par nom et domaine web.
-    Chaque entreprise est marquee comme "pending" pour la phase de verification.
-
-    Args:
-        companies_json: JSON string contenant une liste d'entreprises.
-            Chaque entreprise doit avoir au minimum : name, website_url, city, source.
-
-    Returns:
-        Message indiquant combien d'entreprises ont ete sauvegardees (apres deduplication).
-    """
     try:
         companies = json.loads(companies_json)
     except json.JSONDecodeError as e:
@@ -58,77 +88,49 @@ def save_candidates(companies_json: str) -> str:
     if not isinstance(companies, list) or not companies:
         return "Erreur: Le JSON doit contenir une liste non-vide d'entreprises."
 
-    # Lire les candidats existants pour ne pas les écraser
-    existing = []
-    seen = set()
-    if os.path.exists(CANDIDATES_CSV):
-        with open(CANDIDATES_CSV, "r", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f, delimiter=";")
-            existing = list(reader)
-        for row in existing:
-            name = _normalize(row.get("name", ""))
-            domain = _normalize_domain(row.get("website_url", ""))
-            key = (name, domain) if domain else (name,)
-            seen.add(key)
+    ctx = _ctx()
+    user_id = ctx.get("user_id")
+    job_id = ctx.get("job_id")
+    campaign_id = ctx.get("campaign_id")
+    if not user_id or not job_id or not campaign_id:
+        return "Erreur: Contexte incomplet. user_id, job_id et campaign_id sont requis."
 
-    # Ajouter les nouveaux (dédupliqués)
-    added = 0
-    for company in companies:
-        name = _normalize(company.get("name", ""))
-        domain = _normalize_domain(company.get("website_url") or company.get("url", ""))
-        key = (name, domain) if domain else (name,)
+    payload = {
+        "userId": user_id,
+        "jobId": job_id,
+        "campaignId": campaign_id,
+        "secteur": ctx.get("secteur"),
+        "jobTitle": ctx.get("job_title"),
+        "location": ctx.get("location"),
+        "companies": companies,
+    }
 
-        if key not in seen:
-            seen.add(key)
-            existing.append({
-                "name": company.get("name", ""),
-                "website_url": company.get("website_url") or company.get("url", ""),
-                "domain": domain,
-                "city": company.get("city", ""),
-                "description": (company.get("description") or "")[:300],
-                "source": company.get("source", ""),
-                "status": "pending",
-            })
-            added += 1
-
-    # Écrire le CSV complet
-    with open(CANDIDATES_CSV, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=CANDIDATES_COLUMNS, delimiter=";")
-        writer.writeheader()
-        writer.writerows(existing)
-
-    total = len(existing)
-    return (
-        f"{added} nouvelles entreprises ajoutees (total: {total}, dedupliquees depuis {len(companies)} bruts).\n"
-        f"Fichier : {CANDIDATES_CSV}"
-    )
+    try:
+        resp = requests.post(_API_ENDPOINT, json=payload, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        return (
+            f"{data.get('added', 0)} nouvelles entreprises ajoutees "
+            f"(total: {data.get('total', '?')}, "
+            f"doublons ignores: {data.get('duplicates', 0)}).\n"
+            f"Fichier : base de donnees"
+        )
+    except requests.exceptions.ConnectionError:
+        return "Erreur: Impossible de joindre l'API web. Verifie que WEB_URL est correct."
+    except requests.exceptions.HTTPError as e:
+        return f"Erreur HTTP {e.response.status_code}: {e.response.text[:300]}"
+    except Exception as e:
+        return f"Erreur lors de la sauvegarde: {type(e).__name__}: {e}"
 
 
 @tool
 def read_candidates_summary() -> str:
-    """Retourne un resume de l'etat actuel du fichier de candidats.
+    """Retourne un resume de l'etat actuel des candidats en base de donnees."""
+    raise_if_cancelled()
 
-    Utilise cet outil pour savoir combien d'entreprises ont deja ete collectees,
-    combien sont en attente de verification, et combien ont ete traitees.
-    Appelle-le au debut ou a la fin de ton travail pour suivre la progression.
-
-    Returns:
-        JSON avec total, pending, done counts.
-    """
-    if not os.path.exists(CANDIDATES_CSV):
-        return json.dumps({
-            "total": 0,
-            "pending": 0,
-            "done": 0,
-            "message": "Aucun candidat. Le fichier CSV n'existe pas encore.",
-        })
-
-    with open(CANDIDATES_CSV, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f, delimiter=";")
-        rows = list(reader)
-
+    rows = get_candidates_rows()
     total = len(rows)
-    pending = sum(1 for r in rows if r.get("status", "").strip() == "pending")
+    pending = sum(1 for c in rows if c.get("status") == "pending")
     done = total - pending
 
     return json.dumps({
@@ -141,29 +143,24 @@ def read_candidates_summary() -> str:
 
 @tool
 def read_next_candidate() -> str:
-    """Lit la prochaine entreprise candidate a verifier depuis le fichier CSV.
+    """Lit la prochaine entreprise candidate a enrichir depuis la base de donnees."""
+    raise_if_cancelled()
 
-    Retourne la prochaine entreprise dont le status est "pending".
-    Si toutes les entreprises ont ete traitees, retourne "DONE".
+    rows = get_candidates_rows()
+    pending = [row for row in rows if row.get("status") == "pending"]
+    if not pending:
+        return "DONE"
 
-    Returns:
-        JSON de la prochaine entreprise a verifier, ou "DONE" si toutes sont traitees.
-    """
-    if not os.path.exists(CANDIDATES_CSV):
-        return json.dumps({"error": "Fichier candidates.csv introuvable. Lance d'abord la phase de collecte."})
-
-    with open(CANDIDATES_CSV, "r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f, delimiter=";")
-        rows = list(reader)
-
-    for row in rows:
-        if row.get("status", "").strip() == "pending":
-            return json.dumps(row, ensure_ascii=False)
-
-    return "DONE"
+    row = pending[0]
+    return json.dumps({
+        "name": row.get("name"),
+        "website_url": row.get("website_url"),
+        "domain": row.get("domain"),
+        "city": row.get("city"),
+        "source": row.get("source"),
+    }, ensure_ascii=False)
 
 
-@tool
 def save_verification(
     candidate_name: str,
     specialty_confirmed: bool,
@@ -177,28 +174,7 @@ def save_verification(
     city: str = "",
     source: str = "",
 ) -> str:
-    """Sauvegarde le résultat de la vérification d'un cabinet et le marque comme traité.
-
-    Utilise cet outil APRES avoir crawlé et analysé le site d'un cabinet avec crawl_url.
-    Écrit le résultat dans verified.csv et marque le cabinet comme "done" dans candidates.csv.
-
-    Args:
-        candidate_name: Nom exact du cabinet (tel que dans candidates.csv)
-        specialty_confirmed: True si le cabinet exerce bien la spécialité, False sinon
-        relevance_score: Score de pertinence de 0 à 10 (issu du crawl)
-        relevance_reason: Explication factuelle du score
-        specialties_found: Spécialités effectivement trouvées sur le site
-        siren: Numéro SIREN si trouvé lors du crawl
-        company_activity: Description de l'activité du cabinet
-        is_hiring: True si le cabinet recrute, False sinon, None si inconnu
-        website_url: URL du site web
-        city: Ville du cabinet
-        source: Source d'origine (apollo, perplexity_web_search)
-
-    Returns:
-        Message de confirmation.
-    """
-    # 1. Écrire dans verified.csv (append)
+    """Sauvegarde le resultat de la verification d'un cabinet dans verified.csv (legacy)."""
     file_exists = os.path.exists(VERIFIED_CSV)
     row = {
         "name": candidate_name,
@@ -213,30 +189,13 @@ def save_verification(
         "company_activity": company_activity,
         "is_hiring": str(is_hiring) if is_hiring is not None else "",
     }
-
     with open(VERIFIED_CSV, "a", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=VERIFIED_COLUMNS, delimiter=";")
         if not file_exists:
             writer.writeheader()
         writer.writerow(row)
 
-    # 2. Marquer comme "done" dans candidates.csv
-    if os.path.exists(CANDIDATES_CSV):
-        with open(CANDIDATES_CSV, "r", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f, delimiter=";")
-            rows = list(reader)
-
-        name_normalized = _normalize(candidate_name)
-        for row in rows:
-            if _normalize(row.get("name", "")) == name_normalized:
-                row["status"] = "done"
-
-        with open(CANDIDATES_CSV, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=CANDIDATES_COLUMNS, delimiter=";")
-            writer.writeheader()
-            writer.writerows(rows)
-
-    status = "CONFIRMÉ" if specialty_confirmed else "NON CONFIRMÉ"
+    status = "CONFIRME" if specialty_confirmed else "NON CONFIRME"
     return json.dumps({
         "name": candidate_name,
         "status": status,
@@ -244,68 +203,3 @@ def save_verification(
         "reason": relevance_reason,
         "specialties": specialties_found,
     }, ensure_ascii=False)
-
-
-@tool
-def append_candidates(companies_json: str) -> str:
-    """Ajoute des entreprises candidates au fichier CSV existant.
-
-    Utilise cet outil pour ajouter des entreprises trouvees lors d'une recherche complementaire.
-    Les doublons avec les candidats existants sont automatiquement filtres.
-
-    Args:
-        companies_json: JSON string contenant une liste d'entreprises a ajouter.
-            Chaque entreprise doit avoir au minimum : name, website_url, city, source.
-
-    Returns:
-        Message indiquant combien de nouvelles entreprises ont ete ajoutees.
-    """
-    try:
-        new_companies = json.loads(companies_json)
-    except json.JSONDecodeError as e:
-        return f"Erreur: JSON invalide — {e}"
-
-    if not isinstance(new_companies, list) or not new_companies:
-        return "Erreur: Le JSON doit contenir une liste non-vide d'entreprises."
-
-    # Lire les candidats existants
-    existing = []
-    seen = set()
-    if os.path.exists(CANDIDATES_CSV):
-        with open(CANDIDATES_CSV, "r", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f, delimiter=";")
-            existing = list(reader)
-        for row in existing:
-            name = _normalize(row.get("name", ""))
-            domain = _normalize_domain(row.get("website_url", ""))
-            key = (name, domain) if domain else (name,)
-            seen.add(key)
-
-    # Ajouter les nouveaux (dédupliqués)
-    added = 0
-    for company in new_companies:
-        name = _normalize(company.get("name", ""))
-        domain = _normalize_domain(company.get("website_url") or company.get("url", ""))
-        key = (name, domain) if domain else (name,)
-
-        if key not in seen:
-            seen.add(key)
-            existing.append({
-                "name": company.get("name", ""),
-                "website_url": company.get("website_url") or company.get("url", ""),
-                "domain": domain,
-                "city": company.get("city", ""),
-                "description": (company.get("description") or "")[:300],
-                "source": company.get("source", "deep_search"),
-                "status": "pending",
-            })
-            added += 1
-
-    # Réécrire le fichier complet
-    with open(CANDIDATES_CSV, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=CANDIDATES_COLUMNS, delimiter=";")
-        writer.writeheader()
-        writer.writerows(existing)
-
-    total = len(existing)
-    return f"{added} nouvelles entreprises ajoutees (total: {total}). {len(new_companies) - added} doublons ignores."

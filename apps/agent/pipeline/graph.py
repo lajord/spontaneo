@@ -1,67 +1,88 @@
 # ──────────────────────────────────────────────────────────────────
 # GRAPH — PIPELINE PRINCIPAL
 #
-# Orchestre les agents en un seul passage :
+# Orchestre les agents en 3 etapes :
 #
-#   ┌──────────┐    ┌──────────────────────────┐
-#   │ AGENT 1  │───▶│        AGENT 3            │
-#   │ Collecte │    │ Verif (si applicable)     │
-#   └──────────┘    │ + Enrichissement          │
-#                   └──────────────────────────┘
+#   ┌──────────┐    ┌──────────┐    ┌──────────────────┐
+#   │ AGENT 0  │───▶│ AGENT 1  │───▶│     AGENT 3      │
+#   │ Planning │    │ Collecte │    │  Enrichissement   │
+#   └──────────┘    └──────────┘    └──────────────────┘
 #
-# La verification est integree dans l'Agent 3 : apres le crawl
-# de la homepage, l'agent decide si l'entreprise est pertinente.
-# Le verify_prompt de la verticale controle si cette verif est active.
+# Agent 0 analyse le job title et produit 2 briefs :
+#   - collect_brief  → guide la recherche d'entreprises
+#   - contact_brief  → guide le ciblage de contacts
 # ──────────────────────────────────────────────────────────────────
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from pipeline.agent_1_collect import collect
-from pipeline.agent_3_enrich import enrich
+from pipeline.agent_0_plan import plan
+from pipeline.agent_deep_search import collect
+from pipeline.agent_verif_enrichissement import enrich
+from tools.candidate_store import set_agent_context
 
 if TYPE_CHECKING:
     from typing import Callable
-    from domains.base import VerticalConfig, Subspecialty
 
 
 def run_pipeline(
-    vertical: VerticalConfig,
+    secteur: str,
     query: str,
-    subspecialty: Subspecialty | None = None,
+    job_title: str = "",
     target_count: int = 50,
     log_callback: Callable | None = None,
-    target_profile: str = "",
+    user_id: str = "anonymous",
+    job_id: str | None = None,
+    campaign_id: str | None = None,
+    location: str = "",
 ) -> list[dict]:
-    """Pipeline principal : collecte puis enrichissement en un seul passage.
+    """Pipeline principal : planning → collecte → enrichissement.
 
     Args:
-        vertical: Config de la verticale (cabinets, banques, fonds...)
+        secteur: ID du secteur (cabinets, banques, fonds)
         query: Requete utilisateur (ville, precisions...)
-        subspecialty: Sous-specialite ciblee (optionnel)
+        job_title: Poste vise par l'utilisateur
         target_count: Nombre d'entreprises a trouver
         log_callback: Callback pour le streaming SSE
-        target_profile: Profil cible optionnel (ex: "Juriste Compliance")
+        user_id: ID de l'utilisateur (pour la BDD)
+        job_id: ID du job en cours
+        campaign_id: ID de la campagne (optionnel)
+        location: Ville / zone de la recherche (pour tracabilite BDD)
 
     Returns:
         Liste finale d'entreprises enrichies.
     """
+    # — Etape 0 : Injection du contexte utilisateur (pour la BDD) —
+    set_agent_context(
+        user_id=user_id,
+        job_id=job_id,
+        campaign_id=campaign_id,
+        secteur=secteur,
+        job_title=job_title,
+        location=location,
+    )
+
+    # — Etape 1 : Planning (analyse du job title) —
+    collect_brief, contact_brief = plan(
+        secteur=secteur,
+        job_title=job_title,
+        location=query,
+        log_callback=log_callback,
+    )
+
     # — Etape 1 : Collecte —
     candidates = collect(
-        vertical=vertical,
         query=query,
-        subspecialty=subspecialty,
+        collect_brief=collect_brief,
         log_callback=log_callback,
         batch_size=target_count,
     )
 
-    # — Etape 2 : Enrichissement (avec verif integree si verify_prompt defini) —
+    # — Etape 2 : Enrichissement —
     enriched = enrich(
-        vertical=vertical,
         candidates=candidates,
         log_callback=log_callback,
-        target_profile=target_profile,
-        subspecialty=subspecialty,
+        contact_brief=contact_brief,
     )
 
     return enriched

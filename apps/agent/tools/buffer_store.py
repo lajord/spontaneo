@@ -4,6 +4,7 @@ import re
 from langchain_core.tools import tool
 
 from config import AGENT3_TARGET_CONTACTS
+from runtime import get_context_value, raise_if_cancelled
 
 
 # Dossier de sortie = dossier parent (apps/agent/)
@@ -20,8 +21,10 @@ def _slugify(name: str) -> str:
 
 def _buffer_path(company_name: str) -> str:
     """Retourne le chemin du fichier buffer pour une entreprise."""
-    os.makedirs(BUFFER_DIR, exist_ok=True)
-    return os.path.join(BUFFER_DIR, f"buffer_{_slugify(company_name)}.jsonl")
+    job_id = str(get_context_value("job_id", "shared"))
+    job_dir = os.path.join(BUFFER_DIR, job_id)
+    os.makedirs(job_dir, exist_ok=True)
+    return os.path.join(job_dir, f"buffer_{_slugify(company_name)}.jsonl")
 
 
 def _read_buffer(company_name: str) -> list[dict]:
@@ -85,6 +88,8 @@ def save_to_buffer(company_name: str, findings_json: str) -> str:
     Returns:
         Resume du buffer apres ajout avec instructions pour la suite.
     """
+    raise_if_cancelled()
+
     try:
         findings = json.loads(findings_json)
     except json.JSONDecodeError as e:

@@ -112,9 +112,11 @@ def web_search_legal(
         f'"type": "...", "address": "..."}}]}}'
     )
 
-    print(f"  [WEB_SEARCH] Recherche: {types_str} à {location}")
+    # Log la query qui sera envoyée à Perplexity
+    query_log = f"{types_str} à {location}"
     if legal_specialties:
-        print(f"  [WEB_SEARCH] Spécialités: {', '.join(legal_specialties)}")
+        query_log += f" | spécialités: {', '.join(legal_specialties)}"
+    print(f"  [WEB_SEARCH] Query Perplexity: {query_log}")
 
     client = OpenAI(
         api_key=api_key,
@@ -167,6 +169,7 @@ def web_search_legal(
                 "count": len(results),
                 "location": location,
                 "query_types": organization_types,
+                "query_sent": query_log,
             }, ensure_ascii=False)
 
         except json.JSONDecodeError as e:

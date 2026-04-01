@@ -1,7 +1,7 @@
-// Schéma Prisma dédié au worker.
-// Même modèles que apps/web/prisma/schema.prisma, mais avec output
+// Schema Prisma dedie au worker.
+// Memes modeles que apps/web/prisma/schema.prisma, mais avec output
 // pointant vers node_modules du worker (pas celui de la web app).
-// À maintenir en sync avec le schéma web lors des migrations.
+// A maintenir en sync avec le schema web lors des migrations.
 
 generator client {
   provider = "prisma-client-js"
@@ -16,21 +16,24 @@ datasource db {
 // ── BetterAuth tables ─────────────────────────────────────────────────────────
 
 model User {
-  id            String    @id
+  id            String   @id
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  email         String   @unique
+  emailVerified Boolean  @default(false)
   image         String?
-  role          String    @default("user") // "user" | "admin"
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  role          String   @default("user") // "user" | "admin"
+  credits       Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  campaigns    Campaign[]
-  sessions     Session[]
-  accounts     Account[]
-  emailConfig  EmailConfig?
-  jobs         Job[]
+  campaigns          Campaign[]
+  sessions           Session[]
+  accounts           Account[]
+  emailConfig        EmailConfig?
+  jobs               Job[]
   contactedCompanies ContactedCompany[]
+  agentCandidates    AgentCandidate[]
+  agentContacts      AgentContact[]
 }
 
 model Session {
@@ -74,22 +77,23 @@ model Verification {
 // ── App tables ────────────────────────────────────────────────────────────────
 
 model Campaign {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String
-  jobTitle    String
-  sectors     String[]  @default([])
-  categories  String[]  @default([])
-  granularity String    @default("moyen")
-  location    String
-  radius      Int       @default(20)
-  cvUrl       String?
-  cvData      Json?
-  lmText      String?
-  startDate   String?
-  duration    String?
-  prompt      String?
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  jobTitle      String
+  sectors       String[]  @default([])
+  categories    String[]  @default([])
+  granularity   String    @default("moyen")
+  location      String
+  radius        Int       @default(20)
+  cvUrl         String?
+  cvData        Json?
+  lmText        String?
+  startDate     String?
+  duration      String?
+  prompt        String?
+  enrichMode    String    @default("basic")
   status        String    @default("draft")
   autoStart     Boolean   @default(false)
   dailyLimit    Int?
@@ -97,20 +101,20 @@ model Campaign {
   sendStartHour Int?      @default(8)
   sendEndHour   Int?      @default(18)
   totalEmails   Int?
-  enrichMode    String    @default("basic")
   sentCount     Int       @default(0)
   createdAt     DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt     DateTime  @updatedAt
 
   companies Company[]
   emails    Email[]
   jobs      Job[]
+  agentCandidates AgentCandidate[]
 }
 
 model Company {
-  id         String    @id @default(cuid())
+  id         String   @id @default(cuid())
   campaignId String
-  campaign   Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   name       String
   address    String?
   website    String?
@@ -119,9 +123,10 @@ model Company {
   siren      String?
   codeNaf    String?
   source     String?
+  score      Int?
   enriched   Json?
-  status     String    @default("scraped")
-  scrapedAt  DateTime  @default(now())
+  status     String   @default("scraped")
+  scrapedAt  DateTime @default(now())
 
   emails Email[]
 }
@@ -148,11 +153,76 @@ model ContactedCompany {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  companyName String   // Nom normalisé de l'entreprise
-  domain      String?  // Domaine du site web pour vérification supplémentaire
+  companyName String
+  domain      String?
   contactedAt DateTime @default(now())
 
   @@unique([userId, companyName])
+}
+
+// ── Agent Candidates (resultats Agent Deep Search) ───────────────────────────
+
+model AgentCandidate {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  jobId       String?
+  job         Job?     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  name        String
+  domain      String?
+  websiteUrl  String?
+  city        String?
+  description String?
+
+  source      String?
+  secteur     String?
+  jobTitle    String?
+  location    String?
+
+  status      String   @default("pending")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contacts    AgentContact[]
+
+  @@unique([jobId, domain])
+  @@index([userId, status])
+  @@index([campaignId, status])
+  @@index([jobId, status])
+}
+
+// ── Agent Contacts (contacts enrichis lies aux entreprises) ──────────────
+
+model AgentContact {
+  id                String   @id @default(cuid())
+  agentCandidateId  String
+  agentCandidate    AgentCandidate @relation(fields: [agentCandidateId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name              String
+  firstName         String?
+  lastName          String?
+  email             String?
+  title             String?
+  phone             String?
+  linkedin          String?
+
+  emailStatus       String?
+  source            String?
+
+  qualityScore      Int?
+  qualityReason     String?
+  isDecisionMaker   Boolean  @default(false)
+
+  createdAt         DateTime @default(now())
+
+  @@unique([agentCandidateId, email])
+  @@index([userId])
 }
 
 // ── Background jobs ───────────────────────────────────────────────────────────
@@ -160,22 +230,25 @@ model ContactedCompany {
 model Job {
   id             String    @id @default(cuid())
   pgbossId       String?   @unique
+  type           String    @default("campaign_generate")
   userId         String
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  campaignId     String
-  campaign       Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId     String?
+  campaign       Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   status         String    @default("pending")
   totalCompanies Int       @default(0)
   processedCount Int       @default(0)
   failedCount    Int       @default(0)
   payload        Json?
   error          String?
+  cancelRequestedAt DateTime?
   startedAt      DateTime?
   completedAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   events JobEvent[]
+  agentCandidates AgentCandidate[]
 }
 
 model JobEvent {
@@ -205,12 +278,11 @@ model EmailConfig {
 // ── Admin config (singleton) ────────────────────────────────────────────────
 
 model AppConfig {
-  id             String   @id @default("singleton")
-  maxConcurrent  Int      @default(2)   // jobs paralleles max
-  batchSize      Int      @default(3)   // entreprises traitees en parallele par job
-  pollIntervalMs Int      @default(15000) // intervalle de polling du worker (ms)
+  id             String @id @default("singleton")
+  maxConcurrent  Int    @default(2)
+  batchSize      Int    @default(3)
+  pollIntervalMs Int    @default(15000)
 
-  // Modeles IA par service
   modelEnrichissement  String @default("spark-1-mini")
   modelEnrichissement2 String @default("sonar-pro")
   modelCreationMail    String @default("gpt-5")
@@ -218,6 +290,9 @@ model AppConfig {
   modelKeywords        String @default("gpt-5")
   modelCvReader        String @default("Qwen2.5-VL-72B-Instruct")
   modelRanking         String @default("gemini-2.5-flash")
+  modelFilter          String @default("sonar-pro")
 
-  updatedAt      DateTime @updatedAt
+  filterBatchSize Int @default(1)
+
+  updatedAt DateTime @updatedAt
 }

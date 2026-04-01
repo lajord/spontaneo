@@ -47,6 +47,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const existingJob = await prisma.job.findFirst({
     where: {
       campaignId: id,
+      type: 'campaign_generate',
       status: { in: ['pending', 'running'] },
     },
     select: { id: true, payload: true },
@@ -77,6 +78,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     data: {
       userId: session.user.id,
       campaignId: id,
+      type: 'campaign_generate',
       status: 'pending',
       payload: { links, userMailTemplate, userMailSubject, poolLimit, autoStart },
     },

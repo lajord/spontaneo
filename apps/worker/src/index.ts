@@ -2,6 +2,7 @@ import http from 'http'
 import { setGlobalDispatcher, Agent } from 'undici'
 import { prisma } from './eventStore'
 import { runEnrichJob, JobPayload } from './enrichJob'
+import { runAgentJob, AgentJobPayload } from './agentJob'
 
 // Timeouts undici pour les appels longs vers FastAPI (Firecrawl/Gemini)
 setGlobalDispatcher(new Agent({
@@ -86,7 +87,7 @@ async function handleJob(jobId: string): Promise<void> {
   try {
     const job = await prisma.job.findUnique({
       where: { id: jobId },
-      select: { campaignId: true, payload: true },
+      select: { type: true, userId: true, campaignId: true, payload: true },
     })
 
     if (!job) {
@@ -95,17 +96,39 @@ async function handleJob(jobId: string): Promise<void> {
     }
 
     const payload = (job.payload ?? {}) as Record<string, unknown>
-    const jobPayload: JobPayload = {
-      jobId,
-      campaignId: job.campaignId,
-      links: (payload.links as JobPayload['links']) ?? {},
-      userMailTemplate: (payload.userMailTemplate as string) ?? null,
-      userMailSubject: (payload.userMailSubject as string) ?? null,
-      poolLimit: (payload.poolLimit as number) ?? null,
-      autoStart: (payload.autoStart as boolean) ?? false,
-    }
+    if (job.type === 'agent_search') {
+      if (!job.campaignId) {
+        throw new Error(`Agent job ${jobId} missing campaignId`)
+      }
 
-    await runEnrichJob(jobPayload)
+      const agentPayload: AgentJobPayload = {
+        jobId,
+        userId: job.userId,
+        campaignId: job.campaignId,
+        secteur: (payload.secteur as string) ?? '',
+        sousSecteur: (payload.sousSecteur as string) ?? '',
+        jobTitle: (payload.jobTitle as string) ?? '',
+        location: (payload.location as string) ?? '',
+        creditBudget: (payload.creditBudget as number) ?? null,
+        devMode: (payload.devMode as boolean) ?? false,
+      }
+      await runAgentJob(agentPayload)
+    } else {
+      if (!job.campaignId) {
+        throw new Error(`Campaign generate job ${jobId} missing campaignId`)
+      }
+
+      const jobPayload: JobPayload = {
+        jobId,
+        campaignId: job.campaignId,
+        links: (payload.links as JobPayload['links']) ?? {},
+        userMailTemplate: (payload.userMailTemplate as string) ?? null,
+        userMailSubject: (payload.userMailSubject as string) ?? null,
+        poolLimit: (payload.poolLimit as number) ?? null,
+        autoStart: (payload.autoStart as boolean) ?? false,
+      }
+      await runEnrichJob(jobPayload)
+    }
     console.log(`[worker] Completed job ${jobId}`)
   } catch (err) {
     console.error(`[worker] Failed job ${jobId}:`, err)

@@ -27,6 +27,8 @@ model User {
   emailConfig        EmailConfig?
   jobs               Job[]
   contactedCompanies ContactedCompany[]
+  agentCandidates    AgentCandidate[]
+  agentContacts      AgentContact[]
 }
 
 model Session {
@@ -101,6 +103,7 @@ model Campaign {
   companies Company[]
   emails    Email[]
   jobs      Job[]
+  agentCandidates AgentCandidate[]
 }
 
 model Company {
@@ -152,27 +155,100 @@ model ContactedCompany {
   @@unique([userId, companyName])
 }
 
+// ── Agent Candidates (résultats Agent Deep Search) ───────────────────────────
+
+model AgentCandidate {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId  String?
+  campaign    Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  jobId       String?
+  job         Job?     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  // Identité de l'entreprise
+  name        String
+  domain      String?  // Domaine extrait de l'URL (pour la déduplication)
+  websiteUrl  String?
+  city        String?
+  description String?
+
+  // Contexte de la recherche (traçabilité)
+  source      String?  // 'apollo' | 'google_maps' | 'perplexity' | 'crawl' | etc.
+  secteur     String?  // 'cabinets' | 'banques' | 'fonds'
+  jobTitle    String?  // Le poste visé ayant généré cette recherche
+  location    String?  // La ville / zone de la recherche
+
+  status      String   @default("pending") // pending | enriched | skipped
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contacts    AgentContact[]
+
+  @@unique([jobId, domain])       // Anti-doublon par run agent
+  @@index([userId, status])
+  @@index([campaignId, status])
+  @@index([jobId, status])
+}
+
+// ── Agent Contacts (contacts enrichis lies aux entreprises) ──────────────
+
+model AgentContact {
+  id                String   @id @default(cuid())
+  agentCandidateId  String
+  agentCandidate    AgentCandidate @relation(fields: [agentCandidateId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Identite du contact
+  name              String
+  firstName         String?
+  lastName          String?
+  email             String?
+  title             String?
+  phone             String?
+  linkedin          String?
+
+  // Verification email
+  emailStatus       String?  // "valid" | "invalid" | "catchall" | "unknown"
+  source            String?  // "apollo" | "perplexity" | "crawl" | "neverbounce"
+
+  // Evaluation IA (quality gate)
+  qualityScore      Int?     // 1-10
+  qualityReason     String?
+  isDecisionMaker   Boolean  @default(false)
+
+  createdAt         DateTime @default(now())
+
+  @@unique([agentCandidateId, email])
+  @@index([userId])
+}
+
 // ── Background jobs ───────────────────────────────────────────────────────────
 
 model Job {
   id             String    @id @default(cuid())
   pgbossId       String?   @unique
+  type           String    @default("campaign_generate") // campaign_generate | agent_search
   userId         String
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  campaignId     String
-  campaign       Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId     String?
+  campaign       Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   status         String    @default("pending") // pending | running | completed | failed | cancelled
   totalCompanies Int       @default(0)
   processedCount Int       @default(0)
   failedCount    Int       @default(0)
   payload        Json? // links, userMailTemplate, templatePrompt, etc.
   error          String?
+  cancelRequestedAt DateTime?
   startedAt      DateTime?
   completedAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   events JobEvent[]
+  agentCandidates AgentCandidate[]
 }
 
 // Append-only event log — permet le replay SSE via Last-Event-ID (curseur = seq)
