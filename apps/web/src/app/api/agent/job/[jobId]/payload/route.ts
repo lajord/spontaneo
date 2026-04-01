@@ -58,7 +58,7 @@ export async function PATCH(
 
   await prisma.job.update({
     where: { id: jobId },
-    data: { payload: merged },
+    data: { payload: merged as Prisma.InputJsonValue },
   })
 
   return NextResponse.json({ ok: true })
