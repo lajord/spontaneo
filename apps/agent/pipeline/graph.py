@@ -19,10 +19,59 @@ from typing import TYPE_CHECKING
 from pipeline.agent_0_plan import plan
 from pipeline.agent_deep_search import collect
 from pipeline.agent_verif_enrichissement import enrich
-from tools.candidate_store import set_agent_context
+from tools.candidate_store import set_agent_context, get_candidates_rows
 
 if TYPE_CHECKING:
     from typing import Callable
+
+
+# ── Helpers pour persister le contact_brief dans le job payload ────
+
+import os
+import requests
+
+
+def _web_url() -> str:
+    return os.getenv("WEB_URL", "http://web:3000")
+
+
+def _headers() -> dict:
+    token = os.getenv("AGENT_INTERNAL_API_TOKEN") or os.getenv("CRON_SECRET")
+    if token:
+        return {"Authorization": f"Bearer {token}"}
+    return {"X-Agent-Dev-Internal": "1"}
+
+
+def _save_contact_brief(job_id: str, contact_brief: str) -> None:
+    """Persiste le contact_brief dans le payload du job (pour la phase enrich)."""
+    if not job_id:
+        return
+    try:
+        requests.patch(
+            f"{_web_url()}/api/agent/job/{job_id}/payload",
+            json={"contact_brief": contact_brief},
+            headers=_headers(),
+            timeout=10,
+        )
+    except Exception:
+        pass
+
+
+def _load_contact_brief(job_id: str) -> str:
+    """Charge le contact_brief depuis le payload du job."""
+    if not job_id:
+        return ""
+    try:
+        resp = requests.get(
+            f"{_web_url()}/api/agent/job/{job_id}/payload",
+            headers=_headers(),
+            timeout=10,
+        )
+        if resp.ok:
+            return resp.json().get("contact_brief", "")
+    except Exception:
+        pass
+    return ""
 
 
 def run_pipeline(
@@ -35,8 +84,13 @@ def run_pipeline(
     job_id: str | None = None,
     campaign_id: str | None = None,
     location: str = "",
+    mode: str = "full",
 ) -> list[dict]:
-    """Pipeline principal : planning → collecte → enrichissement.
+    """Pipeline principal — supporte 3 modes :
+
+    - "full"    : plan → collect → enrich (comportement original)
+    - "collect" : plan → collect → sauvegarde contact_brief → stop
+    - "enrich"  : charge candidates depuis DB + contact_brief → enrich
 
     Args:
         secteur: ID du secteur (cabinets, banques, fonds)
@@ -48,9 +102,11 @@ def run_pipeline(
         job_id: ID du job en cours
         campaign_id: ID de la campagne (optionnel)
         location: Ville / zone de la recherche (pour tracabilite BDD)
+        mode: "full" | "collect" | "enrich"
 
     Returns:
-        Liste finale d'entreprises enrichies.
+        Liste finale d'entreprises (enrichies en mode full/enrich,
+        collectees en mode collect).
     """
     # — Etape 0 : Injection du contexte utilisateur (pour la BDD) —
     set_agent_context(
@@ -62,6 +118,33 @@ def run_pipeline(
         location=location,
     )
 
+    # ── MODE ENRICH : charger les données depuis la DB ──────────────
+    if mode == "enrich":
+        contact_brief = _load_contact_brief(job_id or "")
+
+        # Charger les candidates (status=pending) depuis la DB via l'API web
+        rows = get_candidates_rows()
+        candidates = [
+            {
+                "name": r.get("name", ""),
+                "websiteUrl": r.get("website_url", ""),
+                "domain": r.get("domain", ""),
+                "city": r.get("city", ""),
+                "description": r.get("description", ""),
+                "source": r.get("source", ""),
+            }
+            for r in rows
+            if r.get("status") == "pending"
+        ]
+
+        return enrich(
+            candidates=candidates,
+            log_callback=log_callback,
+            contact_brief=contact_brief,
+        )
+
+    # ── MODE COLLECT ou FULL : plan + collect ───────────────────────
+
     # — Etape 1 : Planning (analyse du job title) —
     collect_brief, contact_brief = plan(
         secteur=secteur,
@@ -70,7 +153,7 @@ def run_pipeline(
         log_callback=log_callback,
     )
 
-    # — Etape 1 : Collecte —
+    # — Etape 2 : Collecte —
     candidates = collect(
         query=query,
         collect_brief=collect_brief,
@@ -78,7 +161,14 @@ def run_pipeline(
         batch_size=target_count,
     )
 
-    # — Etape 2 : Enrichissement —
+    if mode == "collect":
+        # Persister le contact_brief pour la phase enrich ulterieure
+        _save_contact_brief(job_id or "", contact_brief)
+        return candidates
+
+    # ── MODE FULL : enchainer avec l'enrichissement ─────────────────
+
+    # — Etape 3 : Enrichissement —
     enriched = enrich(
         candidates=candidates,
         log_callback=log_callback,

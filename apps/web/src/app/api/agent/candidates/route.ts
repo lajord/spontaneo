@@ -128,6 +128,22 @@ export async function POST(req: NextRequest) {
     skipDuplicates: true,
   })
 
+  // ── Sync Company records ───────────────────────────────────────────
+  // Pour que le worker email-gen (qui lit campaign.companies) puisse traiter ces entreprises.
+  if (job.campaignId) {
+    await prisma.company.createMany({
+      data: toInsert.map((company) => ({
+        campaignId: job.campaignId!,
+        name: company.name,
+        website: getCompanyWebsite(company) ?? null,
+        address: company.city ?? null,
+        source: company.source ?? null,
+        status: 'scraped',
+      })),
+      skipDuplicates: true,
+    })
+  }
+
   const total = await prisma.agentCandidate.count({ where: { jobId } })
   const duplicates = companies.length - created.count
 

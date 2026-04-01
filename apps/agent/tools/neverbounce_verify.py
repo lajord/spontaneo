@@ -1,16 +1,11 @@
 import json
 import os
-import requests
+import neverbounce_sdk
 from langchain_core.tools import tool
-
-from config import HTTP_TIMEOUT_NEVERBOUNCE
-
-
-NB_BASE_URL = "https://api.neverbounce.com/v4"
 
 
 def _get_neverbounce_key():
-    return os.getenv("NEVERBOUNCE_API_KEY", "")
+    return os.getenv("NEVER_BOUNCE_API", "")
 
 
 @tool
@@ -46,50 +41,27 @@ def neverbounce_verify(email: str) -> str:
         return json.dumps({
             "email": email,
             "result": "unknown",
-            "message": "NEVERBOUNCE_API_KEY non configuree. Verification impossible.",
+            "message": "NEVER_BOUNCE_API non configuree. Verification impossible.",
         })
 
     print(f"  [NEVERBOUNCE] Verification: {email}")
 
     try:
-        response = requests.get(
-            f"{NB_BASE_URL}/single/check",
-            params={"key": api_key, "email": email, "timeout": HTTP_TIMEOUT_NEVERBOUNCE - 5},
-            timeout=HTTP_TIMEOUT_NEVERBOUNCE,
+        client = neverbounce_sdk.client(api_key=api_key)
+        verification = client.single_check(
+            email=email,
+            address_info=True,
+            credits_info=True,
+            timeout=10,
         )
 
-        if not response.ok:
-            print(f"  [NEVERBOUNCE ERROR] HTTP {response.status_code}")
-            return json.dumps({
-                "email": email,
-                "result": "unknown",
-                "message": f"Erreur HTTP {response.status_code}",
-            })
-
-        data = response.json()
-
-        if data.get("status") == "success":
-            result = data.get("result", "unknown")
-            print(f"  [NEVERBOUNCE] {email} → {result}")
-            return json.dumps({
-                "email": email,
-                "result": result,
-            })
-
-        print(f"  [NEVERBOUNCE] Status non-success: {data.get('status')}")
+        result = verification.get("result", "unknown")
+        print(f"  [NEVERBOUNCE] {email} → {result}")
         return json.dumps({
             "email": email,
-            "result": "unknown",
-            "message": f"NeverBounce status: {data.get('status')}",
+            "result": result,
         })
 
-    except requests.exceptions.Timeout:
-        print(f"  [NEVERBOUNCE] Timeout pour {email}")
-        return json.dumps({
-            "email": email,
-            "result": "unknown",
-            "message": "Timeout NeverBounce (35s)",
-        })
     except Exception as e:
         print(f"  [NEVERBOUNCE ERROR] {type(e).__name__}: {e}")
         return json.dumps({
