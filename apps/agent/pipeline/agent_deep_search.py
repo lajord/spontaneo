@@ -59,7 +59,7 @@ def _compact_messages(state: dict) -> list:
     for i, msg in enumerate(messages):
         if msg.type == "tool" and i < last_ai_idx:
             result.append(ToolMessage(
-                content="[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN CSV]",
+                content="[RESULTAT DEJA TRAITE — DONNEES SAUVEGARDEES EN BDD]",
                 tool_call_id=msg.tool_call_id,
                 name=msg.name if hasattr(msg, "name") else "",
             ))

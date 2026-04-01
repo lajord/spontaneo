@@ -6,7 +6,7 @@ from .candidate_store import save_candidates, read_candidates_summary, read_next
 from .perplexity_search import perplexity_search
 from .apollo_people import apollo_people_search
 from .neverbounce_verify import neverbounce_verify
-from .enrichment_store import save_enrichment, read_enrichment_summary, ENRICHED_CSV
+from .enrichment_store import save_enrichment, read_enrichment_summary
 from .buffer_store import save_to_buffer, evaluate_findings, cleanup_buffer
 
 __all__ = [
@@ -14,6 +14,6 @@ __all__ = [
     "crawl_url",
     "save_candidates", "read_candidates_summary", "read_next_candidate",
     "perplexity_search", "apollo_people_search", "neverbounce_verify",
-    "save_enrichment", "read_enrichment_summary", "ENRICHED_CSV",
+    "save_enrichment", "read_enrichment_summary",
     "save_to_buffer", "evaluate_findings", "cleanup_buffer",
 ]
