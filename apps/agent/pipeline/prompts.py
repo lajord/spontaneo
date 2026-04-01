@@ -175,7 +175,10 @@ Pour chaque contact dans le buffer qui n'a PAS encore d'email :
 1. Si un pattern a ete deduit en Etape 2, utilise-le en priorite.
 2. Sinon genere les variantes : prenom.nom@domaine, p.nom@domaine, nom.prenom@domaine, prenomnom@domaine.
 3. Teste chaque email avec **neverbounce_verify**.
-4. Appelle **save_to_buffer** avec les resultats de verification.
+4. **CRUCIAL** : neverbounce_verify retourne un champ "email_status". Si email_status = "valid" ou "catchall" :
+   -> L'email EST BON. Appelle immediatement **save_to_buffer** avec le contact ET le champ "email_status" rempli.
+   -> Puis passe au contact suivant. Ne reteste PAS d'autres variantes pour ce contact.
+5. Si email_status = "invalid" ou "disposable" -> essaie la variante suivante.
 
 RETENIR LE PATTERN VALIDE :
 Si un test NeverBounce revient "valid" ou "catchall" pour un pattern donne, applique ce meme pattern

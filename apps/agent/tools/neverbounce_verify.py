@@ -57,9 +57,23 @@ def neverbounce_verify(email: str) -> str:
 
         result = verification.get("result", "unknown")
         print(f"  [NEVERBOUNCE] {email} → {result}")
+
+        if result in ("valid", "catchall"):
+            action = (
+                f"EMAIL VERIFIE OK. Mets a jour le contact dans save_to_buffer "
+                f"avec email_status=\"{result}\". Cet email est bon, passe au suivant."
+            )
+        elif result == "invalid":
+            action = "Email INVALIDE. Ne sauvegarde PAS cet email. Essaie une autre variante."
+        elif result == "disposable":
+            action = "Email JETABLE. Ne sauvegarde PAS cet email. Essaie une autre variante."
+        else:
+            action = "Resultat incertain. Tu peux reessayer ou passer a une autre variante."
+
         return json.dumps({
             "email": email,
-            "result": result,
+            "email_status": result,
+            "action": action,
         })
 
     except Exception as e:

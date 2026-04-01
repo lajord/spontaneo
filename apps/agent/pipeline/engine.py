@@ -143,6 +143,10 @@ def stream_agent(
                                     last_tool_name = tool_call["name"]
                                     args_short = str(tool_call["args"])[:LOG_TOOL_ARGS_MAX_CHARS]
                                     emit({"type": "tool_call", "name": tool_call["name"], "args": args_short}, log_callback)
+                                    if tool_call["name"] == "crawl_url":
+                                        crawl_target = tool_call["args"].get("url", "") if isinstance(tool_call["args"], dict) else ""
+                                        if crawl_target:
+                                            emit({"type": "log", "phase": phase_name, "message": f"[CRAWL] {crawl_target}"}, log_callback)
 
                             if hasattr(msg, "usage_metadata") and msg.usage_metadata:
                                 in_tokens = msg.usage_metadata.get("input_tokens", 0)
@@ -160,6 +164,16 @@ def stream_agent(
                         elif msg.type == "tool":
                             content = msg.content if isinstance(msg.content, str) else str(msg.content)
                             emit({"type": "tool_result", "message": content[:LOG_TOOL_RESULT_MAX_CHARS]}, log_callback)
+                            if last_tool_name == "neverbounce_verify":
+                                try:
+                                    import json as _json
+                                    nb_data = _json.loads(content)
+                                    nb_email = nb_data.get("email", "?")
+                                    nb_status = nb_data.get("email_status", nb_data.get("result", "?"))
+                                    label = nb_status.upper() if nb_status else "?"
+                                    emit({"type": "log", "phase": phase_name, "message": f"[NEVERBOUNCE] {nb_email} → {label}"}, log_callback)
+                                except Exception:
+                                    pass
                             if last_tool_name == "save_candidates":
                                 emit_csv_update(log_callback, "candidates")
                                 if quota is not None:
