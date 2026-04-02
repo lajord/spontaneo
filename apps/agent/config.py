@@ -33,11 +33,11 @@ STREAM_RETRY_DELAY = 65           # base en secondes (x attempt)
 
 # Agent 1 — Collecte
 AGENT1_RECURSION_LIMIT = 25       # steps LangGraph max
-AGENT1_DEFAULT_BATCH_SIZE = 100   # candidats cibles par iteration
+AGENT1_DEFAULT_BATCH_SIZE = 10 # candidats cibles par iteration
 
 # Agent 3 — Enrichissement (4 sous-agents)
-AGENT3A_RECURSION_LIMIT = 15      # 3A : Crawl site web
-AGENT3B_RECURSION_LIMIT = 10   # 3B : Recherche Perplexity/Apollo
+AGENT3A_RECURSION_LIMIT = 20      # 3A : Crawl site web
+AGENT3B_RECURSION_LIMIT = 30   # 3B : Recherche Perplexity/Apollo
 AGENT3C_RECURSION_LIMIT = 20      # 3C : Verification emails
 AGENT3D_RECURSION_LIMIT = 15      # 3D : Qualification + sauvegarde
 AGENT3_TARGET_CONTACTS = 3        # objectif de contacts qualifies par entreprise
