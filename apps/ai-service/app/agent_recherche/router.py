@@ -22,6 +22,7 @@ _AGENT_PKG = _DOCKER_PKG if os.path.isdir(_DOCKER_PKG) else _LOCAL_PKG
 if _AGENT_PKG not in sys.path:
     sys.path.insert(0, _AGENT_PKG)
 
+from pipeline.engine import append_debug_text
 from pipeline.graph import run_pipeline
 from runtime import set_cancel_checker
 
@@ -85,20 +86,17 @@ async def run_agent(request: Request, payload: AgentRunRequest):
         loop = asyncio.get_event_loop()
         target_count = _resolve_target_count(payload)
 
-        try:
-            with open("debug_prompt.txt", "w", encoding="utf-8") as f:
-                f.write(
-                    "=== NOUVELLE RECHERCHE ===\n"
-                    f"Secteur: {payload.secteur}\n"
-                    f"Sous-secteur: {payload.sous_secteur}\n"
-                    f"Job Title: {payload.job_title}\n"
-                    f"Lieu: {payload.location}\n"
-                    f"Campaign ID: {payload.campaign_id}\n"
-                    f"Job ID: {payload.job_id}\n"
-                    f"Credit budget: {payload.credit_budget}\n"
-                )
-        except Exception:
-            pass
+        append_debug_text(
+            "\n" + "=" * 60 + "\n"
+            "=== NOUVELLE RECHERCHE ===\n"
+            f"Secteur: {payload.secteur}\n"
+            f"Sous-secteur: {payload.sous_secteur}\n"
+            f"Job Title: {payload.job_title}\n"
+            f"Lieu: {payload.location}\n"
+            f"Campaign ID: {payload.campaign_id}\n"
+            f"Job ID: {payload.job_id}\n"
+            f"Credit budget: {payload.credit_budget}\n"
+        )
 
         usage_stats = {"input": 0, "output": 0}
 

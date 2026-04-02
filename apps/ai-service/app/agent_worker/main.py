@@ -33,8 +33,15 @@ async def worker_loop() -> None:
     if not settings.DATABASE_URL:
         raise RuntimeError("DATABASE_URL manquant pour agent-worker")
 
+    logger.info(
+        "[agent-worker] Booting with max_concurrent=%s poll_interval_ms=%s stale_threshold_seconds=%s",
+        MAX_CONCURRENT,
+        POLL_INTERVAL_MS,
+        STALE_THRESHOLD_SECONDS,
+    )
     pool = await create_pool(settings.DATABASE_URL)
     active_tasks: set[asyncio.Task] = set()
+    idle_polls = 0
 
     try:
         recovered = await recover_stale_jobs(pool, STALE_THRESHOLD_SECONDS)
@@ -53,6 +60,12 @@ async def worker_loop() -> None:
                 task = asyncio.create_task(run_agent_job(pool, job))
                 task.add_done_callback(_log_task_result)
                 active_tasks.add(task)
+                idle_polls = 0
+
+            if not active_tasks:
+                idle_polls += 1
+                if idle_polls == 1 or idle_polls % 12 == 0:
+                    logger.info("[agent-worker] No pending agent job found. Waiting...")
 
             await asyncio.sleep(POLL_INTERVAL_MS / 1000)
     finally:

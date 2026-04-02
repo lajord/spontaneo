@@ -1,7 +1,11 @@
 import json
 import os
-import neverbounce_sdk
 from langchain_core.tools import tool
+
+try:
+    import neverbounce_sdk
+except ModuleNotFoundError:
+    neverbounce_sdk = None
 
 
 def _get_neverbounce_key():
@@ -42,6 +46,13 @@ def neverbounce_verify(email: str) -> str:
             "email": email,
             "result": "unknown",
             "message": "NEVER_BOUNCE_API non configuree. Verification impossible.",
+        })
+
+    if neverbounce_sdk is None:
+        return json.dumps({
+            "email": email,
+            "result": "unknown",
+            "message": "Module neverbounce_sdk non installe. Verification impossible.",
         })
 
     print(f"  [NEVERBOUNCE] Verification: {email}")

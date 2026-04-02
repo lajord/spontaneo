@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
@@ -23,6 +24,23 @@ if TYPE_CHECKING:
     from typing import Callable
 
 load_dotenv()
+
+
+def _debug_prompt_path() -> Path:
+    configured = os.getenv("DEBUG_PROMPT_PATH", "").strip()
+    if configured:
+        return Path(configured)
+    return Path(__file__).resolve().parents[2] / "ai-service" / "debug_prompt.txt"
+
+
+def append_debug_text(text: str) -> None:
+    try:
+        debug_path = _debug_prompt_path()
+        debug_path.parent.mkdir(parents=True, exist_ok=True)
+        with debug_path.open("a", encoding="utf-8") as f:
+            f.write(text)
+    except Exception:
+        pass
 
 
 def build_llm(
@@ -91,6 +109,16 @@ def emit_csv_update(callback: Callable | None, csv_type: str) -> None:
     emit({"type": "csv_update", "csv_type": csv_type, "rows": rows}, callback)
 
 
+def append_debug_prompt(phase_name: str, system_prompt: str, user_message: str) -> None:
+    append_debug_text(
+        f"\n{'=' * 50}\n"
+        f"PROMPT ({phase_name})\n"
+        f"{'=' * 50}\n\n"
+        f"[SYSTEM]\n{system_prompt}\n\n"
+        f"[USER]\n{user_message}\n\n"
+    )
+
+
 def stream_agent(
     agent,
     system_prompt: str,
@@ -100,15 +128,7 @@ def stream_agent(
     log_callback: Callable | None = None,
     quota: int | None = None,
 ) -> str:
-    try:
-        with open("debug_prompt.txt", "a", encoding="utf-8") as f:
-            f.write(f"\n{'=' * 50}\n")
-            f.write(f"PROMPT ({phase_name})\n")
-            f.write(f"{'=' * 50}\n\n")
-            f.write(f"[SYSTEM]\n{system_prompt}\n\n")
-            f.write(f"[USER]\n{user_message}\n\n")
-    except Exception:
-        pass
+    append_debug_prompt(phase_name, system_prompt, user_message)
 
     inputs = {
         "messages": [
@@ -163,7 +183,14 @@ def stream_agent(
 
                         elif msg.type == "tool":
                             content = msg.content if isinstance(msg.content, str) else str(msg.content)
-                            emit({"type": "tool_result", "message": content[:LOG_TOOL_RESULT_MAX_CHARS]}, log_callback)
+                            emit(
+                                {
+                                    "type": "tool_result",
+                                    "name": last_tool_name or "",
+                                    "message": content[:LOG_TOOL_RESULT_MAX_CHARS],
+                                },
+                                log_callback,
+                            )
                             if last_tool_name == "neverbounce_verify":
                                 try:
                                     import json as _json

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from typing import Callable
 
 
-# ── Helpers pour persister le contact_brief dans le job payload ────
+# ── Helpers pour persister les briefs dans le job payload ────
 
 import os
 import requests
@@ -42,14 +42,17 @@ def _headers() -> dict:
     return {"X-Agent-Dev-Internal": "1"}
 
 
-def _save_contact_brief(job_id: str, contact_brief: str) -> None:
-    """Persiste le contact_brief dans le payload du job (pour la phase enrich)."""
+def _save_briefs(job_id: str, collect_brief: str, contact_brief: str) -> None:
+    """Persiste les briefs dans le payload du job (pour la phase enrich)."""
     if not job_id:
         return
     try:
         requests.patch(
             f"{_web_url()}/api/agent/job/{job_id}/payload",
-            json={"contact_brief": contact_brief},
+            json={
+                "collect_brief": collect_brief,
+                "contact_brief": contact_brief,
+            },
             headers=_headers(),
             timeout=10,
         )
@@ -57,10 +60,10 @@ def _save_contact_brief(job_id: str, contact_brief: str) -> None:
         pass
 
 
-def _load_contact_brief(job_id: str) -> str:
-    """Charge le contact_brief depuis le payload du job."""
+def _load_briefs(job_id: str) -> tuple[str, str]:
+    """Charge collect_brief et contact_brief depuis le payload du job."""
     if not job_id:
-        return ""
+        return "", ""
     try:
         resp = requests.get(
             f"{_web_url()}/api/agent/job/{job_id}/payload",
@@ -68,10 +71,11 @@ def _load_contact_brief(job_id: str) -> str:
             timeout=10,
         )
         if resp.ok:
-            return resp.json().get("contact_brief", "")
+            data = resp.json()
+            return data.get("collect_brief", ""), data.get("contact_brief", "")
     except Exception:
         pass
-    return ""
+    return "", ""
 
 
 def run_pipeline(
@@ -120,7 +124,7 @@ def run_pipeline(
 
     # ── MODE ENRICH : charger les données depuis la DB ──────────────
     if mode == "enrich":
-        contact_brief = _load_contact_brief(job_id or "")
+        collect_brief, contact_brief = _load_briefs(job_id or "")
 
         # Charger les candidates (status=pending) depuis la DB via l'API web
         rows = get_candidates_rows()
@@ -141,6 +145,7 @@ def run_pipeline(
             candidates=candidates,
             log_callback=log_callback,
             contact_brief=contact_brief,
+            collect_brief=collect_brief,
         )
 
     # ── MODE COLLECT ou FULL : plan + collect ───────────────────────
@@ -162,8 +167,8 @@ def run_pipeline(
     )
 
     if mode == "collect":
-        # Persister le contact_brief pour la phase enrich ulterieure
-        _save_contact_brief(job_id or "", contact_brief)
+        # Persister les briefs pour la phase enrich ulterieure
+        _save_briefs(job_id or "", collect_brief, contact_brief)
         return candidates
 
     # ── MODE FULL : enchainer avec l'enrichissement ─────────────────
@@ -173,6 +178,7 @@ def run_pipeline(
         candidates=candidates,
         log_callback=log_callback,
         contact_brief=contact_brief,
+        collect_brief=collect_brief,
     )
 
     return enriched

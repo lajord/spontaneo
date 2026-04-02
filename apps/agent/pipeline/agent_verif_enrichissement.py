@@ -1,29 +1,41 @@
 # ──────────────────────────────────────────────────────────────────
-# AGENT 3 — ENRICHISSEMENT DES ENTREPRISES
+# AGENT 3 — ENRICHISSEMENT DES ENTREPRISES (4 sous-agents)
 #
 # Role : Pour chaque entreprise, trouver les contacts decideurs
-#        (noms, prenoms, emails).
+#        (noms, prenoms, emails) et verifier leur pertinence.
 # Input : Liste d'entreprises collectees.
-# Output : Entreprises enrichies avec contacts.
+# Output : Entreprises enrichies avec contacts qualifies.
 #
-# Processing : UN run d'agent ReAct par entreprise.
-# Pipeline lineaire : crawl site → perplexity → genere/verifie emails → sauvegarde.
-# Pas de boucle, pas de second tour.
+# Pipeline : 4 sous-agents par entreprise :
+#   3A  Crawl site web       → extraire noms/emails, deduire pattern
+#   3B  Recherche web/Apollo → completer les contacts
+#   3C  Verification emails  → generer/verifier avec NeverBounce
+#   3D  Qualification + Save → filtrer vs brief, sauvegarder
 #
-# Outils : crawl_url, perplexity_search, apollo_people_search,
-#           neverbounce_verify, save_enrichment, read_enrichment_summary
+# Etat partage : buffer JSONL par entreprise (tools/buffer_store.py)
 # ──────────────────────────────────────────────────────────────────
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import ToolMessage
 
-from config import AGENT3_RECURSION_LIMIT
-from pipeline.engine import build_llm, emit, stream_agent, emit_csv_update
-from pipeline.prompts import build_enrich_prompt, build_enrich_user_message
+from config import (
+    AGENT3A_RECURSION_LIMIT,
+    AGENT3B_RECURSION_LIMIT,
+    AGENT3C_RECURSION_LIMIT,
+    AGENT3D_RECURSION_LIMIT,
+)
+from pipeline.engine import append_debug_prompt, build_llm, emit, stream_agent, emit_csv_update
+from pipeline.prompts import (
+    build_crawl_prompt, build_crawl_user_message,
+    build_search_prompt, build_search_user_message,
+    build_verify_prompt, build_verify_user_message,
+    build_qualify_prompt, build_qualify_user_message,
+)
 from tools.crawl4ai_tool import crawl_url
 from tools.perplexity_search import perplexity_search
 from tools.apollo_people import apollo_people_search
@@ -34,6 +46,8 @@ from tools.buffer_store import save_to_buffer, evaluate_findings, cleanup_buffer
 if TYPE_CHECKING:
     from typing import Callable
 
+
+# ── Helpers ────────────────────────────────────────────────────────
 
 def _compact_messages(state: dict) -> list:
     """Compacte les vieux resultats de tools pour economiser les tokens."""
@@ -68,16 +82,44 @@ def _read_enriched_for_company(company_name: str) -> list[dict]:
     ]
 
 
+def _get_buffer_summary(company_name: str) -> str:
+    """Appelle evaluate_findings pour obtenir le resume du buffer."""
+    try:
+        return evaluate_findings.invoke(company_name)
+    except Exception:
+        return "Buffer vide ou erreur de lecture."
+
+
+_PATTERN_RE = re.compile(r"pattern[:\s]+([\w.]+@[\w.]+)", re.IGNORECASE)
+
+
+def _extract_email_pattern(last_ai_text: str) -> str:
+    """Extrait le pattern email du dernier message AI du sous-agent crawl."""
+    if not last_ai_text:
+        return ""
+    match = _PATTERN_RE.search(last_ai_text)
+    if match:
+        return match.group(1)
+    # Chercher des patterns courants mentionnes dans le texte
+    for pattern in ["prenom.nom@", "p.nom@", "nom.prenom@", "firstname.lastname@"]:
+        if pattern in last_ai_text.lower():
+            return pattern
+    return ""
+
+
+# ── Orchestration principale ──────────────────────────────────────
+
 def enrich(
     candidates: list[dict],
     log_callback: Callable | None = None,
     contact_brief: str = "",
+    collect_brief: str = "",
     **kwargs,
 ) -> list[dict]:
     """Enrichit les entreprises avec les contacts decideurs.
 
-    Pipeline lineaire par entreprise : crawl → perplexity → emails → sauvegarde.
-    Pas de quality check ni de second tour.
+    4 sous-agents par entreprise :
+      3A (crawl) → 3B (search) → 3C (verify) → 3D (qualify & save)
     """
     emit(
         {"type": "phase", "name": "ENRICHISSEMENT", "message": "AGENT 3 — ENRICHISSEMENT"},
@@ -92,19 +134,29 @@ def enrich(
         return []
 
     llm = build_llm()
-    tools = [
-        crawl_url,
-        perplexity_search,
-        apollo_people_search,
-        neverbounce_verify,
-        save_to_buffer,
-        evaluate_findings,
-        save_enrichment,
-        read_enrichment_summary,
-    ]
-    agent = create_react_agent(
+
+    # ── 4 agents specialises (crees une seule fois) ───────────
+    crawl_agent = create_react_agent(
         model=llm,
-        tools=tools,
+        tools=[crawl_url, save_to_buffer],
+        prompt=_compact_messages,
+    )
+    search_agent = create_react_agent(
+        model=llm,
+        tools=[perplexity_search, apollo_people_search, save_to_buffer],
+        prompt=_compact_messages,
+    )
+    verify_agent = create_react_agent(
+        model=llm,
+        tools=[neverbounce_verify, save_to_buffer],
+        prompt=_compact_messages,
+    )
+    qualify_agent = create_react_agent(
+        model=llm,
+        tools=[
+            perplexity_search, evaluate_findings, save_to_buffer,
+            save_enrichment, read_enrichment_summary,
+        ],
         prompt=_compact_messages,
     )
 
@@ -112,38 +164,111 @@ def enrich(
 
     for i, company in enumerate(candidates):
         company_name = company.get("name", "Inconnu")
+        total = len(candidates)
 
+        # ── 3A — Crawl du site web ────────────────────────────
         emit(
             {
                 "type": "progress",
                 "phase": "enrichissement",
                 "current": i + 1,
-                "target": len(candidates),
-                "message": f"Enrichissement de {company_name} ({i + 1}/{len(candidates)})...",
+                "target": total,
+                "message": f"[3A] Crawl de {company_name} ({i + 1}/{total})...",
             },
             log_callback,
         )
-
-        system_prompt = build_enrich_prompt(
-            company=company,
-            contact_brief=contact_brief,
-        )
-        user_message = build_enrich_user_message(company)
-
-        # Un seul passage, pipeline lineaire
-        stream_agent(
-            agent=agent,
-            system_prompt=system_prompt,
-            user_message=user_message,
-            recursion_limit=AGENT3_RECURSION_LIMIT,
-            phase_name="ENRICHISSEMENT",
+        crawl_system_prompt = build_crawl_prompt(company, contact_brief, collect_brief)
+        crawl_user_message = build_crawl_user_message(company)
+        append_debug_prompt("ENRICHISSEMENT_3A", crawl_system_prompt, crawl_user_message)
+        crawl_result = stream_agent(
+            agent=crawl_agent,
+            system_prompt=crawl_system_prompt,
+            user_message=crawl_user_message,
+            recursion_limit=AGENT3A_RECURSION_LIMIT,
+            phase_name="ENRICHISSEMENT_3A",
             log_callback=log_callback,
         )
 
-        # Nettoyer le buffer
+        # Extraire le pattern email du dernier message AI
+        email_pattern = _extract_email_pattern(crawl_result or "")
+        buffer_summary = _get_buffer_summary(company_name)
+
+        # ── 3B — Recherche web/Apollo ─────────────────────────
+        emit(
+            {
+                "type": "progress",
+                "phase": "enrichissement",
+                "current": i + 1,
+                "target": total,
+                "message": f"[3B] Recherche contacts {company_name} ({i + 1}/{total})...",
+            },
+            log_callback,
+        )
+        search_system_prompt = build_search_prompt(company, contact_brief, buffer_summary)
+        search_user_message = build_search_user_message(company)
+        append_debug_prompt("ENRICHISSEMENT_3B", search_system_prompt, search_user_message)
+        stream_agent(
+            agent=search_agent,
+            system_prompt=search_system_prompt,
+            user_message=search_user_message,
+            recursion_limit=AGENT3B_RECURSION_LIMIT,
+            phase_name="ENRICHISSEMENT_3B",
+            log_callback=log_callback,
+        )
+
+        buffer_summary = _get_buffer_summary(company_name)
+
+        # ── 3C — Verification emails ─────────────────────────
+        emit(
+            {
+                "type": "progress",
+                "phase": "enrichissement",
+                "current": i + 1,
+                "target": total,
+                "message": f"[3C] Verification emails {company_name} ({i + 1}/{total})...",
+            },
+            log_callback,
+        )
+        verify_system_prompt = build_verify_prompt(company, buffer_summary, email_pattern)
+        verify_user_message = build_verify_user_message(company)
+        append_debug_prompt("ENRICHISSEMENT_3C", verify_system_prompt, verify_user_message)
+        stream_agent(
+            agent=verify_agent,
+            system_prompt=verify_system_prompt,
+            user_message=verify_user_message,
+            recursion_limit=AGENT3C_RECURSION_LIMIT,
+            phase_name="ENRICHISSEMENT_3C",
+            log_callback=log_callback,
+        )
+
+        buffer_summary = _get_buffer_summary(company_name)
+
+        # ── 3D — Qualification et sauvegarde ──────────────────
+        emit(
+            {
+                "type": "progress",
+                "phase": "enrichissement",
+                "current": i + 1,
+                "target": total,
+                "message": f"[3D] Qualification contacts {company_name} ({i + 1}/{total})...",
+            },
+            log_callback,
+        )
+        qualify_system_prompt = build_qualify_prompt(company, contact_brief, buffer_summary)
+        qualify_user_message = build_qualify_user_message(company)
+        append_debug_prompt("ENRICHISSEMENT_3D", qualify_system_prompt, qualify_user_message)
+        stream_agent(
+            agent=qualify_agent,
+            system_prompt=qualify_system_prompt,
+            user_message=qualify_user_message,
+            recursion_limit=AGENT3D_RECURSION_LIMIT,
+            phase_name="ENRICHISSEMENT_3D",
+            log_callback=log_callback,
+        )
+
+        # ── Nettoyage et lecture resultats ─────────────────────
         cleanup_buffer(company_name)
 
-        # Lire les contacts sauvegardes
         company_contacts = _read_enriched_for_company(company_name)
 
         enriched_company = dict(company)

@@ -5,9 +5,13 @@ from .crawl4ai_tool import crawl_url
 from .candidate_store import save_candidates, read_candidates_summary, read_next_candidate
 from .perplexity_search import perplexity_search
 from .apollo_people import apollo_people_search
-from .neverbounce_verify import neverbounce_verify
 from .enrichment_store import save_enrichment, read_enrichment_summary
 from .buffer_store import save_to_buffer, evaluate_findings, cleanup_buffer
+
+try:
+    from .neverbounce_verify import neverbounce_verify
+except ModuleNotFoundError:
+    neverbounce_verify = None
 
 __all__ = [
     "apollo_search", "web_search_legal", "google_maps_search",

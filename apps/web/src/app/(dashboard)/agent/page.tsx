@@ -98,6 +98,20 @@ function parseTokenLog(message: string, cumulativeCost: number): { text: string;
   }
 }
 
+function parseSubStepFromMessage(message: string): string | null {
+  const upper = message.toUpperCase()
+  if (upper.includes('## ÉTAPE 1') || upper.includes('## ETAPE 1')) return 'SOUS ETAPE 3A'
+  if (upper.includes('## ÉTAPE 2') || upper.includes('## ETAPE 2')) return 'SOUS ETAPE 3B'
+  if (upper.includes('## ÉTAPE 3') || upper.includes('## ETAPE 3')) return 'SOUS ETAPE 3C'
+  if (upper.includes('## ÉTAPE 4') || upper.includes('## ETAPE 4')) return 'SOUS ETAPE 3D'
+  return null
+}
+
+function extractUrlFromToolArgs(args: string): string {
+  const match = args.match(/https?:\/\/[^\s'",}]+/i)
+  return match?.[0] || ''
+}
+
 export default function AgentPage() {
   const [jobTitle, setJobTitle] = useState('')
   const [location, setLocation] = useState('')
@@ -162,6 +176,14 @@ export default function AgentPage() {
       case 'log':
         {
           const rawMessage = String(event.message || '')
+          if (rawMessage.startsWith('[CRAWL]')) break
+
+          const subStep = parseSubStepFromMessage(rawMessage)
+          if (subStep) {
+            addLog(subStep, '#a78bfa')
+            break
+          }
+
           const tokenCost = getTokenLogCost(rawMessage)
           if (tokenCost !== null) {
             cumulativeTokenCostRef.current += tokenCost
@@ -176,13 +198,35 @@ export default function AgentPage() {
         }
         break
       case 'tool_call':
-        if (event.name === 'crawl_url') break
+        if (event.name === 'crawl_url') {
+          const crawlUrl = extractUrlFromToolArgs(String(event.args || ''))
+          addLog(`[TOOL] [CRAWL] ${crawlUrl || String(event.args || '')}`, '#fbbf24')
+          break
+        }
+        if (event.name === 'save_to_buffer') {
+          addLog(`[TOOL] save_to_buffer(${event.args})`, '#22c55e')
+          break
+        }
         addLog(`[TOOL] ${event.name}(${event.args})`, '#fbbf24')
         break
       case 'tool_result':
+        if (event.name === 'crawl_url') break
+        if (event.name) {
+          addLog(`[RESULT] ${event.name} -> ${String(event.message || '')}`, '#f59e0b')
+          break
+        }
+        addLog(`[RESULT] ${String(event.message || '')}`, '#f59e0b')
         break
       case 'progress':
-        addLog(`[PROGRESS] ${event.message}`, '#a78bfa')
+        {
+          const rawMessage = String(event.message || '')
+          const match = rawMessage.match(/\[(3[A-D])\]/i)
+          if (match) {
+            addLog(`SOUS ETAPE ${match[1].toUpperCase()}`, '#a78bfa')
+            break
+          }
+          addLog(`[PROGRESS] ${rawMessage}`, '#a78bfa')
+        }
         break
       case 'csv_update':
         if (event.csv_type === 'candidates') setCandidates(event.rows || [])

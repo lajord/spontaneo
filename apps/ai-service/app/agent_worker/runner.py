@@ -36,6 +36,30 @@ CREDITS_PER_COMPANY = 2
 DEFAULT_AGENT_TARGET_COUNT = 10
 
 
+def _summarize_event_for_log(event: dict[str, Any]) -> str:
+    event_type = str(event.get("type") or "event")
+    if event_type == "phase":
+        return f"[PHASE] {event.get('name', '')} - {event.get('message', '')}"
+    if event_type == "progress":
+        return f"[PROGRESS] {event.get('message', '')}"
+    if event_type == "tool_call":
+        return f"[TOOL] {event.get('name', '')}({str(event.get('args', ''))[:300]})"
+    if event_type == "tool_result":
+        return f"[RESULT] {str(event.get('message', ''))[:500]}"
+    if event_type == "error":
+        return f"[ERROR] {event.get('message', '')}"
+    if event_type == "config":
+        return (
+            f"[CONFIG] {event.get('secteur', '')} / {event.get('sous_secteur', '')} / "
+            f"{event.get('job_title', '')} / {event.get('location', '')}"
+        )
+    if event_type == "complete":
+        return "[COMPLETE] Pipeline termine"
+    if event_type == "cancelled":
+        return f"[CANCELLED] {event.get('message', '')}"
+    return f"[{event_type.upper()}] {str(event.get('message', ''))[:500]}"
+
+
 def resolve_target_count(payload: dict[str, Any]) -> int:
     credit_budget = payload.get("creditBudget")
     if isinstance(credit_budget, int) and credit_budget > 0:
@@ -84,7 +108,13 @@ async def run_agent_job(pool: asyncpg.Pool, job: AgentJob) -> None:
 
     def track_future(fut: concurrent.futures.Future) -> None:
         pending_writes.add(fut)
-        fut.add_done_callback(lambda done: pending_writes.discard(done))
+        def _on_done(done: concurrent.futures.Future) -> None:
+            pending_writes.discard(done)
+            try:
+                done.result()
+            except Exception:
+                logger.exception("[agent-worker] Job %s failed while persisting event", job.id)
+        fut.add_done_callback(_on_done)
 
     async def emit(payload_event: dict) -> None:
         async with pool.acquire() as conn:
@@ -93,6 +123,7 @@ async def run_agent_job(pool: asyncpg.Pool, job: AgentJob) -> None:
     def log_callback(event: dict) -> None:
         if stop_event.is_set():
             raise InterruptedError("Agent stopped by user")
+        logger.info("[agent-worker][job:%s] %s", job.id, _summarize_event_for_log(event))
         fut = asyncio.run_coroutine_threadsafe(emit(event), loop)
         track_future(fut)
 
@@ -107,6 +138,7 @@ async def run_agent_job(pool: asyncpg.Pool, job: AgentJob) -> None:
             return
 
     def run_sync() -> None:
+        logger.info("[agent-worker] Job %s entering run_pipeline", job.id)
         set_cancel_checker(stop_event.is_set)
         run_pipeline(
             secteur=vertical_id,
@@ -119,6 +151,7 @@ async def run_agent_job(pool: asyncpg.Pool, job: AgentJob) -> None:
             campaign_id=job.campaign_id,
             location=str(payload.get("location") or ""),
         )
+        logger.info("[agent-worker] Job %s run_pipeline completed", job.id)
 
     try:
         logger.info("[agent-worker] Job %s writing initial config event", job.id)
@@ -139,6 +172,7 @@ async def run_agent_job(pool: asyncpg.Pool, job: AgentJob) -> None:
         await loop.run_in_executor(None, run_sync)
 
         if stop_event.is_set() or await is_cancel_requested(pool, job.id):
+            logger.info("[agent-worker] Job %s marked cancelled after pipeline stop", job.id)
             async with pool.acquire() as conn:
                 await append_job_event(conn, job.id, {"type": "cancelled", "message": "Job agent annule"})
             await mark_cancelled(pool, job.id)
@@ -147,7 +181,9 @@ async def run_agent_job(pool: asyncpg.Pool, job: AgentJob) -> None:
         async with pool.acquire() as conn:
             await append_job_event(conn, job.id, {"type": "complete"})
         await mark_completed(pool, job.id)
+        logger.info("[agent-worker] Job %s marked completed", job.id)
     except InterruptedError:
+        logger.info("[agent-worker] Job %s interrupted by stop request", job.id)
         async with pool.acquire() as conn:
             await append_job_event(conn, job.id, {"type": "cancelled", "message": "Job agent annule"})
         await mark_cancelled(pool, job.id)
