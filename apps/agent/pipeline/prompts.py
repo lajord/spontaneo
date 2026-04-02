@@ -170,7 +170,15 @@ Ville cible : {company_city}
 ## CE QUI A DEJA ETE TROUVE (buffer)
 {buffer_summary}
 
+## FALLBACK SI LE SITE WEB INITIAL EST INACCESSIBLE
+{crawl_fallback}
+
 ## INSTRUCTIONS
+
+Si le site web fourni au depart semble inaccessible, faux, ou non exploitable :
+- ta PRIORITE ABSOLUE est d'abord de retrouver le **site officiel correct** via **perplexity_search** ;
+- fais une requete simple du type : "{company_name} site officiel {company_city}" ;
+- si tu trouves une URL officielle exploitable, utilise-la ensuite dans tes recherches de contacts.
 
 ### Perplexity — Construis des requetes CIBLEES a partir du brief
 Ne fais PAS une recherche generique "decideurs {company_name}". Construis ta requete en combinant :
@@ -304,6 +312,14 @@ Pour chaque contact nominatif avec email verifie (valid/catchall) :
 - Ne fais PAS toi-meme de logique de seuil complexe dans le prompt.
 - Ne decide PAS toi-meme "je garde 3". Tu scores et tu classes.
 
+## FORMAT save_enrichment
+Quand tu appelles **save_enrichment**, utilise UNIQUEMENT cette structure JSON :
+
+'[{{"company_name":"Nom entreprise","company_domain":"domaine.fr","company_url":"https://...","contact_name":"Prenom Nom","contact_first_name":"Prenom","contact_last_name":"Nom","contact_email":"prenom.nom@domaine.fr","contact_title":"Titre","contact_city":"Bordeaux","email_status":"valid","source":"qualification"}}]'
+
+- Utilise ces cles exactes, pas `nom`, pas `prenom`, pas `titre`, pas `entreprise`, pas `ville`.
+- N'appelle **save_enrichment** qu'avec des contacts ayant un email exploitable.
+
 ## FORMAT DU CLASSEMENT FINAL
 Utilise ce format simple dans ton message final :
 
@@ -367,7 +383,11 @@ def build_crawl_user_message(company: dict, **kwargs) -> str:
 # ── Builders 3B : Search ──────────────────────────────────────────
 
 def build_search_prompt(
-    company: dict, contact_brief: str = "", buffer_summary: str = "", **kwargs,
+    company: dict,
+    contact_brief: str = "",
+    buffer_summary: str = "",
+    crawl_fallback: str = "",
+    **kwargs,
 ) -> str:
     return ENRICH_SEARCH_PROMPT.format(
         company_name=company.get("name", "Inconnu"),
@@ -375,6 +395,7 @@ def build_search_prompt(
         company_city=company.get("city", ""),
         contact_brief=_default_brief(contact_brief),
         buffer_summary=buffer_summary or "Buffer vide — aucun contact trouve pour l'instant.",
+        crawl_fallback=crawl_fallback or "Aucun fallback special.",
     )
 
 

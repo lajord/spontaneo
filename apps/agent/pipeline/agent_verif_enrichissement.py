@@ -91,6 +91,17 @@ def _get_buffer_summary(company_name: str) -> str:
 
 
 _PATTERN_RE = re.compile(r"pattern[:\s]+([\w.]+@[\w.]+)", re.IGNORECASE)
+_CRAWL_INACCESSIBLE_MARKERS = (
+    "domaine ne semble pas accessible",
+    "site inaccessible",
+    "impossible d'acceder",
+    "impossible d’accéder",
+    "aucun contenu exploitable",
+    "url inaccessible",
+    "erreur http",
+    "erreur crawl",
+    "timeout",
+)
 
 
 def _extract_email_pattern(last_ai_text: str) -> str:
@@ -105,6 +116,19 @@ def _extract_email_pattern(last_ai_text: str) -> str:
         if pattern in last_ai_text.lower():
             return pattern
     return ""
+
+
+def _should_skip_after_crawl(crawl_result: str, buffer_summary: str) -> bool:
+    """Saute l'entreprise si 3A n'a rien trouve et conclut que le site est inaccessible."""
+    crawl_text = (crawl_result or "").lower()
+    buffer_text = (buffer_summary or "").lower()
+    no_findings = (
+        not buffer_text
+        or "aucune trouvaille dans le buffer" in buffer_text
+        or "buffer vide" in buffer_text
+    )
+    inaccessible = any(marker in crawl_text for marker in _CRAWL_INACCESSIBLE_MARKERS)
+    return no_findings and inaccessible
 
 
 # ── Orchestration principale ──────────────────────────────────────
@@ -193,6 +217,25 @@ def enrich(
         email_pattern = _extract_email_pattern(crawl_result or "")
         buffer_summary = _get_buffer_summary(company_name)
 
+        crawl_fallback = ""
+        if _should_skip_after_crawl(crawl_result or "", buffer_summary):
+            crawl_fallback = (
+                "Le crawl 3A n'a rien donne et le site initial semble inaccessible. "
+                "Avant toute autre recherche, utilise Perplexity pour retrouver l'URL "
+                "officielle correcte du cabinet/entreprise, puis sers-t'en pour continuer."
+            )
+            emit(
+                {
+                    "type": "log",
+                    "phase": "ENRICHISSEMENT",
+                    "message": (
+                        f"{company_name}: site inaccessible detecte en 3A, "
+                        "fallback 3B via Perplexity pour retrouver l'URL officielle."
+                    ),
+                },
+                log_callback,
+            )
+
         # ── 3B — Recherche web/Apollo ─────────────────────────
         emit(
             {
@@ -204,7 +247,12 @@ def enrich(
             },
             log_callback,
         )
-        search_system_prompt = build_search_prompt(company, contact_brief, buffer_summary)
+        search_system_prompt = build_search_prompt(
+            company,
+            contact_brief,
+            buffer_summary,
+            crawl_fallback,
+        )
         search_user_message = build_search_user_message(company)
         append_debug_prompt("ENRICHISSEMENT_3B", search_system_prompt, search_user_message)
         stream_agent(

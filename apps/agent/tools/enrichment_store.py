@@ -84,7 +84,17 @@ def _is_generic_email(email: str) -> bool:
     local_part = normalized.split("@", 1)[0]
     if local_part in _GENERIC_EMAIL_PREFIXES:
         return True
-    return "." not in local_part and "_" not in local_part
+    return False
+
+
+def _split_contact_name(full_name: str) -> tuple[str, str]:
+    cleaned = re.sub(r"\s+", " ", (full_name or "").strip())
+    if not cleaned:
+        return "", ""
+    parts = cleaned.split(" ")
+    if len(parts) == 1:
+        return parts[0], ""
+    return parts[0], " ".join(parts[1:])
 
 
 def _ctx() -> dict:
@@ -177,20 +187,67 @@ def _save_to_db(
 
 
 def _normalize_contact(contact: dict) -> dict:
+    email = _normalize_email(
+        contact.get("contact_email", "")
+        or contact.get("email", "")
+    )
+    full_name = (
+        contact.get("contact_name", "")
+        or contact.get("name", "")
+        or " ".join(
+            part for part in [
+                str(contact.get("prenom", "") or contact.get("first_name", "")).strip(),
+                str(contact.get("nom", "") or contact.get("last_name", "")).strip(),
+            ]
+            if part
+        ).strip()
+    )
+    first_name, last_name = _split_contact_name(full_name)
+    contact_first_name = (
+        contact.get("contact_first_name", "")
+        or contact.get("firstName", "")
+        or contact.get("prenom", "")
+        or contact.get("first_name", "")
+        or first_name
+    )
+    contact_last_name = (
+        contact.get("contact_last_name", "")
+        or contact.get("lastName", "")
+        or contact.get("nom", "")
+        or contact.get("last_name", "")
+        or last_name
+    )
+    company_url = (
+        contact.get("company_url", "")
+        or contact.get("website_url", "")
+        or contact.get("websiteUrl", "")
+    )
+    company_domain = (
+        contact.get("company_domain", "")
+        or contact.get("domain", "")
+        or _normalize_domain(company_url)
+    )
+    if not company_domain and email and "@" in email:
+        company_domain = email.split("@", 1)[1]
+
     return {
-        "company_name": contact.get("company_name", ""),
-        "company_domain": contact.get("company_domain", ""),
-        "company_url": contact.get("company_url", ""),
-        "contact_name": contact.get("contact_name", ""),
-        "contact_first_name": contact.get("contact_first_name", ""),
-        "contact_last_name": contact.get("contact_last_name", ""),
-        "contact_email": _normalize_email(contact.get("contact_email", "")),
-        "contact_title": contact.get("contact_title", ""),
-        "contact_phone": contact.get("contact_phone", ""),
-        "contact_linkedin": contact.get("contact_linkedin", ""),
-        "email_status": contact.get("email_status", ""),
-        "source": contact.get("source", ""),
-        "contact_city": contact.get("contact_city", "") or contact.get("city", ""),
+        "company_name": contact.get("company_name", "") or contact.get("entreprise", "") or contact.get("company", ""),
+        "company_domain": company_domain,
+        "company_url": company_url,
+        "contact_name": full_name,
+        "contact_first_name": str(contact_first_name).strip(),
+        "contact_last_name": str(contact_last_name).strip(),
+        "contact_email": email,
+        "contact_title": contact.get("contact_title", "") or contact.get("title", "") or contact.get("titre", ""),
+        "contact_phone": contact.get("contact_phone", "") or contact.get("phone", "") or contact.get("telephone", ""),
+        "contact_linkedin": contact.get("contact_linkedin", "") or contact.get("linkedin", ""),
+        "email_status": contact.get("email_status", "") or contact.get("emailStatus", ""),
+        "source": contact.get("source", "") or "save_enrichment",
+        "contact_city": (
+            contact.get("contact_city", "")
+            or contact.get("city", "")
+            or contact.get("ville", "")
+        ),
         "city_evidence": contact.get("city_evidence", ""),
     }
 
