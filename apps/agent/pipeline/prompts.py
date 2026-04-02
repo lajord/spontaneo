@@ -287,16 +287,19 @@ Pour chaque contact nominatif avec email verifie (valid/catchall) :
 2. Compare le role/specialite trouve avec le BRIEF CONTACTS ci-dessus.
 3. Attribue un **score de pertinence entre 0 et 1** :
    - **1.0** = ultra pertinent, match quasi parfait avec le brief
-   - **0.7 à 0.9** = pertinent, bon contact cible
-   - **0.4 à 0.6** = moyen, contact indirect ou moins précis
-   - **0.0 à 0.3** = peu ou pas pertinent
+   - **0.7 a 0.9** = pertinent, bon contact cible
+   - **0.4 a 0.6** = moyen, contact indirect ou moins precis
+   - **0.0 a 0.3** = peu ou pas pertinent
 4. Base ton score sur :
    - adequation du role au brief
    - adequation de la specialite au brief
    - adequation de la ville a la ville cible
    - qualite de l'email (nominatif verifie)
-5. **MATCH** (role lie au brief) → score eleve.
-6. **NO MATCH** (role hors-sujet, ex: Brief="M&A" mais contact="Avocat Divorce") → score faible ou nul.
+5. **MATCH** (role lie au brief) -> score eleve.
+6. **NO MATCH** (role hors-sujet, ex: Brief="M&A" mais contact="Avocat Divorce") -> score faible ou nul.
+7. **CONTACT HORS VILLE CIBLE** -> si le contact est explicitement base dans une autre ville que la ville cible, il faut le supprimer de la selection finale.
+8. **VILLE NON PROUVEE** -> le contact peut etre garde, mais avec une penalite claire sur le score.
+9. **GROS CABINETS MULTI-BUREAUX** -> ne confonds jamais "cabinet present a Bordeaux" avec "contact base a Bordeaux". Il faut verifier la ville du contact lui-meme, pas seulement celle du cabinet.
 
 ## SORTIE ATTENDUE
 - Appelle **evaluate_findings** pour voir le bilan complet.
@@ -311,6 +314,7 @@ Pour chaque contact nominatif avec email verifie (valid/catchall) :
 - Le code fera ensuite la selection finale et la sauvegarde.
 - Ne fais PAS toi-meme de logique de seuil complexe dans le prompt.
 - Ne decide PAS toi-meme "je garde 3". Tu scores et tu classes.
+- Dans ta sortie finale, exclus les contacts explicitement hors ville cible.
 
 ## FORMAT save_enrichment
 Quand tu appelles **save_enrichment**, utilise UNIQUEMENT cette structure JSON :
@@ -329,7 +333,8 @@ Utilise ce format simple dans ton message final :
 
 ## REGLES
 - Messages ultra brefs.
-- Un contact hors ville cible doit recevoir un score faible ou nul.
+- Un contact explicitement hors ville cible ne doit pas etre garde.
+- Un contact sans ville prouvee peut etre garde, mais avec penalite.
 """
 
 
