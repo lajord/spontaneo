@@ -99,7 +99,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Non autorise' }, { status: 403 })
   }
 
-  const candidateIds = [...new Set(drafts.map((draft) => draft.agentCandidateId).filter(Boolean))]
+  const candidateIds = drafts.reduce<string[]>((acc, draft) => {
+    const candidateId = draft.agentCandidateId?.trim()
+    if (!candidateId || acc.includes(candidateId)) return acc
+    acc.push(candidateId)
+    return acc
+  }, [])
   const candidates = await prisma.agentCandidate.findMany({
     where: {
       id: { in: candidateIds },
@@ -127,7 +132,8 @@ export async function POST(req: NextRequest) {
   let rejected = 0
   const errors: string[] = []
 
-  for (const [index, draft] of drafts.entries()) {
+  for (let index = 0; index < drafts.length; index += 1) {
+    const draft = drafts[index]
     if (!draft.agentCandidateId) {
       rejected += 1
       errors.push(`entree ${index + 1}: agentCandidateId manquant`)
