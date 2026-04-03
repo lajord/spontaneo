@@ -389,7 +389,7 @@ export default function AgentPage() {
 
   const displayedCsv = csvTab === 'candidates' ? candidates : enriched
   const csvColumns = csvTab === 'candidates'
-    ? ['name', 'website_url', 'city', 'source', 'status']
+    ? ['name', 'websiteUrl', 'city', 'source', 'status']
     : ['company_name', 'contact_first_name', 'contact_last_name', 'contact_email', 'contact_title', 'source']
 
   return (

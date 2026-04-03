@@ -139,6 +139,12 @@ def stream_agent(
     config = {"recursion_limit": recursion_limit}
     last_ai_text = ""
     last_tool_name = None
+    candidate_save_tools = {
+        "save_candidates",
+        "apollo_search_and_save",
+        "google_maps_search_and_save",
+        "web_search_legal_and_save",
+    }
 
     for attempt in range(STREAM_MAX_RETRIES):
         try:
@@ -201,7 +207,7 @@ def stream_agent(
                                     emit({"type": "log", "phase": phase_name, "message": f"[NEVERBOUNCE] {nb_email} → {label}"}, log_callback)
                                 except Exception:
                                     pass
-                            if last_tool_name == "save_candidates":
+                            if last_tool_name in candidate_save_tools:
                                 emit_csv_update(log_callback, "candidates")
                                 if quota is not None:
                                     import re as _re

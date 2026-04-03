@@ -9,7 +9,7 @@ from langchain_core.tools import tool
 # Colonnes dans l'ordre souhaité pour l'export
 EXPORT_COLUMNS = [
     "name",
-    "website_url",
+    "websiteUrl",
     "domain",
     "industry",
     "city",
@@ -31,7 +31,7 @@ EXPORT_COLUMNS = [
 # Labels français pour les en-têtes CSV
 COLUMN_LABELS = {
     "name": "Entreprise",
-    "website_url": "Site Web",
+    "websiteUrl": "Site Web",
     "domain": "Domaine",
     "industry": "Secteur",
     "city": "Ville",
@@ -65,7 +65,7 @@ def export_results(
     Args:
         companies_json: JSON string contenant la liste des entreprises à exporter.
                         Chaque entreprise doit être un dict avec les champs:
-                        name, website_url, industry, city, relevance_score, source, etc.
+                        name, websiteUrl, industry, city, relevance_score, source, etc.
         output_format: "csv" ou "xlsx" (défaut: "csv")
         filename: Nom du fichier sans extension (défaut: auto-généré avec la date)
 

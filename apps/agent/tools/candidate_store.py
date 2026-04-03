@@ -49,30 +49,49 @@ def _normalize_domain(url: str) -> str:
     return value.split("/")[0]
 
 
-def _normalize_company_payload(company: dict) -> dict:
-    website = (
+def _normalize_candidate(company: dict) -> dict | None:
+    name = str(company.get("name", "") or "").strip()
+    website_url = str(
         company.get("websiteUrl")
         or company.get("website_url")
         or company.get("website")
         or company.get("url")
         or ""
-    )
-    domain = company.get("domain") or _normalize_domain(website)
+    ).strip()
+    if not name or not website_url:
+        return None
+
+    domain = str(company.get("domain", "") or "").strip() or _normalize_domain(website_url)
 
     return {
-        "name": company.get("name", ""),
-        "websiteUrl": website or None,
+        "name": name,
+        "websiteUrl": website_url,
         "domain": domain or None,
-        "city": company.get("city", ""),
-        "description": company.get("description", ""),
-        "source": company.get("source", ""),
+        "city": str(company.get("city", "") or "").strip(),
+        "description": str(company.get("description", "") or "").strip(),
+        "source": str(company.get("source", "") or "").strip(),
     }
+
+
+def normalize_candidates(companies: list[dict]) -> tuple[list[dict], int]:
+    normalized_companies = []
+    rejected = 0
+
+    for company in companies:
+        normalized = _normalize_candidate(company)
+        if normalized is None:
+            rejected += 1
+            continue
+        normalized_companies.append(normalized)
+
+    return normalized_companies, rejected
 
 
 def _candidate_to_row(candidate: dict) -> dict:
     return {
+        "id": candidate.get("id", ""),
         "name": candidate.get("name", ""),
-        "website_url": candidate.get("websiteUrl", ""),
+        "websiteUrl": candidate.get("websiteUrl", ""),
         "domain": candidate.get("domain", ""),
         "city": candidate.get("city", ""),
         "description": candidate.get("description", ""),
@@ -101,27 +120,27 @@ def get_candidates_rows() -> list[dict]:
         return []
 
 
-@tool
-def save_candidates(companies_json: str) -> str:
-    """Sauvegarde la liste d'entreprises candidates en base de donnees."""
-    raise_if_cancelled()
-
-    try:
-        companies = json.loads(companies_json)
-    except json.JSONDecodeError as e:
-        return f"Erreur: JSON invalide — {e}"
-
-    if not isinstance(companies, list) or not companies:
-        return "Erreur: Le JSON doit contenir une liste non-vide d'entreprises."
-
+def save_candidates_batch(companies: list[dict]) -> dict:
     ctx = _ctx()
     user_id = ctx.get("user_id")
     job_id = ctx.get("job_id")
     campaign_id = ctx.get("campaign_id")
     if not user_id or not job_id:
-        return "Erreur: Contexte incomplet. user_id et job_id sont requis."
+        return {
+            "ok": False,
+            "error": "Erreur: Contexte incomplet. user_id et job_id sont requis.",
+        }
 
-    normalized_companies = [_normalize_company_payload(company) for company in companies]
+    normalized_companies, rejected = normalize_candidates(companies)
+    if not normalized_companies:
+        return {
+            "ok": False,
+            "error": (
+                "Erreur: aucune entreprise valide a sauvegarder. "
+                "Chaque entree doit au minimum contenir `name` et `websiteUrl`."
+            ),
+            "rejected": rejected,
+        }
 
     payload = {
         "jobId": job_id,
@@ -137,18 +156,65 @@ def save_candidates(companies_json: str) -> str:
         resp = requests.post(_API_ENDPOINT, json=payload, headers=_headers(), timeout=15)
         resp.raise_for_status()
         data = resp.json()
-        return (
-            f"{data.get('added', 0)} nouvelles entreprises ajoutees "
-            f"(total: {data.get('total', '?')}, "
-            f"doublons ignores: {data.get('duplicates', 0)}).\n"
-            f"Fichier : base de donnees"
-        )
+        return {
+            "ok": True,
+            "added": data.get("added", 0),
+            "total": data.get("total", 0),
+            "duplicates": data.get("duplicates", 0),
+            "rejected": rejected,
+            "saved": len(normalized_companies),
+        }
     except requests.exceptions.ConnectionError:
-        return "Erreur: Impossible de joindre l'API web. Verifie que WEB_URL est correct."
+        return {
+            "ok": False,
+            "error": "Erreur: Impossible de joindre l'API web. Verifie que WEB_URL est correct.",
+            "rejected": rejected,
+        }
     except requests.exceptions.HTTPError as e:
-        return f"Erreur HTTP {e.response.status_code}: {e.response.text[:300]}"
+        return {
+            "ok": False,
+            "error": f"Erreur HTTP {e.response.status_code}: {e.response.text[:300]}",
+            "rejected": rejected,
+        }
     except Exception as e:
-        return f"Erreur lors de la sauvegarde: {type(e).__name__}: {e}"
+        return {
+            "ok": False,
+            "error": f"Erreur lors de la sauvegarde: {type(e).__name__}: {e}",
+            "rejected": rejected,
+        }
+
+
+def format_save_candidates_result(result: dict) -> str:
+    if not result.get("ok"):
+        error = result.get("error", "Erreur inconnue.")
+        rejected = result.get("rejected", 0)
+        reject_note = f" (rejetees: {rejected})" if rejected else ""
+        return f"{error}{reject_note}"
+
+    reject_note = f", rejetees: {result.get('rejected', 0)}" if result.get("rejected", 0) else ""
+    return (
+        f"{result.get('added', 0)} nouvelles entreprises ajoutees "
+        f"(total: {result.get('total', '?')}, "
+        f"doublons ignores: {result.get('duplicates', 0)}{reject_note}).\n"
+        f"Fichier : base de donnees"
+    )
+
+
+@tool
+def save_candidates(companies_json: str) -> str:
+    """Sauvegarde la liste d'entreprises candidates en base de donnees."""
+    raise_if_cancelled()
+
+    try:
+        companies = json.loads(companies_json)
+    except json.JSONDecodeError as e:
+        return f"Erreur: JSON invalide — {e}"
+
+    if not isinstance(companies, list) or not companies:
+        return "Erreur: Le JSON doit contenir une liste non-vide d'entreprises."
+
+    result = save_candidates_batch(companies)
+    return format_save_candidates_result(result)
 
 
 @tool
@@ -181,8 +247,9 @@ def read_next_candidate() -> str:
 
     row = pending[0]
     return json.dumps({
+        "id": row.get("id"),
         "name": row.get("name"),
-        "website_url": row.get("website_url"),
+        "websiteUrl": row.get("websiteUrl"),
         "domain": row.get("domain"),
         "city": row.get("city"),
         "source": row.get("source"),

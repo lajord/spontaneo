@@ -23,12 +23,11 @@ from langchain_core.messages import ToolMessage
 from config import AGENT1_RECURSION_LIMIT, AGENT1_DEFAULT_BATCH_SIZE
 from pipeline.engine import build_llm, emit, stream_agent, emit_csv_update
 from pipeline.prompts import build_collect_prompt, build_collect_user_message
-from tools.apollo_search import apollo_search
-from tools.web_search import web_search_legal
-from tools.perplexity_search import perplexity_search
-from tools.google_maps_search import google_maps_search
+from tools.apollo_search_and_save import apollo_search_and_save
+from tools.google_maps_search_and_save import google_maps_search_and_save
+from tools.web_search_legal_and_save import web_search_legal_and_save
 from tools.crawl4ai_tool import crawl_url
-from tools.candidate_store import save_candidates, read_candidates_summary, get_candidates_rows
+from tools.candidate_store import save_candidates, get_candidates_rows
 
 if TYPE_CHECKING:
     from typing import Callable
@@ -100,10 +99,10 @@ def collect(
 ) -> list[dict]:
     """Collecte des entreprises via sources multiples.
 
-    Cree un ReAct agent avec 3 outils de recherche + save_candidates
-    + read_candidates_summary. L'agent fait des micro-iterations
-    internes (plusieurs appels tools dans un seul run). Apres chaque
-    source, il sauvegarde dans le CSV.
+    Cree un ReAct agent avec 3 outils de recherche transactionnels
+    (recherche + sauvegarde DB) et crawl_url en lecture seule.
+    save_candidates reste disponible uniquement en fallback si l'agent
+    extrait lui-meme une liste explicite depuis une page crawlee.
 
     Args:
         query: Requete utilisateur (ville, precisions...)
@@ -113,7 +112,7 @@ def collect(
 
     Returns:
         Liste de candidats ajoutes a cette iteration :
-        [{"name", "website_url", "domain", "city", "description", "source", "status"}, ...]
+        [{"name", "websiteUrl", "domain", "city", "description", "source", "status"}, ...]
     """
     emit(
         {"type": "phase", "name": "COLLECTE", "message": "AGENT 1 — COLLECTE"},
@@ -126,13 +125,11 @@ def collect(
     # 2. Build LLM + agent ReAct
     llm = build_llm()
     tools = [
-        apollo_search,
-        web_search_legal,
-        perplexity_search,
-        google_maps_search,
+        apollo_search_and_save,
+        web_search_legal_and_save,
+        google_maps_search_and_save,
         crawl_url,
         save_candidates,
-        read_candidates_summary,
     ]
     agent = create_react_agent(model=llm, tools=tools, prompt=_compact_messages)
 
@@ -160,7 +157,7 @@ def collect(
             "phase": "collecte",
             "current": count_before,
             "target": count_before + batch_size,
-            "message": f"Collecte en cours ({count_before} existants, objectif +{batch_size})...",
+            "message": f"Etat initial: {count_before} existants, objectif +{batch_size}.",
         },
         log_callback,
     )

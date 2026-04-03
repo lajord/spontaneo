@@ -162,6 +162,9 @@ def _save_to_db(
             "linkedin": c.get("contact_linkedin", ""),
             "emailStatus": c.get("email_status", ""),
             "source": c.get("source", ""),
+            "qualityScore": c.get("quality_score"),
+            "qualityReason": c.get("quality_reason", ""),
+            "isDecisionMaker": bool(c.get("is_decision_maker", False)),
         })
 
     payload = {
@@ -243,6 +246,9 @@ def _normalize_contact(contact: dict) -> dict:
         "contact_linkedin": contact.get("contact_linkedin", "") or contact.get("linkedin", ""),
         "email_status": contact.get("email_status", "") or contact.get("emailStatus", ""),
         "source": contact.get("source", "") or "save_enrichment",
+        "quality_score": contact.get("quality_score", contact.get("qualityScore")),
+        "quality_reason": contact.get("quality_reason", "") or contact.get("qualityReason", ""),
+        "is_decision_maker": bool(contact.get("is_decision_maker", contact.get("isDecisionMaker", False))),
         "contact_city": (
             contact.get("contact_city", "")
             or contact.get("city", "")

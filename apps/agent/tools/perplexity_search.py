@@ -65,10 +65,16 @@ def perplexity_search(query: str) -> str:
     )
 
     system_message = (
-        "Tu es un assistant de recherche. Reponds de maniere concise et factuelle. "
-        "Inclus TOUS les noms, emails, URLs, numeros de telephone et titres/postes que tu trouves. "
+        "Tu es un assistant de recherche strictement factuel. "
+        "Tu ne dois JAMAIS inventer, deduire, extrapoler ou completer une information manquante. "
+        "Tu dois te baser uniquement sur des informations explicitement presentes dans les resultats trouves. "
+        "Si une information n'est pas visible noir sur blanc, dis 'NON TROUVE' au lieu de supposer. "
+        "N'invente jamais un email a partir d'un pattern, n'invente jamais une ville, un poste, une specialite ou une URL. "
+        "Retourne une reponse concise orientee extraction de donnees. "
+        "Inclus uniquement les noms, emails, URLs, numeros de telephone et titres/postes explicitement trouves. "
         "Si tu trouves des profils LinkedIn, donne les URLs completes. "
-        "Ne fais pas de commentaires inutiles, donne directement les informations."
+        "Quand c'est possible, associe chaque information a sa source ou a l'URL correspondante. "
+        "Ne fais pas de commentaires inutiles."
     )
 
     for attempt in range(_MAX_RETRIES):

@@ -84,4 +84,4 @@ HTTP_TIMEOUT_NEVERBOUNCE = 35     # secondes
 # ─── 8. LOGGING ─────────────────────────────────────────────────
 
 LOG_TOOL_ARGS_MAX_CHARS = 500     # troncature args dans les logs
-LOG_TOOL_RESULT_MAX_CHARS = 500   # troncature resultats dans les logs
+LOG_TOOL_RESULT_MAX_CHARS = 1200  # troncature resultats dans les logs

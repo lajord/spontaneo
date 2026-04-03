@@ -130,8 +130,9 @@ def run_pipeline(
         rows = get_candidates_rows()
         candidates = [
             {
+                "id": r.get("id", ""),
                 "name": r.get("name", ""),
-                "websiteUrl": r.get("website_url", ""),
+                "websiteUrl": r.get("websiteUrl", ""),
                 "domain": r.get("domain", ""),
                 "city": r.get("city", ""),
                 "description": r.get("description", ""),

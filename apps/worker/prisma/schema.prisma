@@ -34,6 +34,7 @@ model User {
   contactedCompanies ContactedCompany[]
   agentCandidates    AgentCandidate[]
   agentContacts      AgentContact[]
+  agentContactDrafts AgentContactDraft[]
 }
 
 model Session {
@@ -109,6 +110,7 @@ model Campaign {
   emails    Email[]
   jobs      Job[]
   agentCandidates AgentCandidate[]
+  agentContactDrafts AgentContactDraft[]
 }
 
 model Company {
@@ -188,11 +190,44 @@ model AgentCandidate {
   updatedAt   DateTime @updatedAt
 
   contacts    AgentContact[]
+  contactDrafts AgentContactDraft[]
 
   @@unique([jobId, domain])
   @@index([userId, status])
   @@index([campaignId, status])
   @@index([jobId, status])
+}
+
+model AgentContactDraft {
+  id               String   @id @default(cuid())
+  agentCandidateId String
+  agentCandidate   AgentCandidate @relation(fields: [agentCandidateId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId       String?
+  campaign         Campaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  name             String
+  firstName        String?
+  lastName         String?
+  email            String?
+  title            String?
+  specialty        String?
+  city             String?
+
+  contactType      String   // "personal" | "generic"
+  isTested         Boolean  @default(false)
+
+  sourceStage      String   // "3A" | "3B" | "3C"
+  sourceTool       String?  // "crawl_url" | "perplexity_search" | ...
+  sourceUrl        String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([agentCandidateId])
+  @@index([userId])
+  @@index([campaignId])
 }
 
 // ── Agent Contacts (contacts enrichis lies aux entreprises) ──────────────
