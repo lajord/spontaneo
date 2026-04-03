@@ -48,6 +48,7 @@ from tools.contact_draft_store import (
     get_personal_drafts,
     get_personal_drafts_without_email,
 )
+from tools.buffer_store import save_to_buffer, cleanup_buffer, _read_buffer
 
 if TYPE_CHECKING:
     from typing import Callable
@@ -86,6 +87,48 @@ def _read_enriched_for_company(company_name: str) -> list[dict]:
         row for row in get_enriched_rows()
         if row.get("company_name", "").lower().strip() == normalized
     ]
+
+
+def _sync_drafts_to_buffer(company: dict) -> None:
+    """Bridge temporaire: repousse les drafts DB vers le buffer pour 3D."""
+    company_name = company.get("name", "Inconnu")
+    candidate_id = str(company.get("id", "") or "")
+    if not company_name or not candidate_id:
+        return
+
+    draft_rows = get_contact_draft_rows(candidate_id)
+    existing_entries = _read_buffer(company_name)
+    cleanup_buffer(company_name)
+    if not draft_rows:
+        return
+
+    entries = []
+    for draft in draft_rows:
+        matching_entry = None
+        for item in existing_entries:
+            if draft.get("email") and item.get("email") == draft.get("email"):
+                matching_entry = item
+                break
+            if item.get("name") == draft.get("name"):
+                matching_entry = item
+                break
+
+        entries.append({
+            "name": draft.get("name", ""),
+            "title": draft.get("title", "") or draft.get("specialty", ""),
+            "email": draft.get("email", ""),
+            "city": draft.get("city", ""),
+            "source": draft.get("sourceTool", "") or draft.get("sourceStage", "") or "draft",
+            "email_status": (matching_entry or {}).get("email_status", ""),
+        })
+
+    try:
+        save_to_buffer.invoke({
+            "company_name": company_name,
+            "findings_json": json.dumps(entries, ensure_ascii=False),
+        })
+    except Exception:
+        pass
 
 _CRAWL_INACCESSIBLE_MARKERS = (
     "domaine ne semble pas accessible",

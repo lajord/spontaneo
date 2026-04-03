@@ -44,15 +44,17 @@ def neverbounce_verify(email: str) -> str:
     if not api_key:
         return json.dumps({
             "email": email,
-            "result": "unknown",
+            "result": "error",
             "message": "NEVER_BOUNCE_API non configuree. Verification impossible.",
+            "action": "Verification impossible. Ne sauvegarde pas cet email et ne mets pas isTested=true.",
         })
 
     if neverbounce_sdk is None:
         return json.dumps({
             "email": email,
-            "result": "unknown",
+            "result": "error",
             "message": "Module neverbounce_sdk non installe. Verification impossible.",
+            "action": "Verification impossible. Ne sauvegarde pas cet email et ne mets pas isTested=true.",
         })
 
     print(f"  [NEVERBOUNCE] Verification: {email}")
@@ -91,6 +93,7 @@ def neverbounce_verify(email: str) -> str:
         print(f"  [NEVERBOUNCE ERROR] {type(e).__name__}: {e}")
         return json.dumps({
             "email": email,
-            "result": "unknown",
+            "result": "error",
             "message": f"Erreur: {type(e).__name__}: {e}",
+            "action": "Verification impossible. Ne sauvegarde pas cet email et ne mets pas isTested=true.",
         })

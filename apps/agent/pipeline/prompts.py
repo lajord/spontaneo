@@ -155,8 +155,18 @@ Exemples : "Equipe M&A", "Bureau de Lyon", "Pole Droit Social", "Departement Cor
 2. Analyse le retour de cette premiere page avant toute autre action.
 3. Si des fiches individuelles existent (profils detailles), crawle-les  — c'est souvent la que se trouvent les emails et la specialite precise.
 4. Si cette premiere page contient deja des contacts ou des informations utiles, appelle **save_contact_drafts** immediatement avec un JSON strict.
-5. Ensuite, travaille page par page : choisis une autre page utile, crawl-la, analyse ce que tu as trouve, sauvegarde en DB si necessaire, puis decide si tu t'arretes ou si tu continues.
-6. Si **save_contact_drafts** retourne une erreur de structure, un JSON invalide, ou des entrees rejetees a cause du format :
+5. Ensuite, travaille STRICTEMENT page par page :
+   - crawl une page ;
+   - analyse ce que tu as trouve ;
+   - si tu as trouve une nouvelle information utile (email, specialite, titre, ville, nom), appelle **save_contact_drafts** IMMEDIATEMENT ;
+   - puis seulement apres, passe a la page suivante.
+6. Tu n'as PAS le droit d'enchainer plusieurs pages profils avec de nouvelles trouvailles sans rappeler **save_contact_drafts** entre les deux.
+7. **save_contact_drafts** sert aussi a faire un UPDATE :
+   - si un contact existe deja sans email, puis tu trouves son email, tu renvoies le MEME contact avec l'email rempli ;
+   - si un contact existe deja sans specialite, puis tu trouves sa specialite, tu renvoies le MEME contact avec la specialite remplie ;
+   - si un contact existe deja avec des infos partielles, tu renvoies ce contact avec les nouveaux champs remplis ;
+   - le systeme mettra a jour le draft existant.
+8. Si **save_contact_drafts** retourne une erreur de structure, un JSON invalide, ou des entrees rejetees a cause du format :
    - corrige immediatement le JSON ;
    - renvoie le batch corrige a **save_contact_drafts** ;
    - puis passe au crawl suivant.
@@ -177,6 +187,7 @@ TERMINE par un resume tres court : noms trouves, emails trouves, pages utiles vi
 - Si un email, un titre, une specialite ou une ville n'apparait pas, laisse le champ vide.
 - **perplexity_search** ne sert qu'a retrouver une URL officielle de secours, jamais a chercher des contacts dans 3A.
 - L'URL trouvee via **perplexity_search** est une URL de secours. Tu ne l'utilises que si l'URL de base est cassee ou inutilisable.
+- Si tu trouves une info nouvelle sur un contact deja vu, tu dois rappeler **save_contact_drafts** pour mettre ce contact a jour.
 - Ne crawle pas les pages inutiles.
 - Messages tres brefs.
 - Arrete toi quand tu as terminé de crawl toute les pages pertinentes en lien avec les contacts
@@ -270,12 +281,17 @@ Email actuel : {draft_email}
 6. Si le resultat est `valid` ou `catchall` :
    - appelle **save_contact_drafts** pour enregistrer l'email et mettre `isTested=true` ;
    - puis termine.
-7. Si le resultat est `invalid`, `unknown`, `disposable` ou une erreur :
+7. Si le resultat est `invalid`, `unknown`, `disposable` ou `error` :
    - change le format de l'email pour une autre variante coherente ;
    - retente.
-8. Fais au maximum 3 tentatives pour ce contact.
-9. Si un pattern est confirme comme valide pour un contact, tu peux reutiliser ce meme pattern pour les contacts suivants sans le rededuire.
-10. Si au bout de 3 tentatives tu n'obtiens rien d'exploitable, termine avec ce message exact :
+8. Si NeverBounce dit que la verification est impossible (module manquant, API non configuree, erreur technique) :
+   - N'appelle PAS **save_contact_drafts** ;
+   - NE mets PAS `isTested=true` ;
+   - termine avec ce message exact :
+     `Rien trouve de supplementaire`
+9. Fais au maximum 3 tentatives pour ce contact.
+10. Si un pattern est confirme comme valide pour un contact, tu peux reutiliser ce meme pattern pour les contacts suivants sans le rededuire.
+11. Si au bout de 3 tentatives tu n'obtiens rien d'exploitable, termine avec ce message exact :
    `Rien trouve de supplementaire`
 
 ## FORMAT save_contact_drafts
