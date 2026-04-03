@@ -1,7 +1,7 @@
 # ─── Ontologie metier ────────────────────────────────────────────────
 
 
-NTOLOGY = {
+ONTOLOGY = {
     "scope_stricte": "Uniquement les Cabinets d'Avocats en France. ",
     "secteur": "Cabinet Avocat",
     "description": "Cartographie des départements en cabinets d'avocats d'affaires en France",
