@@ -1,59 +1,79 @@
 # ─── Ontologie metier ────────────────────────────────────────────────
 
-ONTOLOGY = {
+
+NTOLOGY = {
+    "scope_stricte": "Uniquement les Cabinets d'Avocats en France. ",
     "secteur": "Cabinet Avocat",
-    "description": "Cabinets d'avocats d'affaires en France",
-    "specialites": {
+    "description": "Cartographie des départements en cabinets d'avocats d'affaires en France",
+
+
+"specialites": {
         "Contentieux des Affaires": {
-            "metier": "Cabinets intervenant sur les litiges commerciaux et conflits d'actionnaires. Concerne les avocats qui plaident aux tribunaux de commerce.",
+            "metier": "Conseil juridique en litiges commerciaux, conflits d'actionnaires et procédures devant les tribunaux de commerce.",
+            "categorie": "Contentieux / Litigation",
         },
         "Arbitrage": {
-            "metier": "Concerne la résolution de litiges internationaux complexes hors tribunaux (arbitrage international). Souvent au sein de très prestigieux cabinets.",
+            "metier": "Conseil juridique en résolution de litiges internationaux complexes hors tribunaux étatiques (justice privée internationale).",
+            "categorie": "Contentieux / Arbitration",
         },
         "Concurrence / Antitrust": {
-            "metier": "Axé sur le droit de la concurrence, les aides d'Etat et le contrôle des concentrations (M&A antitrust).",
+            "metier": "Conseil juridique en droit de la concurrence, contrôle des concentrations, cartels et aides d'État.",
+            "categorie": "Droit Économique",
         },
         "Distribution & Consommation": {
-            "metier": "Concerne les contrats de franchise, droit de la consommation et réglementations de distribution des grandes enseignes.",
+            "metier": "Conseil juridique en contrats de franchise, réseaux de distribution, droit de la consommation et réglementations commerciales.",
+            "categorie": "Droit Commercial",
         },
         "IP / IT": {
-            "metier": "Spécialité couvrant la propriété intellectuelle (brevets, marques) et le droit du numérique / des technologies (IT, RGPD).",
+            "metier": "Conseil juridique en propriété intellectuelle (marques, brevets) et droit des technologies (IT, logiciels, RGPD).",
+            "categorie": "Innovation & Technologies",
         },
         "Droit Fiscal": {
-            "metier": "Concerne l'ingénierie fiscale, la gestion de patrimoine, et les impôts sur le revenu ou les sociétés.",
+            "metier": "Conseil juridique en fiscalité des entreprises (M&A), fiscalité patrimoniale, intégration fiscale et contentieux fiscal.",
+            "categorie": "Fiscalité",
         },
         "Droit Boursier": {
-            "metier": "Cible le droit des marchés de capitaux, les introductions en bourse et la réglementation AMF. Cabinets très spécifiques sur la place parisienne.",
+            "metier": "Conseil juridique en marchés de capitaux, introductions en bourse (IPO) et réglementation de l’AMF.",
+            "categorie": "Finance / Marchés",
         },
         "Debt Finance": {
-            "metier": "Pratique du financement structuré et des grands crédits syndiqués.",
+            "metier": "Conseil juridique en financements structurés, crédits syndiqués et gestion de la dette (senior, mezzanine).",
+            "categorie": "Finance / Crédits",
         },
         "Corporate M&A": {
-            "metier": "La pratique centrale des cabinets d'affaires : fusions & acquisitions, droit des sociétés, private equity.",
+            "metier": "Conseil juridique en fusions-acquisitions, cessions, private equity et droit général des sociétés.",
+            "categorie": "Corporate / Droit des Sociétés",
         },
         "Restructuring": {
-            "metier": "Concerne le traitement de la restructuration d'entreprises en difficulté financière (procédures collectives).",
+            "metier": "Conseil juridique pour entreprises en difficulté : mandat ad hoc, conciliation et procédures de sauvegarde ou redressement.",
+            "categorie": "Corporate / Droit des Entreprises en Difficulté",
         },
         "Private Equity": {
-            "metier": "Cabinets accompagnant les fonds d'investissement (LBO, venture capital).",
+            "metier": "Conseil juridique en opérations de haut de bilan pour fonds d’investissement (LBO, Venture Capital).",
+            "categorie": "Corporate / Haut de Bilan",
         },
         "Droit Immobilier": {
-            "metier": "Avocats intervenant en droit de la construction, urbanisme, et grandes transactions immobilières.",
+            "metier": "Conseil juridique en transactions immobilières, baux commerciaux, droit de la construction et urbanisme.",
+            "categorie": "Immobilier / Construction",
         },
         "Financement de Projets": {
-            "metier": "Soutien juridique aux grands financements d'infrastructures (autoroutes, éolien, minier).",
+            "metier": "Conseil juridique en financement d’infrastructures majeures (énergie, transport, partenariats public-privé).",
+            "categorie": "Finance / Projets & Infrastructures",
         },
         "Banque & Finance": {
-            "metier": "Cabinets ayant une réglementation bancaire ou conseillant les établissements de crédit.",
+            "metier": "Conseil juridique en réglementation bancaire, conformité (ACPR) et conseil aux institutions financières.",
+            "categorie": "Finance / Banque",
         },
         "Droit Social": {
-            "metier": "Droit du travail, restructurations RH, et relations avec les syndicats.",
+            "metier": "Conseil juridique en droit du travail (individuel et collectif), restructurations RH et relations syndicales.",
+            "categorie": "Social / Ressources Humaines",
         },
-        "Droit Penal": {
-            "metier": "Droit pénal des affaires, défense lors de fraudes fiscales, délits d'initiés, corruption.",
+        "Droit Pénal des Affaires": {
+            "metier": "Conseil juridique en droit pénal des affaires : corruption, abus de biens sociaux, fraude fiscale et blanchiment.",
+            "categorie": "Pénal / Conformité",
         },
     },
-    "profils_et_contacts": {
+"profils_et_contacts": {
         "Avocat Collaborateur / Counsel": {
             "departement": "Equipe Juridique (Par domaine de competence)",
             "contacts": [
@@ -78,5 +98,6 @@ ONTOLOGY = {
         "p.nom@cabinet.fr",
         "initiale.nom@cabinet.fr",
         "nom@cabinet.fr",
+	 "nom.prenom@cabinet.fr",
     ],
 }

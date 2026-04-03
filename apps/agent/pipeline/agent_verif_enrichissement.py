@@ -578,9 +578,24 @@ def enrich(
                     break
 
         if selected_contacts:
+            selected_names = ", ".join(
+                row.get("contact_name", "Inconnu") for row in selected_contacts[:3]
+            )
+            emit(
+                {
+                    "type": "log",
+                    "phase": "ENRICHISSEMENT",
+                    "message": (
+                        f"{company_name}: enregistrement final de {len(selected_contacts)} contact(s) "
+                        f"dans AgentContact ({selected_names})."
+                    ),
+                },
+                log_callback,
+            )
             save_result = save_enrichment.invoke({
                 "contacts_json": json.dumps(selected_contacts, ensure_ascii=False),
             })
+            emit_csv_update(log_callback, "enriched")
             emit(
                 {
                     "type": "log",
