@@ -8,6 +8,7 @@ interface ContactInput {
   lastName?: string
   email?: string
   title?: string
+  specialty?: string
   phone?: string
   linkedin?: string
   emailStatus?: string
@@ -159,6 +160,7 @@ export async function POST(req: NextRequest) {
       lastName: contact.lastName ?? null,
       email: normalizeEmail(contact.email),
       title: contact.title ?? null,
+      specialty: contact.specialty ?? null,
       phone: contact.phone ?? null,
       linkedin: contact.linkedin ?? null,
       emailStatus: contact.emailStatus ?? null,

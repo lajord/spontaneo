@@ -244,6 +244,7 @@ model AgentContact {
   lastName          String?
   email             String?
   title             String?
+  specialty         String?
   phone             String?
   linkedin          String?
 
