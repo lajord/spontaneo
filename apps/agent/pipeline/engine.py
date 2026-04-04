@@ -85,6 +85,10 @@ def emit(event: dict, callback: Callable | None = None) -> None:
         print(f"  [ERREUR] {message}")
     elif event_type == "csv_update":
         print(f"  [CSV] {event.get('csv_type', '')}: {len(event.get('rows', []))} lignes")
+    elif event_type == "brief":
+        brief_type = event.get("brief_type", "").upper()
+        print(f"\033[35m  --- BRIEF {brief_type} ---\033[0m")
+        print(f"\033[35m  {message}\033[0m")
     elif event_type == "done":
         print(f"  {message}")
     elif message:

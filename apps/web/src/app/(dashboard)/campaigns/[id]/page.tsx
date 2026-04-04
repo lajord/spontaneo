@@ -285,33 +285,33 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     disconnectJobStream()
     setGenerating(false)
 
-    let hasLoggedThinking = false
-    let hasLoggedCollecting = false
-    let hasLoggedFetchingCompanies = false
-    let hasLoggedCollectComplete = false
+    let hasLoggedUnderstanding = false
+    let hasLoggedSearching = false
+    let hasLoggedFiltering = false
+    let hasLoggedPhaseComplete = false
 
-    const logThinking = () => {
-      if (hasLoggedThinking) return
-      hasLoggedThinking = true
-      addLog('progress', 'Réflexion en cours...')
+    const logUnderstanding = () => {
+      if (hasLoggedUnderstanding) return
+      hasLoggedUnderstanding = true
+      addLog('progress', 'Compréhension de la demande...')
     }
 
-    const logCollecting = () => {
-      if (hasLoggedCollecting) return
-      hasLoggedCollecting = true
-      addLog('progress', 'Collecte en cours...')
+    const logSearching = () => {
+      if (hasLoggedSearching) return
+      hasLoggedSearching = true
+      addLog('progress', 'Recherche des entreprises...')
     }
 
-    const logFetchingCompanies = () => {
-      if (hasLoggedFetchingCompanies) return
-      hasLoggedFetchingCompanies = true
-      addLog('progress', 'Récupération des entreprises')
+    const logFiltering = () => {
+      if (hasLoggedFiltering) return
+      hasLoggedFiltering = true
+      addLog('progress', 'Filtrage des entreprises...')
     }
 
-    const logCollectComplete = () => {
-      if (hasLoggedCollectComplete) return
-      hasLoggedCollectComplete = true
-      addLog('success', 'Collecte terminée')
+    const logPhaseComplete = () => {
+      if (hasLoggedPhaseComplete) return
+      hasLoggedPhaseComplete = true
+      addLog('success', 'Phase 1 terminé')
     }
 
     const es = new EventSource(`/api/jobs/${jobId}/events`)
@@ -324,46 +324,47 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
 
         if (event.type === 'config') {
           setScrapePhase('recherche')
-          logThinking()
+          logUnderstanding()
         } else if (event.type === 'phase') {
           const phaseName = String(event.name ?? '').toUpperCase()
           if (phaseName === 'ENRICHISSEMENT') {
             finishCollectUi()
             refreshCompanies()
-            logCollectComplete()
+            logPhaseComplete()
             return
           }
-          setScrapePhase(phaseName === 'COLLECTE' ? 'filtrage' : 'recherche')
-          if (phaseName === 'COLLECTE') {
-            logCollecting()
-          } else {
-            logThinking()
+          if (phaseName === 'PLANNING') {
+            setScrapePhase('recherche')
+            logUnderstanding()
+          } else if (phaseName === 'COLLECTE') {
+            setScrapePhase('filtrage')
+            logSearching()
           }
         } else if (event.type === 'progress') {
           const phase = String(event.phase ?? '').toLowerCase()
           if (phase === 'collecte') {
             setScrapePhase('filtrage')
-            logCollecting()
+            logSearching()
             if (
               (typeof event.current === 'number' && typeof event.target === 'number' && event.current >= event.target) ||
               String(event.message ?? '').toLowerCase().includes('collecte termin')
             ) {
               finishCollectUi()
               refreshCompanies()
-              logCollectComplete()
+              logPhaseComplete()
               return
             }
           }
           if (phase === 'planning' || phase === 'analyse') {
-            logThinking()
+            logUnderstanding()
           }
         } else if (event.type === 'csv_update' && event.csv_type === 'candidates') {
           setScrapePhase('filtrage')
-          logFetchingCompanies()
+          logFiltering()
           refreshCompanies()
         } else if (event.type === 'complete') {
           finishCollectUi()
-          logCollectComplete()
+          logPhaseComplete()
           refreshCompanies()
         } else if (event.type === 'cancelled' || event.type === 'stopped') {
           setScraping(false)
@@ -386,7 +387,76 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     }
   }, [addLog, disconnectJobStream, finishCollectUi, refreshCampaign, refreshCompanies])
 
-  // â”€â”€ SSE connection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ SSE for agent enrich job â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  const connectToEnrichJob = useCallback((jobId: string) => {
+    if (connectedJobIdRef.current === jobId && eventSourceRef.current) return
+    disconnectJobStream()
+
+    const es = new EventSource(`/api/jobs/${jobId}/events`)
+    eventSourceRef.current = es
+    connectedJobIdRef.current = jobId
+
+    let hasLoggedEnrichStart = false
+
+    es.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data)
+
+        if (event.type === 'config') {
+          if (!hasLoggedEnrichStart) {
+            hasLoggedEnrichStart = true
+            addLog('progress', 'Lancement de l\'enrichissement...')
+          }
+        } else if (event.type === 'phase') {
+          const phaseName = String(event.name ?? '').toUpperCase()
+          if (phaseName === 'ENRICHISSEMENT' && !hasLoggedEnrichStart) {
+            hasLoggedEnrichStart = true
+            addLog('progress', 'Enrichissement des entreprises en cours...')
+          }
+        } else if (event.type === 'progress') {
+          if (event.message) {
+            addLog('progress', String(event.message))
+          }
+        } else if (event.type === 'csv_update') {
+          refreshCompanies()
+        } else if (event.type === 'complete') {
+          addLog('success', 'Enrichissement terminé')
+          setStepStatuses(prev => ({ ...prev, 2: 'completed' }))
+          disconnectJobStream()
+          refreshCampaign()
+          // Runner has created campaign_generate job — poll until it appears
+          const pollGenerate = () => {
+            fetch(`/api/campaigns/${id}/job/active?type=campaign_generate`)
+              .then(r => r.ok ? r.json() as Promise<ActiveCampaignJobResponse> : null)
+              .then(data => {
+                if (data?.job?.id) {
+                  addLog('info', 'Génération des mails en cours...')
+                  advanceTo(3)
+                  connectToJobRef.current(data.job.id)
+                } else {
+                  setTimeout(pollGenerate, 2000)
+                }
+              })
+          }
+          pollGenerate()
+        } else if (event.type === 'cancelled' || event.type === 'stopped') {
+          setGenerating(false)
+          setMessage(event.message ?? 'Enrichissement interrompu')
+          disconnectJobStream()
+          addLog('error', event.message ?? 'Enrichissement interrompu')
+          refreshCampaign()
+        } else if (event.type === 'error') {
+          setGenerating(false)
+          setMessage(event.message ?? 'Erreur')
+          disconnectJobStream()
+          addLog('error', event.message ?? 'Erreur lors de l\'enrichissement')
+          refreshCampaign()
+        }
+      } catch { /* SSE malformée */ }
+    }
+  }, [addLog, disconnectJobStream, id, refreshCampaign, refreshCompanies])
+
+  // â"€â"€ SSE connection â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
   connectToJobRef.current = (jobId: string) => {
     if (connectedJobIdRef.current === jobId && eventSourceRef.current) return
 
@@ -476,9 +546,12 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         setScraping(false)
         advanceTo(1)
         setStep(1, 'completed')
-      } else if (data.status === 'generating') {
+      } else if (data.status === 'enriching') {
         setScraping(false)
         advanceTo(2)
+      } else if (data.status === 'generating') {
+        setScraping(false)
+        advanceTo(3)
       } else if (data.status === 'emails_generated') {
         setScraping(false)
         setPipelineStep(4)
@@ -519,7 +592,23 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
       })
   }, [campaign?.status, connectToCollectJob, id])
 
-  // â”€â”€ Auto-reconnect to running job â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Auto-reconnect enriching â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  useEffect(() => {
+    if (campaign?.status !== 'enriching' || generating) return
+    setGenerating(true)
+    advanceTo(2)
+
+    fetch(`/api/campaigns/${id}/job/active?type=agent_search`)
+      .then(r => r.ok ? r.json() as Promise<ActiveCampaignJobResponse> : null)
+      .then(data => {
+        if (data?.job?.id) {
+          addLog('info', 'Reconnexion à l\'enrichissement en cours...')
+          connectToEnrichJob(data.job.id)
+        }
+      })
+  }, [addLog, campaign?.status, connectToEnrichJob, generating, id])
+
+  // â"€â"€ Auto-reconnect to running generate job â"€â"€â"€â"€â"€â"€â"€
   useEffect(() => {
     if (campaign?.status !== 'generating' || generating) return
     fetch(`/api/campaigns/${id}/job/active?type=campaign_generate`)
@@ -527,7 +616,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
       .then(data => {
         if (data?.job?.id) {
           setGenerating(true)
-          advanceTo(2)
+          advanceTo(3)
           addLog('info', 'Reconnexion au pipeline en cours...')
           connectToJobRef.current(data.job.id)
         }
@@ -549,8 +638,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     setCompanies([])
     setStep(1, 'active')
     setPipelineStep(1)
-    addLog('info', 'Lancement du scraping...')
-    addLog('progress', 'Recherche des entreprises en cours...')
+    addLog('info', 'Lancement du pipeline...')
 
     try {
       const res = await fetch(`/api/campaigns/${id}/scrape`, { method: 'POST' })
@@ -643,7 +731,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
       return
     }
 
-    connectToJobRef.current(jobId)
+    connectToEnrichJob(jobId)
   }
 
   async function sendEmail(emailId: string) {

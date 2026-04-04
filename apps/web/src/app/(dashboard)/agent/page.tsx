@@ -228,6 +228,13 @@ export default function AgentPage() {
           addLog(`[PROGRESS] ${rawMessage}`, '#a78bfa')
         }
         break
+      case 'brief':
+        {
+          const label = event.brief_type === 'collecte' ? 'BRIEF COLLECTE' : 'BRIEF CONTACTS'
+          addLog(`\n--- ${label} ---`, '#a855f7')
+          addLog(String(event.message || ''), '#a855f7')
+        }
+        break
       case 'csv_update':
         if (event.csv_type === 'candidates') setCandidates(event.rows || [])
         if (event.csv_type === 'enriched') setEnriched(event.rows || [])

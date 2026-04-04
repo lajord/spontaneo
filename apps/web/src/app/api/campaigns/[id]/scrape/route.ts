@@ -3,6 +3,9 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { headers } from 'next/headers'
 
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? 'http://localhost:8000'
+const AGENT_INTERNAL_API_TOKEN = process.env.AGENT_INTERNAL_API_TOKEN ?? process.env.CRON_SECRET ?? ''
+
 /**
  * POST /api/campaigns/[id]/scrape
  *
@@ -78,7 +81,32 @@ export async function POST(
     data: { status: 'scraping' },
   })
 
+  // Notifier le AI service pour qu'il démarre le job immédiatement
+  nudgeAiService(job.id, {
+    secteur,
+    job_title: campaign.jobTitle,
+    location: campaign.location,
+    mode: 'collect',
+    job_id: job.id,
+    campaign_id: campaignId,
+    user_id: session.user.id,
+  }).catch(() => {
+    // Si le service est down, le job sera pollé au prochain cycle
+  })
+
   return NextResponse.json({ jobId: job.id }, { status: 201 })
+}
+
+async function nudgeAiService(jobId: string, body: Record<string, unknown>): Promise<void> {
+  await fetch(`${AI_SERVICE_URL}/api/v1/agent/run-job`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(AGENT_INTERNAL_API_TOKEN ? { Authorization: `Bearer ${AGENT_INTERNAL_API_TOKEN}` } : {}),
+    },
+    body: JSON.stringify({ jobId, ...body }),
+    signal: AbortSignal.timeout(5000),
+  })
 }
 
 function resolveSecteur(categories: string[], sectors: string[]): string {

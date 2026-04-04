@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -7,18 +7,22 @@ import { useState } from 'react'
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Brouillon',
   scraping: 'Collecte en cours',
-  scraped: 'Collecte terminÃ©e',
-  emails_generated: 'Mails gÃ©nÃ©rÃ©s',
-  sent: 'EnvoyÃ©',
+  scraped: 'Collecte terminée',
+  enriching: 'Enrichissement en cours',
+  generating: 'Génération en cours',
+  emails_generated: 'Mails générés',
+  sent: 'Envoyé',
   active: 'En cours',
   paused: 'En pause',
-  finished: 'TerminÃ©e',
+  finished: 'Terminée',
 }
 
 const STATUS_STYLES: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-600 border-slate-200',
   scraping: 'bg-sky-50 text-sky-700 border-sky-200',
   scraped: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  enriching: 'bg-violet-50 text-violet-700 border-violet-200',
+  generating: 'bg-amber-50 text-amber-700 border-amber-200',
   emails_generated: 'bg-amber-50 text-amber-700 border-amber-200',
   sent: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   active: 'bg-brand-50 text-brand-700 border-brand-200',
@@ -72,21 +76,15 @@ export default function CampaignCard({ campaign: c }: Props) {
             {STATUS_LABELS[c.status] ?? c.status}
           </span>
         </div>
-        
+
         <p className="text-sm text-slate-500 mb-6 line-clamp-1 flex items-center gap-1.5">
           <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
-          {c.jobTitle} <span className="text-slate-300 mx-1">â€¢</span> {c.location}
+          {c.jobTitle} &middot; {c.location}
         </p>
 
         <div className="flex flex-wrap gap-3 text-sm text-slate-500 border-t border-slate-100 pt-4 mt-auto">
-          <span className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100">
-            <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5" />
-            </svg>
-            <span className="font-medium text-slate-700">{c._count.companies}</span> entreprise{c._count.companies !== 1 ? 's' : ''}
-          </span>
           <span className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100">
             <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -126,11 +124,11 @@ export default function CampaignCard({ campaign: c }: Props) {
               </div>
               <h3 className="text-lg font-semibold text-slate-900">Supprimer la campagne ?</h3>
             </div>
-            
+
             <p className="text-sm text-slate-500 leading-relaxed">
-              ÃŠtes-vous sÃ»r de vouloir supprimer <span className="font-semibold text-slate-700">"{c.name}"</span> ? Cette action est irrÃ©versible et supprimera toutes les candidatures associÃ©es.
+              Êtes-vous sûr de vouloir supprimer <span className="font-semibold text-slate-700">&quot;{c.name}&quot;</span> ? Cette action est irréversible et supprimera toutes les candidatures associées.
             </p>
-            
+
             <div className="flex justify-end gap-3 mt-2">
               <button
                 onClick={() => setConfirmOpen(false)}

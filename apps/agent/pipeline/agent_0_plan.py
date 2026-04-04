@@ -438,17 +438,17 @@ def plan(
 
     emit(
         {
-            "type": "log",
-            "phase": "PLANNING",
-            "message": f"--- BRIEF COLLECTE (Output Type 1) ---\n{collect_brief}",
+            "type": "brief",
+            "brief_type": "collecte",
+            "message": collect_brief,
         },
         log_callback,
     )
     emit(
         {
-            "type": "log",
-            "phase": "PLANNING",
-            "message": f"--- BRIEF CONTACTS (Output Type 2) ---\n{contact_brief}",
+            "type": "brief",
+            "brief_type": "contacts",
+            "message": contact_brief,
         },
         log_callback,
     )
