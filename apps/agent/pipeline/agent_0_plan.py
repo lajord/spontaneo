@@ -96,14 +96,33 @@ PRIORITES
 - Perplexity sert a enrichir, preciser, prioriser et coller au marche reel.
 - Si Perplexity est trop vague ou hors sujet, reviens au cadre de l'ontologie.
 
+INTERDIT
+- Ne cherche JAMAIS par ville ou localisation. Tu travailles sur le metier, pas sur la geographie.
+- Tes recherches Perplexity doivent porter sur le type de structure, les specialites et les profils de contact, jamais sur des noms d'entreprises ou de personnes dans une ville donnee.
+- La localisation sera utilisee plus tard par un autre agent. Ignore-la completement.
+
 QUESTIONS A RESOUDRE
-1. Quel genre d'etablissement, de structure ou de specialite sera le plus interesse par ce profil ?
-2. Dans ce type de structure, quelle personne faut-il contacter pour maximiser les chances d'une candidature spontanee ?
+1. Comprendre le metier : quel est le role concret d'un {job_title} ? Quelles sont ses missions au quotidien ?
+2. Identifier les structures : quel type d'entreprise, de cabinet ou d'organisation recrute ce profil ? Quelles specialites, pratiques ou departements sont concernes ?
+3. Identifier les contacts : dans ces structures, qui est le bon interlocuteur pour une candidature spontanee ?
+
+EXEMPLES DE RECHERCHES PERTINENTES (adapte au job_title reel)
+- "Role et missions d'un juriste droit des contrats en cabinet d'avocats"
+- "Quel type de cabinet d'avocats recrute des juristes en droit des contrats"
+- "Departements et specialites qui embauchent des juristes contractuels"
+- "Qui contacter pour une candidature spontanee dans un cabinet d'avocats departement corporate"
+- "Difference entre juriste contrats en entreprise et en cabinet"
+
+EXEMPLES DE RECHERCHES INTERDITES
+- "Cabinets avocats Bordeaux droit des contrats" (geolocalise = INTERDIT)
+- "Recrutement juriste Lyon" (geolocalise = INTERDIT)
+- "Maitre Dupont avocat Paris" (nom propre = INTERDIT)
 
 METHODE
-- Commence par la question 1.
+- Commence par comprendre le metier du job_title (question 1).
+- Enchaine sur les types de structures qui recrutent ce profil (question 2).
+- Termine par les interlocuteurs cibles (question 3).
 - Si besoin, reformule et affine une ou plusieurs fois.
-- Ensuite traite la question 2 avec le meme niveau d'exigence.
 - N'insiste pas inutilement si l'information devient repetitive.
 - Cherche du signal exploitable, pas un volume maximal de texte.
 
@@ -233,14 +252,12 @@ def _build_phase2_user_message(
     *,
     job_title: str,
     sector_label: str,
-    location: str,
     ontology_json: str,
     extraction_summary: str,
 ) -> str:
     return (
         f"Poste vise : {job_title}\n"
-        f"Secteur : {sector_label}\n"
-        f"Localisation cible : {location or 'France'}\n\n"
+        f"Secteur : {sector_label}\n\n"
         "ONTOLOGIE DU SECTEUR\n"
         f"{ontology_json}\n\n"
         "EXTRACTION DOCUMENTAIRE\n"
@@ -381,7 +398,6 @@ def plan(
         user_message=_build_phase2_user_message(
             job_title=job_title,
             sector_label=sector_label,
-            location=location,
             ontology_json=ontology_json,
             extraction_summary=extraction_summary,
         ),
