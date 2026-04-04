@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -6,16 +6,18 @@ import { useState } from 'react'
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Brouillon',
-  scraped: 'Scrapé',
-  emails_generated: 'Mails générés',
-  sent: 'Envoyé',
+  scraping: 'Collecte en cours',
+  scraped: 'Collecte terminÃ©e',
+  emails_generated: 'Mails gÃ©nÃ©rÃ©s',
+  sent: 'EnvoyÃ©',
   active: 'En cours',
   paused: 'En pause',
-  finished: 'Terminée',
+  finished: 'TerminÃ©e',
 }
 
 const STATUS_STYLES: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-600 border-slate-200',
+  scraping: 'bg-sky-50 text-sky-700 border-sky-200',
   scraped: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   emails_generated: 'bg-amber-50 text-amber-700 border-amber-200',
   sent: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -75,7 +77,7 @@ export default function CampaignCard({ campaign: c }: Props) {
           <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
-          {c.jobTitle} <span className="text-slate-300 mx-1">•</span> {c.location}
+          {c.jobTitle} <span className="text-slate-300 mx-1">â€¢</span> {c.location}
         </p>
 
         <div className="flex flex-wrap gap-3 text-sm text-slate-500 border-t border-slate-100 pt-4 mt-auto">
@@ -126,7 +128,7 @@ export default function CampaignCard({ campaign: c }: Props) {
             </div>
             
             <p className="text-sm text-slate-500 leading-relaxed">
-              Êtes-vous sûr de vouloir supprimer <span className="font-semibold text-slate-700">"{c.name}"</span> ? Cette action est irréversible et supprimera toutes les candidatures associées.
+              ÃŠtes-vous sÃ»r de vouloir supprimer <span className="font-semibold text-slate-700">"{c.name}"</span> ? Cette action est irrÃ©versible et supprimera toutes les candidatures associÃ©es.
             </p>
             
             <div className="flex justify-end gap-3 mt-2">

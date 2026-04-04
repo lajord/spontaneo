@@ -6,7 +6,7 @@ import requests
 from langchain_core.tools import tool
 
 from config import RATE_LIMIT_APOLLO, TOOL_MAX_RETRIES, TOOL_RETRY_BASE_DELAY, HTTP_TIMEOUT_APOLLO
-from runtime import raise_if_cancelled
+from runtime import raise_if_cancelled, get_context_value
 from tools.candidate_store import get_candidates_rows, save_candidates_batch
 
 
@@ -75,7 +75,7 @@ def apollo_search_and_save(
     employee_ranges: list[str] = None,
     organization_name: str = None,
     page: int = 1,
-    per_page: int = 100,
+    per_page: int = 25,
 ) -> str:
     """Recherche des entreprises dans Apollo.io ET les sauvegarde immediatement.
 
@@ -105,6 +105,10 @@ def apollo_search_and_save(
         `apollo_search_and_save: added: X (found: Y, total: Z, duplicates: D).`
     """
     raise_if_cancelled()
+
+    ctx_target = get_context_value("target_count")
+    if isinstance(ctx_target, int) and ctx_target > 0:
+        per_page = min(per_page, ctx_target)
 
     if keywords and job_titles:
         return (

@@ -120,6 +120,7 @@ def run_pipeline(
         secteur=secteur,
         job_title=job_title,
         location=location,
+        target_count=target_count,
     )
 
     # ── MODE ENRICH : charger les données depuis la DB ──────────────

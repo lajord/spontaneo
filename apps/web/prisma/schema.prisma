@@ -30,6 +30,7 @@ model User {
   agentCandidates    AgentCandidate[]
   agentContacts      AgentContact[]
   agentContactDrafts AgentContactDraft[]
+  creditPurchases    CreditPurchase[]
 }
 
 model Session {
@@ -106,6 +107,7 @@ model Campaign {
   jobs      Job[]
   agentCandidates AgentCandidate[]
   agentContactDrafts AgentContactDraft[]
+  creditPurchases    CreditPurchase[]
 }
 
 model Company {
@@ -296,6 +298,29 @@ model JobEvent {
   createdAt DateTime @default(now())
 
   @@index([jobId, seq])
+}
+
+model CreditPurchase {
+  id                      String    @id @default(cuid())
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId              String?
+  campaign                Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  credits                 Int
+  unitPriceCents          Int
+  amountCents             Int
+  currency                String    @default("eur")
+  status                  String    @default("pending") // pending | completed | expired | failed
+  stripeCheckoutSessionId String?   @unique
+  stripePaymentIntentId   String?   @unique
+  stripeCustomerId        String?
+  completedAt             DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([campaignId, createdAt])
+  @@index([status, createdAt])
 }
 
 model EmailConfig {

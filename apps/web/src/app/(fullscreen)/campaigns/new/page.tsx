@@ -81,13 +81,13 @@ const SECTOR_TREE: Record<string, { label: string; subs: string[] }> = {
 }
 
 const CONTRACT_TYPES = ['CDI', 'CDD', 'Stage', 'Alternance', 'Freelance', 'Intérim']
+const LEGAL_DOMAINS = ['Banque', "Cabinet d'avocats", "Fond d'investissement"] as const
 
 const STEPS = [
   { num: 1, label: 'Poste' },
-  { num: 2, label: 'Domaine' },
-  { num: 3, label: 'Localisation' },
-  { num: 4, label: 'Documents' },
-  { num: 5, label: 'Récapitulatif' },
+  { num: 2, label: 'Localisation' },
+  { num: 3, label: 'Documents' },
+  { num: 4, label: 'Récapitulatif' },
 ]
 
 interface CvData {
@@ -116,36 +116,31 @@ export default function NewCampaignPage() {
 
   // Step 1
   const [jobTitle, setJobTitle] = useState('')
+  const [targetDomain, setTargetDomain] = useState<(typeof LEGAL_DOMAINS)[number] | ''>('')
   const [contractType, setContractType] = useState('')
   const [startDate, setStartDate] = useState('')
   const [durationValue, setDurationValue] = useState('')
   const [durationUnit, setDurationUnit] = useState('mois')
 
   // Step 2
-  const [selectedDomainKeys, setSelectedDomainKeys] = useState<string[]>([])
-  const [expandedDomainKey, setExpandedDomainKey] = useState<string | null>(null)
-  const [sectors, setSectors] = useState<string[]>([])
-  const [customSectors, setCustomSectors] = useState<string[]>([])
-  const [customSectorInput, setCustomSectorInput] = useState('')
   const [filterPrompt, setFilterPrompt] = useState('')
 
-  // Step 3
+  // Step 2
   const [location, setLocation] = useState('')
   const [radius, setRadius] = useState(20)
 
-  // Step 4
+  // Step 3
   const [cvFile, setCvFile] = useState<File | null>(null)
   const [lmFile, setLmFile] = useState<File | null>(null)
   const [lmTextRaw, setLmTextRaw] = useState('')
 
-  // Step 5
+  // Step 4
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [cvData, setCvData] = useState<CvData | null>(null)
   const [lmText, setLmText] = useState('')
   const [cvFilename, setCvFilename] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
-  const expandedDomainSubs = expandedDomainKey ? SECTOR_TREE[expandedDomainKey].subs : []
   const campaignName = `${jobTitle || 'Recherche'} — ${location || 'France'}`
 
   const goForward = useCallback((nextStep: number) => {
@@ -164,23 +159,18 @@ export default function NewCampaignPage() {
     setContractType(prev => prev === type ? '' : type)
   }
 
-  function toggleSubSector(sub: string) {
-    setSectors(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub])
-  }
-
   function canProceed(currentStep: number) {
-    if (currentStep === 1) return jobTitle.trim().length > 0
-    if (currentStep === 2) return selectedDomainKeys.length > 0
-    if (currentStep === 3) return location.trim().length > 0
-    if (currentStep === 4) return cvFile !== null
+    if (currentStep === 1) return jobTitle.trim().length > 0 && targetDomain.length > 0
+    if (currentStep === 2) return location.trim().length > 0
+    if (currentStep === 3) return cvFile !== null
     return true
   }
 
-  async function goToStep5AndAnalyze() {
+  async function goToRecapAndAnalyze() {
     if (!cvFile) return
     setIsAnalyzing(true)
     setError('')
-    goForward(5)
+    goForward(4)
 
     try {
       const fd = new FormData()
@@ -209,16 +199,16 @@ export default function NewCampaignPage() {
   }
 
   function handleNext() {
-    if (step === 4) {
-      goToStep5AndAnalyze()
-    } else if (step < 5) {
+    if (step === 3) {
+      goToRecapAndAnalyze()
+    } else if (step < 4) {
       goForward(step + 1)
     }
   }
 
   function handleBack() {
     if (step > 1) {
-      if (step === 5) {
+      if (step === 4) {
         setCvData(null)
         setLmText('')
         setError('')
@@ -247,8 +237,8 @@ export default function NewCampaignPage() {
         body: JSON.stringify({
           name: campaignName,
           jobTitle,
-          sectors: [...sectors, ...customSectors],
-          categories: selectedDomainKeys.map(k => SECTOR_TREE[k].label),
+          sectors: [],
+          categories: targetDomain ? [targetDomain] : [],
           location,
           radius,
           startDate: startDate || null,
@@ -328,22 +318,47 @@ export default function NewCampaignPage() {
         {step === 1 && (
           <div className="space-y-8">
             <div className="mb-8">
-              <h1 className="text-2xl font-semibold text-neutral-900 mb-1.5 tracking-tight">Quel poste recherchez-vous ?</h1>
-              <p className="text-neutral-600 text-sm">Soyez précis pour des résultats plus pertinents.</p>
+              <h1 className="text-2xl font-semibold text-neutral-900 mb-1.5 tracking-tight">Quel poste en droit recherchez-vous ?</h1>
+              <p className="text-neutral-600 text-sm">Indiquez un intitulé juridique précis pour cibler les bonnes opportunités.</p>
             </div>
 
             <div>
               <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] mb-2.5">
-                Intitulé du poste
+                Intitulé du poste en droit
               </label>
               <input
                 type="text"
                 value={jobTitle}
                 onChange={(e) => setJobTitle(e.target.value)}
                 autoFocus
-                placeholder="Ex: Chef de projet marketing, Juriste droit des affaires..."
+                placeholder="Ex : Juriste droit des affaires, Avocat M&A, Compliance Officer..."
                 className="w-full border border-neutral-300 bg-white px-4 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-all duration-200 text-[15px] font-medium rounded-lg"
               />
+            </div>
+
+            <div className="pt-2">
+              <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] mb-3">
+                Domaine
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {LEGAL_DOMAINS.map((domain) => {
+                  const isSelected = targetDomain === domain
+                  return (
+                    <button
+                      key={domain}
+                      type="button"
+                      onClick={() => setTargetDomain(domain)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border ${
+                        isSelected
+                          ? 'bg-[#20293C] text-white border-[#20293C] shadow-sm'
+                          : 'bg-transparent text-neutral-700 border-neutral-300 hover:border-[#20293C] hover:text-[#20293C] hover:shadow-sm'
+                      }`}
+                    >
+                      {domain}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="pt-2">
@@ -419,166 +434,8 @@ export default function NewCampaignPage() {
           </div>
         )}
 
-        {/* Step 2: Domaine */}
+        {/* Step 2: Localisation */}
         {step === 2 && (
-          <div className="space-y-8">
-            <div className="mb-8">
-              <h1 className="text-2xl font-semibold text-neutral-900 mb-1.5 tracking-tight">Dans quel domaine ?</h1>
-              <p className="text-neutral-600 text-sm">Sélectionnez votre domaine puis les types de structures ciblées.</p>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] mb-3">
-                Domaine principal
-              </label>
-
-              {selectedDomainKeys.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {selectedDomainKeys.map((dk) => (
-                    <span key={dk} className="inline-flex items-center gap-1.5 text-[13px] border border-brand-300 pl-3 pr-1.5 py-1 rounded-lg text-brand-800 bg-brand-50/50 font-medium">
-                      {SECTOR_TREE[dk].label}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const subs = SECTOR_TREE[dk].subs
-                          setSectors(prev => prev.filter(s => !subs.includes(s)))
-                          setSelectedDomainKeys(prev => prev.filter(k => k !== dk))
-                          if (expandedDomainKey === dk) setExpandedDomainKey(null)
-                        }}
-                        className="w-5 h-5 rounded-md flex items-center justify-center text-brand-400 hover:text-brand-800 hover:bg-brand-100 transition-colors"
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(SECTOR_TREE).map(([key, item]) => {
-                  const isSelected = selectedDomainKeys.includes(key)
-                  const isExpanded = expandedDomainKey === key
-                  const hasSelectedSubs = item.subs.some(sub => sectors.includes(sub))
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => {
-                        if (!isSelected) {
-                          setSelectedDomainKeys(prev => [...prev, key])
-                        }
-                        setExpandedDomainKey(isExpanded ? null : key)
-                      }}
-                      className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 border ${
-                        isExpanded
-                          ? 'bg-[#20293C] text-white border-[#20293C] shadow-sm'
-                          : isSelected || hasSelectedSubs
-                            ? 'bg-brand-50 text-brand-700 border-brand-200 shadow-sm'
-                            : 'bg-transparent text-neutral-700 border-neutral-300 hover:border-[#20293C] hover:text-[#20293C]'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {expandedDomainKey && (
-              <div className="pt-2">
-                <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] mb-3">
-                  Type de structure
-                  {sectors.length > 0 && (
-                    <span className="ml-2 text-brand-600">{sectors.length} sélectionné{sectors.length > 1 ? 's' : ''}</span>
-                  )}
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {expandedDomainSubs.map((sub) => {
-                    const isSelected = sectors.includes(sub)
-                    return (
-                      <button
-                        key={sub}
-                        onClick={() => toggleSubSector(sub)}
-                        className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-200 border ${
-                          isSelected
-                            ? 'bg-brand-50 text-brand-700 border-brand-300 shadow-sm'
-                            : 'bg-transparent text-neutral-700 border-neutral-300 hover:border-[#20293C] hover:text-[#20293C]'
-                        }`}
-                      >
-                        {sub}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {selectedDomainKeys.length > 0 && (
-              <div className="pt-2">
-                <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] mb-2.5">
-                  Autres secteurs ou mots-clés
-                  <span className="normal-case tracking-normal font-normal text-neutral-400 ml-1">(optionnel)</span>
-                </label>
-                {customSectors.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {customSectors.map((s, i) => (
-                      <span
-                        key={i}
-                        className="inline-flex items-center gap-1.5 text-[13px] border border-neutral-300 pl-3 pr-1.5 py-1 rounded-lg text-neutral-900 bg-neutral-50 font-medium"
-                      >
-                        {s}
-                        <button
-                          type="button"
-                          onClick={() => setCustomSectors(prev => prev.filter((_, idx) => idx !== i))}
-                          className="w-5 h-5 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-900 hover:bg-neutral-200 transition-colors"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <input
-                  type="text"
-                  value={customSectorInput}
-                  onChange={(e) => setCustomSectorInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      const value = customSectorInput.trim()
-                      if (value && !customSectors.includes(value)) {
-                        setCustomSectors(prev => [...prev, value])
-                        setCustomSectorInput('')
-                      }
-                    }
-                  }}
-                  placeholder="Ex : ONG, galerie d'art, association sportive..."
-                  className="w-full border border-neutral-300 bg-white px-4 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-all duration-200 text-sm font-medium rounded-lg"
-                />
-              </div>
-            )}
-
-            <div className="pt-2">
-              <label className="block text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] mb-1.5">
-                Vos critères de sélection
-                <span className="normal-case tracking-normal font-normal text-neutral-400 ml-1">(optionnel)</span>
-              </label>
-              <p className="text-[12px] text-neutral-400 mb-2.5">
-                Décrivez le type d'entreprise souhaité, vos spécificités, et surtout{' '}
-                <span className="font-medium text-neutral-500">ce que vous ne voulez pas</span>.
-              </p>
-              <textarea
-                value={filterPrompt}
-                onChange={(e) => setFilterPrompt(e.target.value)}
-                rows={3}
-                placeholder="Ex : je veux des PME innovantes de moins de 200 personnes. Pas de grands groupes CAC40, ni de cabinets de conseil RH, ni d'agences d'intérim..."
-                className="w-full border border-neutral-300 bg-white px-4 py-2.5 text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-all duration-200 text-sm font-medium rounded-lg resize-none"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Localisation */}
-        {step === 3 && (
           <div className="space-y-8">
             <div className="mb-8">
               <h1 className="text-2xl font-semibold text-neutral-900 mb-1.5 tracking-tight">Où souhaitez-vous travailler ?</h1>
@@ -621,8 +478,8 @@ export default function NewCampaignPage() {
           </div>
         )}
 
-        {/* Step 4: Documents */}
-        {step === 4 && (
+        {/* Step 3: Documents */}
+        {step === 3 && (
           <div className="space-y-8">
             <div className="mb-8">
               <h1 className="text-2xl font-semibold text-neutral-900 mb-1.5 tracking-tight">Vos documents</h1>
@@ -703,8 +560,8 @@ export default function NewCampaignPage() {
           </div>
         )}
 
-        {/* Step 5: Recap */}
-        {step === 5 && (
+        {/* Step 4: Recap */}
+        {step === 4 && (
           <div className="space-y-8">
             {isAnalyzing ? (
               <div className="py-20 flex flex-col items-center justify-center text-center">
@@ -739,6 +596,10 @@ export default function NewCampaignPage() {
                       <span className="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mb-1">Poste</span>
                       <span className="text-sm font-semibold text-neutral-900">{jobTitle}</span>
                     </div>
+                    <div className="border border-neutral-200 rounded-lg p-3.5">
+                      <span className="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mb-1">Domaine</span>
+                      <span className="text-sm font-semibold text-neutral-900">{targetDomain}</span>
+                    </div>
                     {contractType && (
                       <div className="border border-neutral-200 rounded-lg p-3.5">
                         <span className="block text-[10px] font-semibold text-neutral-400 uppercase tracking-wide mb-1">Contrat</span>
@@ -764,20 +625,12 @@ export default function NewCampaignPage() {
                   </div>
                 </div>
 
-                {/* Secteurs ciblés */}
-                {(selectedDomainKeys.length > 0 || sectors.length > 0 || customSectors.length > 0) && (
+                {/* Domaine ciblé */}
+                {targetDomain && (
                   <div>
-                    <h4 className="text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] mb-3">Secteurs ciblés</h4>
+                    <h4 className="text-[11px] font-semibold text-neutral-500 uppercase tracking-[0.08em] mb-3">Domaine ciblé</h4>
                     <div className="flex flex-wrap gap-2">
-                      {sectors.length === 0 && customSectors.length === 0 && selectedDomainKeys.map((dk) => (
-                        <span key={dk} className="text-[12px] border border-brand-300 px-2.5 py-1 rounded-md text-brand-800 bg-brand-50/50 font-medium">{SECTOR_TREE[dk].label}</span>
-                      ))}
-                      {sectors.map((s, i) => (
-                        <span key={i} className="text-[12px] border border-neutral-300 px-2.5 py-1 rounded-md text-neutral-900 bg-neutral-50 font-medium">{s}</span>
-                      ))}
-                      {customSectors.map((s, i) => (
-                        <span key={`custom-${i}`} className="text-[12px] border border-neutral-300 px-2.5 py-1 rounded-md text-neutral-900 bg-neutral-50 font-medium">{s}</span>
-                      ))}
+                      <span className="text-[12px] border border-brand-300 px-2.5 py-1 rounded-md text-brand-800 bg-brand-50/50 font-medium">{targetDomain}</span>
                     </div>
                   </div>
                 )}
@@ -863,7 +716,7 @@ export default function NewCampaignPage() {
           Retour
         </button>
 
-        {step < 5 ? (
+        {step < 4 ? (
           <button
             onClick={handleNext}
             disabled={!canProceed(step)}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import json
 import logging
 import math
 import os
@@ -10,6 +11,7 @@ import threading
 from typing import Any
 
 import asyncpg
+import requests as http_requests
 
 from app.agent_worker.event_store import append_job_event
 from app.agent_worker.job_store import AgentJob, is_cancel_requested, mark_cancelled, mark_completed, mark_failed
@@ -34,6 +36,61 @@ SECTEUR_TO_VERTICAL = {
 }
 CREDITS_PER_COMPANY = 2
 DEFAULT_AGENT_TARGET_COUNT = 10
+WORKER_URL = os.getenv("WORKER_URL", "http://worker:3001")
+WORKER_SECRET = os.getenv("WORKER_SECRET", "")
+
+
+async def create_campaign_generate_job(
+    pool: asyncpg.Pool,
+    user_id: str,
+    campaign_id: str,
+    generate_config: dict[str, Any],
+) -> str | None:
+    """Create a campaign_generate job so the Worker can generate mails/LM."""
+    try:
+        async with pool.acquire() as conn:
+            job_id = await conn.fetchval(
+                """
+                INSERT INTO "Job" (id, "userId", "campaignId", type, status, payload, "createdAt", "updatedAt")
+                VALUES (gen_random_uuid()::text, $1, $2, 'campaign_generate', 'pending', $3::jsonb, NOW(), NOW())
+                RETURNING id
+                """,
+                user_id,
+                campaign_id,
+                json.dumps(generate_config),
+            )
+        logger.info("[agent-worker] Created campaign_generate job %s for campaign %s", job_id, campaign_id)
+
+        # Nudge the Worker so it picks up the job immediately
+        try:
+            headers = {}
+            if WORKER_SECRET:
+                headers["x-worker-secret"] = WORKER_SECRET
+            http_requests.post(f"{WORKER_URL}/nudge", headers=headers, timeout=5)
+        except Exception:
+            pass  # Worker will poll eventually
+
+        return job_id
+    except Exception:
+        logger.exception("[agent-worker] Failed to create campaign_generate job for campaign %s", campaign_id)
+        return None
+
+
+async def update_campaign_status(pool: asyncpg.Pool, campaign_id: str | None, status: str) -> None:
+    if not campaign_id:
+        return
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE "Campaign"
+            SET status = $2,
+                "updatedAt" = NOW()
+            WHERE id = $1
+            """,
+            campaign_id,
+            status,
+        )
 
 
 def _summarize_event_for_log(event: dict[str, Any]) -> str:
@@ -88,6 +145,7 @@ def build_user_query(payload: dict[str, Any], secteur_label: str) -> str:
 async def run_agent_job(pool: asyncpg.Pool, job: AgentJob) -> None:
     payload = job.payload or {}
     secteur = str(payload.get("secteur") or "")
+    mode = str(payload.get("mode") or "full")
     vertical_id = SECTEUR_TO_VERTICAL.get(secteur)
     if not vertical_id:
         await mark_failed(pool, job.id, f"Secteur inconnu: {secteur}")
@@ -150,6 +208,7 @@ async def run_agent_job(pool: asyncpg.Pool, job: AgentJob) -> None:
             job_id=job.id,
             campaign_id=job.campaign_id,
             location=str(payload.get("location") or ""),
+            mode=mode,
         )
         logger.info("[agent-worker] Job %s run_pipeline completed", job.id)
 
@@ -175,8 +234,20 @@ async def run_agent_job(pool: asyncpg.Pool, job: AgentJob) -> None:
             logger.info("[agent-worker] Job %s marked cancelled after pipeline stop", job.id)
             async with pool.acquire() as conn:
                 await append_job_event(conn, job.id, {"type": "cancelled", "message": "Job agent annule"})
+            if mode == "collect":
+                await update_campaign_status(pool, job.campaign_id, "draft")
+            elif mode == "enrich":
+                await update_campaign_status(pool, job.campaign_id, "scraped")
             await mark_cancelled(pool, job.id)
             return
+
+        if mode == "collect":
+            await update_campaign_status(pool, job.campaign_id, "scraped")
+        elif mode == "enrich" and job.campaign_id:
+            # Enrichment done — chain to campaign_generate for mail/LM generation
+            await update_campaign_status(pool, job.campaign_id, "generating")
+            gen_config = payload.get("generateConfig", {})
+            await create_campaign_generate_job(pool, job.user_id, job.campaign_id, gen_config)
 
         async with pool.acquire() as conn:
             await append_job_event(conn, job.id, {"type": "complete"})
@@ -186,6 +257,8 @@ async def run_agent_job(pool: asyncpg.Pool, job: AgentJob) -> None:
         logger.info("[agent-worker] Job %s interrupted by stop request", job.id)
         async with pool.acquire() as conn:
             await append_job_event(conn, job.id, {"type": "cancelled", "message": "Job agent annule"})
+        if mode == "collect":
+            await update_campaign_status(pool, job.campaign_id, "draft")
         await mark_cancelled(pool, job.id)
     except Exception as exc:
         logger.exception("[agent-worker] Job %s failed", job.id)
@@ -194,6 +267,11 @@ async def run_agent_job(pool: asyncpg.Pool, job: AgentJob) -> None:
                 await append_job_event(conn, job.id, {"type": "error", "message": str(exc)})
         except Exception:
             logger.exception("[agent-worker] Job %s failed while writing error event", job.id)
+        if mode == "collect":
+            try:
+                await update_campaign_status(pool, job.campaign_id, "draft")
+            except Exception:
+                logger.exception("[agent-worker] Job %s failed while resetting campaign status", job.id)
         try:
             await mark_failed(pool, job.id, str(exc))
         except Exception:

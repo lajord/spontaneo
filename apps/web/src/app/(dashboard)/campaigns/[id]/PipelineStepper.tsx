@@ -50,8 +50,10 @@ function statusBadge(campaignStatus: string) {
   switch (campaignStatus) {
     case 'draft':
       return { label: 'En attente', className: 'text-amber-700 bg-amber-50 border-amber-200' }
+    case 'scraping':
+      return { label: 'Collecte en cours', className: 'text-sky-700 bg-sky-50 border-sky-200' }
     case 'scraped':
-      return { label: 'Entreprises trouvées', className: 'text-brand-700 bg-brand-50 border-brand-200' }
+      return { label: 'Collecte terminée', className: 'text-brand-700 bg-brand-50 border-brand-200' }
     case 'generating':
       return { label: 'En cours', className: 'text-indigo-700 bg-indigo-50 border-indigo-200' }
     case 'active':
@@ -70,7 +72,6 @@ export default function PipelineStepper({ stepStatuses, campaignStatus }: Pipeli
 
   return (
     <div className="border border-slate-300 rounded-2xl p-6 bg-white">
-      {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-base font-bold text-slate-900">Pipeline</h2>
         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${badge.className}`}>
@@ -78,7 +79,6 @@ export default function PipelineStepper({ stepStatuses, campaignStatus }: Pipeli
         </span>
       </div>
 
-      {/* Steps */}
       <div className="flex items-center w-full">
         {PIPELINE_STEPS.map((step, i) => {
           const status = stepStatuses[step.num] ?? 'pending'

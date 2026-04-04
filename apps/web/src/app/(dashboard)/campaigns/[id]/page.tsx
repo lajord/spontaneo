@@ -9,7 +9,7 @@ import LaunchModal from './LaunchModal'
 import CompanyDetailView from './CompanyDetailView'
 import PreGenerateModal, { type PreGenerateOptions } from './PreGenerateModal'
 
-// ── Types ────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type EmailRecipient = {
   id: string
@@ -77,8 +77,24 @@ type CompanyProcessing = {
 type FlatEmail = EmailRecipient & { companyName: string }
 type PipelineStep = 1 | 2 | 3 | 4
 type StepStatus = 'pending' | 'active' | 'completed'
+type ActiveCampaignJobResponse = {
+  job: null | {
+    id: string
+    status: string
+    type: string
+    payload?: Record<string, unknown>
+  }
+}
 
-// ── Helpers ──────────────────────────────────────────────────────────
+type GenerateErrorResponse = {
+  error?: string
+  currentCredits?: number
+  requiredCredits?: number
+  missingCredits?: number
+  jobId?: string
+}
+
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function logId() {
   return Math.random().toString(36).slice(2, 10)
@@ -89,26 +105,39 @@ function fmtHour(h: number | null) {
   return `${String(h).padStart(2, '0')}h`
 }
 
-// ── Main Page ────────────────────────────────────────────────────────
+const VISIBLE_COMPANY_COUNT = 10
+const BLURRED_COMPANY_LOOP_MULTIPLIER = 6
+const BLURRED_COMPANY_PREVIEW_NAMES = [
+  'Cabinet Premium',
+  'Entreprise Confidentielle',
+  'Structure Ciblee',
+  'Cabinet Partenaire',
+  'Acteur Regional',
+  'Groupe en croissance',
+  'Societe strategic',
+  'Cible supplementaire',
+]
+
+// â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function CampaignPage({ params }: { params: { id: string } }) {
   const { id } = params
   const router = useRouter()
 
-  // ── Core data ───────────────────────────────────
+  // â”€â”€ Core data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [companies, setCompanies] = useState<Company[]>([])
   const [blocks, setBlocks] = useState<GeneratedBlock[]>([])
   const [processingMap, setProcessingMap] = useState<Map<string, CompanyProcessing>>(new Map())
   const [enrichedCompanies, setEnrichedCompanies] = useState<Map<string, { companyId: string; companyName: string; enriched: EnrichedData }>>(new Map())
 
-  // ── Pipeline state ──────────────────────────────
+  // â”€â”€ Pipeline state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [pipelineStep, setPipelineStep] = useState<PipelineStep>(1)
   const [stepStatuses, setStepStatuses] = useState<Record<PipelineStep, StepStatus>>({
     1: 'pending', 2: 'pending', 3: 'pending', 4: 'pending',
   })
 
-  // ── UI state ────────────────────────────────────
+  // â”€â”€ UI state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [scraping, setScraping] = useState(false)
   const [scrapePhase, setScrapePhase] = useState<'recherche' | 'filtrage'>('recherche')
   const [generating, setGenerating] = useState(false)
@@ -122,26 +151,27 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null)
 
-  // ── Modals ──────────────────────────────────────
+  // â”€â”€ Modals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [paywallOpen, setPaywallOpen] = useState(false)
   const [paywallCount, setPaywallCount] = useState(0)
   const [preGenerateOpen, setPreGenerateOpen] = useState(false)
   const [launchModalOpen, setLaunchModalOpen] = useState(false)
 
-  // ── Activity log ────────────────────────────────
+  // â”€â”€ Activity log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [activityLog, setActivityLog] = useState<ActivityEvent[]>([])
 
-  // ── Sub-phases "Identification décideurs" ────────
+  // â”€â”€ Sub-phases "Identification dÃ©cideurs" â”€â”€â”€â”€â”€â”€â”€â”€
   type SubPhaseState = 'idle' | 'running' | 'done'
   const [apolloPhase, setApolloPhase] = useState<{ state: SubPhaseState; total: number; filled: number }>({ state: 'idle', total: 0, filled: 0 })
   const [neverBouncePhase, setNeverBouncePhase] = useState<{ state: SubPhaseState; total: number; valid: number; removed: number }>({ state: 'idle', total: 0, valid: 0, removed: 0 })
 
-  // ── Refs ─────────────────────────────────────────
+  // â”€â”€ Refs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const eventSourceRef = useRef<EventSource | null>(null)
   const connectToJobRef = useRef<(jobId: string) => void>(() => {})
+  const connectedJobIdRef = useRef<string | null>(null)
   const hasAutoScraped = useRef(false)
 
-  // ── Derived data ────────────────────────────────
+  // â”€â”€ Derived data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const allEmails: FlatEmail[] = blocks.flatMap(b => b.emails.map(e => ({ ...e, companyName: b.companyName })))
   const draftEmails = allEmails.filter(e => e.status === 'draft')
   const sentEmails = allEmails.filter(e => e.status === 'sent').sort((a, b) => (b.sentAt ?? '').localeCompare(a.sentAt ?? ''))
@@ -160,14 +190,20 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     })
   const filteredHiringCompanies = filteredCompanies.filter(c => c.source === 'apollo_jobtitle')
   const filteredPotentialCompanies = filteredCompanies.filter(c => c.source !== 'apollo_jobtitle')
+  const visibleCompanies = filteredCompanies.slice(0, VISIBLE_COMPANY_COUNT)
+  const availableCompaniesCount = Math.min(companies.length, VISIBLE_COMPANY_COUNT)
+  const blurredCompanyPreviewRows = Array.from(
+    { length: BLURRED_COMPANY_PREVIEW_NAMES.length * BLURRED_COMPANY_LOOP_MULTIPLIER },
+    (_, index) => BLURRED_COMPANY_PREVIEW_NAMES[index % BLURRED_COMPANY_PREVIEW_NAMES.length],
+  )
   const totalDecideurs = companies.reduce((acc, c) => acc + (c.enriched?.resultats?.filter(r => r.mail).length ?? 0), 0)
 
-  // ── Log helper ──────────────────────────────────
+  // â”€â”€ Log helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const addLog = useCallback((type: ActivityEvent['type'], message: string, detail?: string) => {
     setActivityLog(prev => [...prev, { id: logId(), timestamp: new Date(), type, message, detail }])
   }, [])
 
-  // ── Step helpers ────────────────────────────────
+  // â”€â”€ Step helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function setStep(step: PipelineStep, status: StepStatus) {
     setStepStatuses(prev => ({ ...prev, [step]: status }))
   }
@@ -185,7 +221,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     })
   }
 
-  // ── Load emails helper ──────────────────────────
+  // â”€â”€ Load emails helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const loadEmails = useCallback((emails: Array<{
     id: string; subject: string; body: string; to: string | null; recipientName: string | null; generatedLm: string | null; status: string; sentAt?: string | null; companyId: string;
     company: { name: string; address: string | null; enriched: EnrichedData | null }
@@ -211,20 +247,154 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     setBlocks(Array.from(map.values()))
   }, [])
 
+  const refreshCampaign = useCallback(() => {
+    fetch(`/api/campaigns/${id}`).then(r => r.json()).then(setCampaign)
+  }, [id])
+
+  const refreshCompanies = useCallback(() => {
+    fetch(`/api/campaigns/${id}/companies`).then(r => r.json()).then(data => {
+      setCompanies(Array.isArray(data) ? data : [])
+    })
+  }, [id])
+
   const refreshEmails = useCallback(() => {
     fetch(`/api/campaigns/${id}/emails`).then(r => r.json()).then(loadEmails)
-    fetch(`/api/campaigns/${id}`).then(r => r.json()).then(setCampaign)
-  }, [id, loadEmails])
+    refreshCampaign()
+  }, [id, loadEmails, refreshCampaign])
 
-  // ── SSE connection ──────────────────────────────
-  connectToJobRef.current = (jobId: string) => {
+  const disconnectJobStream = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
       eventSourceRef.current = null
     }
+    connectedJobIdRef.current = null
+  }, [])
+
+  const finishCollectUi = useCallback(() => {
+    setScraping(false)
+    setMessage('')
+    setPipelineStep(1)
+    setStepStatuses({ 1: 'completed', 2: 'pending', 3: 'pending', 4: 'pending' })
+    setCampaign(prev => prev ? { ...prev, status: 'scraped' } : prev)
+    disconnectJobStream()
+  }, [disconnectJobStream])
+
+  const connectToCollectJob = useCallback((jobId: string) => {
+    if (connectedJobIdRef.current === jobId && eventSourceRef.current) return
+
+    disconnectJobStream()
+    setGenerating(false)
+
+    let hasLoggedThinking = false
+    let hasLoggedCollecting = false
+    let hasLoggedFetchingCompanies = false
+    let hasLoggedCollectComplete = false
+
+    const logThinking = () => {
+      if (hasLoggedThinking) return
+      hasLoggedThinking = true
+      addLog('progress', 'Réflexion en cours...')
+    }
+
+    const logCollecting = () => {
+      if (hasLoggedCollecting) return
+      hasLoggedCollecting = true
+      addLog('progress', 'Collecte en cours...')
+    }
+
+    const logFetchingCompanies = () => {
+      if (hasLoggedFetchingCompanies) return
+      hasLoggedFetchingCompanies = true
+      addLog('progress', 'Récupération des entreprises')
+    }
+
+    const logCollectComplete = () => {
+      if (hasLoggedCollectComplete) return
+      hasLoggedCollectComplete = true
+      addLog('success', 'Collecte terminée')
+    }
 
     const es = new EventSource(`/api/jobs/${jobId}/events`)
     eventSourceRef.current = es
+    connectedJobIdRef.current = jobId
+
+    es.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data)
+
+        if (event.type === 'config') {
+          setScrapePhase('recherche')
+          logThinking()
+        } else if (event.type === 'phase') {
+          const phaseName = String(event.name ?? '').toUpperCase()
+          if (phaseName === 'ENRICHISSEMENT') {
+            finishCollectUi()
+            refreshCompanies()
+            logCollectComplete()
+            return
+          }
+          setScrapePhase(phaseName === 'COLLECTE' ? 'filtrage' : 'recherche')
+          if (phaseName === 'COLLECTE') {
+            logCollecting()
+          } else {
+            logThinking()
+          }
+        } else if (event.type === 'progress') {
+          const phase = String(event.phase ?? '').toLowerCase()
+          if (phase === 'collecte') {
+            setScrapePhase('filtrage')
+            logCollecting()
+            if (
+              (typeof event.current === 'number' && typeof event.target === 'number' && event.current >= event.target) ||
+              String(event.message ?? '').toLowerCase().includes('collecte termin')
+            ) {
+              finishCollectUi()
+              refreshCompanies()
+              logCollectComplete()
+              return
+            }
+          }
+          if (phase === 'planning' || phase === 'analyse') {
+            logThinking()
+          }
+        } else if (event.type === 'csv_update' && event.csv_type === 'candidates') {
+          setScrapePhase('filtrage')
+          logFetchingCompanies()
+          refreshCompanies()
+        } else if (event.type === 'complete') {
+          finishCollectUi()
+          logCollectComplete()
+          refreshCompanies()
+        } else if (event.type === 'cancelled' || event.type === 'stopped') {
+          setScraping(false)
+          setMessage(event.message ?? 'Collecte interrompue')
+          setPipelineStep(1)
+          setStepStatuses({ 1: 'pending', 2: 'pending', 3: 'pending', 4: 'pending' })
+          disconnectJobStream()
+          addLog('error', event.message ?? 'Collecte interrompue')
+          refreshCampaign()
+        } else if (event.type === 'error') {
+          setScraping(false)
+          setMessage(event.message ?? 'Erreur')
+          setPipelineStep(1)
+          setStepStatuses({ 1: 'pending', 2: 'pending', 3: 'pending', 4: 'pending' })
+          disconnectJobStream()
+          addLog('error', event.message ?? 'Erreur lors de la collecte')
+          refreshCampaign()
+        }
+      } catch { /* SSE malformée */ }
+    }
+  }, [addLog, disconnectJobStream, finishCollectUi, refreshCampaign, refreshCompanies])
+
+  // â”€â”€ SSE connection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  connectToJobRef.current = (jobId: string) => {
+    if (connectedJobIdRef.current === jobId && eventSourceRef.current) return
+
+    disconnectJobStream()
+
+    const es = new EventSource(`/api/jobs/${jobId}/events`)
+    eventSourceRef.current = es
+    connectedJobIdRef.current = jobId
 
     es.onmessage = (e) => {
       try {
@@ -233,7 +403,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
           setProcessingMap(prev => new Map(prev).set(event.companyId, { companyId: event.companyId, companyName: event.companyName, state: 'enriching' }))
           addLog('progress', `Enrichissement de ${event.companyName}...`)
         } else if (event.type === 'enriched') {
-          // Phase 1 terminée pour cette entreprise → move processingMap → enrichedCompanies
+          // Phase 1 terminee pour cette entreprise: move processingMap -> enrichedCompanies
           setProcessingMap(prev => { const next = new Map(prev); next.delete(event.companyId); return next })
           setEnrichedCompanies(prev => new Map(prev).set(event.companyId, {
             companyId: event.companyId,
@@ -254,11 +424,11 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
           setNeverBouncePhase({ state: 'done', total: event.total, valid: event.valid, removed: event.removed })
           addLog('success', `Vérification : ${event.valid} email(s) valide(s)${event.removed > 0 ? `, ${event.removed} supprimé(s)` : ''}`)
         } else if (event.type === 'generating') {
-          // Phase 2 démarre pour cette entreprise → move enrichedCompanies → processingMap
+          // Phase 2 demarre pour cette entreprise: move enrichedCompanies -> processingMap
           setEnrichedCompanies(prev => { const next = new Map(prev); next.delete(event.companyId); return next })
           setProcessingMap(prev => new Map(prev).set(event.companyId, { companyId: event.companyId, companyName: event.companyName, state: 'generating' }))
           addLog('progress', `Rédaction pour ${event.companyName}...`)
-          // Advance to step 3 (à la première entreprise en phase 2)
+          // Advance to step 3 (a la premiere entreprise en phase 2)
           setPipelineStep(3)
           setStepStatuses(prev => ({ ...prev, 2: 'completed', 3: 'active' }))
         } else if (event.type === 'done') {
@@ -272,92 +442,105 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
           setEnrichedCompanies(new Map())
           setLaunchPending(false)
           setMessage('')
-          es.close()
-          eventSourceRef.current = null
+          disconnectJobStream()
           addLog('success', 'Pipeline terminé !')
           advanceTo(4)
-          fetch(`/api/campaigns/${id}`).then(r => r.json()).then(setCampaign)
+          refreshCampaign()
           fetch(`/api/campaigns/${id}/emails`).then(r => r.json()).then(loadEmails)
         } else if (event.type === 'error') {
           setMessage(event.message ?? 'Erreur')
           setGenerating(false)
           addLog('error', event.message ?? 'Erreur lors du traitement')
-          es.close()
-          eventSourceRef.current = null
+          disconnectJobStream()
         }
-      } catch { /* SSE malformée */ }
+      } catch { /* SSE malformee */ }
     }
   }
 
-  // ── Cleanup SSE ──────────────────────────────────
+  // â”€â”€ Cleanup SSE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
-    return () => { eventSourceRef.current?.close() }
-  }, [])
+    return () => { disconnectJobStream() }
+  }, [disconnectJobStream])
 
-  // ── Initial data load ───────────────────────────
+  // â”€â”€ Initial data load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     fetch(`/api/campaigns/${id}`).then(r => r.json()).then((data: Campaign) => {
       setCampaign(data)
       // Determine initial pipeline step from campaign status
-      if (data.status === 'scraped') {
+      if (data.status === 'scraping') {
+        setScraping(true)
+        setScrapePhase('recherche')
+        setPipelineStep(1)
+        setStepStatuses({ 1: 'active', 2: 'pending', 3: 'pending', 4: 'pending' })
+      } else if (data.status === 'scraped') {
+        setScraping(false)
         advanceTo(1)
         setStep(1, 'completed')
       } else if (data.status === 'generating') {
+        setScraping(false)
         advanceTo(2)
       } else if (data.status === 'emails_generated') {
+        setScraping(false)
         setPipelineStep(4)
         setStepStatuses({ 1: 'completed', 2: 'completed', 3: 'completed', 4: 'active' })
-        addLog('success', 'Mails générés — prêts à être envoyés')
+        addLog('success', 'Mails générés, prêts à être envoyés')
       } else if (data.status === 'active' || data.status === 'paused' || data.status === 'finished') {
+        setScraping(false)
         setPipelineStep(4)
         setStepStatuses({ 1: 'completed', 2: 'completed', 3: 'completed', 4: 'completed' })
         const sentCount = data.sentCount ?? 0
         const statusLabel = data.status === 'active' ? 'active' : data.status === 'paused' ? 'en pause' : 'terminée'
         addLog('info', `Campagne ${statusLabel}`, `${sentCount} mail${sentCount > 1 ? 's' : ''} envoyé${sentCount > 1 ? 's' : ''}`)
+      } else {
+        setScraping(false)
       }
     })
-    fetch(`/api/campaigns/${id}/companies`).then(r => r.json()).then(data => {
-      setCompanies(Array.isArray(data) ? data : [])
-    })
+    refreshCompanies()
     fetch(`/api/campaigns/${id}/emails`).then(r => r.json()).then(loadEmails)
-  }, [id, loadEmails])
+  }, [addLog, id, loadEmails, refreshCompanies])
 
-  // ── Auto-scrape on draft ────────────────────────
+  // â”€â”€ Auto-scrape on draft â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
-    if (campaign?.status === 'draft' && !hasAutoScraped.current) {
-      hasAutoScraped.current = true
-      // Don't auto-scrape — wait for user to click "Lancer le pipeline"
-    }
+    if (campaign?.status !== 'draft' || hasAutoScraped.current) return
+    hasAutoScraped.current = true
   }, [campaign])
 
-  // ── Auto-reconnect to running job ───────────────
+  useEffect(() => {
+    if (campaign?.status !== 'scraping') return
+
+    fetch(`/api/campaigns/${id}/job/active?type=agent_search`)
+      .then(r => r.ok ? r.json() as Promise<ActiveCampaignJobResponse> : null)
+      .then((data) => {
+        if (!data?.job?.id) return
+        setScraping(true)
+        setPipelineStep(1)
+        setStepStatuses({ 1: 'active', 2: 'pending', 3: 'pending', 4: 'pending' })
+        connectToCollectJob(data.job.id)
+      })
+  }, [campaign?.status, connectToCollectJob, id])
+
+  // â”€â”€ Auto-reconnect to running job â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (campaign?.status !== 'generating' || generating) return
-    fetch(`/api/campaigns/${id}/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    })
-      .then(r => r.ok ? r.json() : null)
+    fetch(`/api/campaigns/${id}/job/active?type=campaign_generate`)
+      .then(r => r.ok ? r.json() as Promise<ActiveCampaignJobResponse> : null)
       .then(data => {
-        if (data?.jobId) {
+        if (data?.job?.id) {
           setGenerating(true)
           advanceTo(2)
           addLog('info', 'Reconnexion au pipeline en cours...')
-          connectToJobRef.current(data.jobId)
+          connectToJobRef.current(data.job.id)
         }
       })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [campaign?.status])
-
-  // ── Polling when active ─────────────────────────
+  }, [addLog, campaign?.status, generating, id])
+// â”€â”€ Polling when active â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (campaign?.status !== 'active') return
     const interval = setInterval(refreshEmails, 30000)
     return () => clearInterval(interval)
   }, [campaign?.status, refreshEmails])
 
-  // ── Actions ─────────────────────────────────────
+  // â”€â”€ Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async function handleScrape() {
     setScraping(true)
@@ -371,60 +554,21 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
 
     try {
       const res = await fetch(`/api/campaigns/${id}/scrape`, { method: 'POST' })
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => ({ error: 'Erreur service' }))
+      const data = await res.json().catch(() => ({ error: 'Erreur service' }))
+      if (!res.ok || !data?.jobId) {
         setMessage(data.error ?? 'Erreur lors de la recherche')
         addLog('error', data.error ?? 'Erreur lors du scraping')
         setScraping(false)
         return
       }
 
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let filterStarted = false
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const jsonStr = line.slice(6).trim()
-          if (!jsonStr) continue
-
-          try {
-            const event = JSON.parse(jsonStr)
-
-            if (event.type === 'ranking') {
-              setScrapePhase('filtrage')
-              addLog('progress', `Filtrage de ${event.count} entreprises...`)
-            } else if (event.type === 'company' && event.company) {
-              if (!filterStarted) {
-                filterStarted = true
-                setScrapePhase('filtrage')
-              }
-              setCompanies(prev => [...prev, { ...event.company, score: event.score ?? null }])
-            } else if (event.type === 'done') {
-              setStep(1, 'completed')
-              addLog('success', `${event.total} entreprise${event.total > 1 ? 's' : ''} trouvée${event.total > 1 ? 's' : ''}`)
-            } else if (event.type === 'error') {
-              addLog('error', event.error ?? 'Erreur lors du scraping')
-            }
-          } catch { /* ignorer events mal formés */ }
-        }
-      }
-    } catch (err) {
+      connectToCollectJob(data.jobId)
+    } catch {
       setMessage('Erreur lors de la recherche')
       addLog('error', 'Erreur lors du scraping')
+      setScraping(false)
     }
-    setScraping(false)
   }
-
   async function handleGenerate(opts: PreGenerateOptions) {
     setPreGenerateOpen(false)
     setGenerating(true)
@@ -457,6 +601,33 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         sendEndHour: opts.autoStart ? opts.sendEndHour : null,
       }),
     })
+    const data = await res.json().catch(() => ({} as GenerateErrorResponse))
+
+    if (res.status === 402 && typeof data.missingCredits === 'number' && data.missingCredits > 0) {
+      addLog('info', 'Credits insuffisants', `${data.missingCredits} credits manquants`)
+      setMessage('Redirection vers le paiement...')
+
+      const checkoutRes = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId: id,
+          credits: data.missingCredits,
+        }),
+      })
+      const checkoutData = await checkoutRes.json().catch(() => ({ error: 'Erreur Stripe' }))
+
+      if (!checkoutRes.ok || !checkoutData?.url) {
+        setGenerating(false)
+        setMessage(checkoutData.error ?? 'Impossible de lancer le paiement')
+        addLog('error', 'Creation du checkout Stripe impossible', checkoutData.error)
+        return
+      }
+
+      window.location.assign(checkoutData.url)
+      return
+    }
+
     if (!res.ok) {
       setMessage('Erreur lors du lancement de la génération')
       setGenerating(false)
@@ -464,7 +635,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
       return
     }
 
-    const { jobId } = await res.json()
+    const { jobId } = data
     if (!jobId) {
       setMessage('Erreur : aucun job ID reçu')
       setGenerating(false)
@@ -485,10 +656,10 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         ...b,
         emails: b.emails.map(e => e.id === emailId ? { ...e, status: 'sent' } : e),
       })))
-      addLog('success', `Mail envoyé — ${emailMeta?.companyName ?? ''}`, emailMeta?.to ?? undefined)
+      addLog('success', `Mail envoyé - ${emailMeta?.companyName ?? ''}`, emailMeta?.to ?? undefined)
     } else {
       setMessage(data.error ?? "Erreur d'envoi")
-      addLog('error', `Échec d'envoi — ${emailMeta?.companyName ?? ''}`, data.error ?? "Erreur inconnue")
+      addLog('error', `Échec d'envoi - ${emailMeta?.companyName ?? ''}`, data.error ?? "Erreur inconnue")
     }
     setSending(null)
   }
@@ -536,7 +707,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     return remaining <= 1 ? 'imminent' : `dans ~${remaining} min`
   }
 
-  // ── Loading ─────────────────────────────────────
+  // â”€â”€ Loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!campaign) {
     return (
       <div className="flex items-center justify-center h-full bg-slate-50">
@@ -548,12 +719,12 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
     )
   }
 
-  // ── Render ──────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <div className="flex flex-col h-full bg-slate-50">
      <div className="flex flex-col h-full max-w-[80%] mx-auto w-full">
 
-      {/* ── Header ─────────────────────────────── */}
+      {/* â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="px-6 py-4 bg-white border-b border-slate-300 flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-lg font-bold text-slate-900">{campaign.name}</h1>
@@ -590,18 +761,18 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
-      {/* ── Pipeline stepper ───────────────────── */}
+      {/* â”€â”€ Pipeline stepper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="px-6 pt-5">
         <PipelineStepper stepStatuses={stepStatuses} campaignStatus={campaign.status} />
       </div>
 
-      {/* ── Two-column layout ──────────────────── */}
+      {/* â”€â”€ Two-column layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex-1 flex gap-5 px-6 py-5 overflow-hidden min-h-0">
 
-        {/* ── Left: main content ─────────────── */}
+        {/* â”€â”€ Left: main content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         <div className="flex-1 bg-white border border-slate-300 rounded-2xl overflow-y-auto">
 
-          {/* ── STEP 1: Scraping ─────────────── */}
+          {/* â”€â”€ STEP 1: Scraping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {pipelineStep === 1 && (
             <div>
               {/* Not started yet */}
@@ -646,7 +817,8 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                   <div className="px-6 py-4 flex items-center justify-between border-b border-slate-200">
                     <div className="flex items-center gap-3">
                       <h3 className="text-base font-bold text-slate-900">Résultats du scraping</h3>
-                      <span className="text-xs text-slate-500 font-medium">{filteredCompanies.length} résultats</span>
+                      <span className="text-xs text-slate-500 font-medium">{visibleCompanies.length} entreprises visibles</span>
+                      <span className="text-[11px] text-slate-400">Le reste de la sélection est masqué</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="relative">
@@ -664,15 +836,16 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                         onClick={() => setPaywallOpen(true)}
                         className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
                       >
-                        Suivant
+                        Passer à l&apos;enrichissement
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                       </button>
                     </div>
                   </div>
 
-                  {/* Company rows — directly in the panel */}
-                  <div className="divide-y divide-slate-200 max-h-[520px] overflow-y-auto">
-                    {filteredCompanies.map(company => {
+                  {/* Company rows â€” directly in the panel */}
+                  <div className="max-h-[520px] overflow-y-auto">
+                    <div className="divide-y divide-slate-200">
+                    {visibleCompanies.map(company => {
                         const isExpanded = expandedCompanyId === company.id
                         const initial = company.name.charAt(0).toUpperCase()
                         const contacts = company.enriched?.resultats?.filter(r => r.mail) ?? []
@@ -769,6 +942,46 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                       })}
                     </div>
 
+                    {search.trim() === '' && (
+                      <div className="relative border-t border-slate-200 bg-slate-50/70 overflow-hidden">
+                        <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+                          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.18em]">
+                            Sélection étendue
+                          </p>
+                          <span className="text-[11px] text-slate-400">
+                            Aperçu masqué avant enrichissement
+                          </span>
+                        </div>
+                        <div
+                          className="h-72 overflow-hidden px-3 pb-3"
+                          style={{ maskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)' }}
+                        >
+                          <div className="campaign-blur-marquee flex flex-col gap-2">
+                            {[0, 1].map((copyIndex) => (
+                              <div key={`blurred-copy-${copyIndex}`} className="flex flex-col gap-2">
+                                {blurredCompanyPreviewRows.map((placeholderName, index) => (
+                                  <div
+                                    key={`blurred-company-${copyIndex}-${index}`}
+                                    className="px-3 py-3 flex items-center gap-4 rounded-2xl border border-slate-200/70 bg-white/80 opacity-70 pointer-events-none select-none"
+                                  >
+                                    <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 blur-[2px]">
+                                      <span className="text-sm font-bold text-slate-400">{placeholderName.charAt(0)}</span>
+                                    </div>
+                                    <div className="min-w-0 flex-1 space-y-2 blur-[2px]">
+                                      <div className="h-3.5 w-44 rounded-full bg-slate-200" />
+                                      <div className="h-2.5 w-32 rounded-full bg-slate-100" />
+                                    </div>
+                                    <div className="h-4 w-4 rounded-full bg-slate-200 shrink-0 blur-[2px]" />
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    </div>
+
                   {filteredCompanies.length === 0 && (
                     <p className="text-sm text-slate-600 text-center py-8">Aucune entreprise ne correspond à votre recherche.</p>
                   )}
@@ -793,7 +1006,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
             </div>
           )}
 
-          {/* ── STEP 2: Enrichment ───────────── */}
+          {/* â”€â”€ STEP 2: Enrichment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {pipelineStep === 2 && (() => {
             const enrichedIds = new Set(enrichedCompanies.keys())
             const processingIds = new Set(processingMap.keys())
@@ -806,14 +1019,14 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
               .slice(0, paywallCount > 0 ? paywallCount : companies.length)
             const waitingCompanies = sortedPool.filter(c => !enrichedIds.has(c.id) && !processingIds.has(c.id))
 
-            // Métriques — depuis les données enrichies disponibles (phase 1)
+            // Metriques depuis les donnees enrichies disponibles (phase 1)
             const decideurs = Array.from(enrichedCompanies.values())
               .flatMap(e => e.enriched?.resultats ?? [])
               .filter(r => r.type === 'specialise' && r.mail).length
 
             return (
               <div className="p-8 space-y-4">
-                {/* Métriques */}
+                {/* Metriques */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="border border-slate-200 rounded-xl p-4 text-center">
                     <p className="text-2xl font-bold text-slate-900 tabular-nums">{decideurs}</p>
@@ -832,12 +1045,12 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                     </svg>
                     <p className="text-xs text-blue-700 leading-relaxed">
                       L&apos;enrichissement peut prendre du temps <strong>(plusieurs heures</strong> en fonction du nombre d&apos;entreprises).
-                      Vous pouvez partir — nous vous enverrons un mail une fois l&apos;enrichissement terminé !
+                      Vous pouvez partir, nous vous enverrons un mail une fois l&apos;enrichissement terminé !
                     </p>
                   </div>
                 )}
 
-                {/* Enrichies (phase 1 terminée) */}
+                {/* Enrichies (phase 1 terminee) */}
                 {Array.from(enrichedCompanies.values()).map(e => {
                   const resultats = e.enriched?.resultats ?? []
                   const nbDecideurs = resultats.filter(r => r.type === 'specialise' && r.mail).length
@@ -887,7 +1100,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                   </div>
                 ))}
 
-                {/* ── Sous-phases : enrichissement & vérification ── */}
+                {/* â”€â”€ Sous-phases : enrichissement & vÃ©rification â”€â”€ */}
                 {(apolloPhase.state !== 'idle' || neverBouncePhase.state !== 'idle') && (
                   <div className="border border-slate-200 rounded-xl overflow-hidden mt-2">
                     <div className="px-5 py-3 bg-slate-50 border-b border-slate-200">
@@ -935,7 +1148,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
             )
           })()}
 
-          {/* ── STEP 3: Rédaction ────────────── */}
+          {/* â”€â”€ STEP 3: RÃ©daction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
           {pipelineStep === 3 && (
             <div className="p-8 space-y-3">
               <div className="mb-2">
@@ -943,7 +1156,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                 <p className="text-sm text-slate-500">{blocks.length} / {paywallCount || companies.length} emails rédigés</p>
               </div>
 
-              {/* Emails rédigés */}
+              {/* Emails rÃ©digÃ©s */}
               {blocks.map(b => (
                 <div key={b.companyId} className="border border-emerald-100 bg-emerald-50/50 rounded-xl px-5 py-3.5 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -954,7 +1167,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                 </div>
               ))}
 
-              {/* En cours de rédaction */}
+              {/* En cours de rÃ©daction */}
               {Array.from(processingMap.values()).map(p => (
                 <div key={p.companyId} className="border border-slate-300 rounded-xl px-5 py-4 flex items-center gap-4">
                   <span className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin shrink-0" />
@@ -965,7 +1178,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
                 </div>
               ))}
 
-              {/* En attente de rédaction (enrichies mais pas encore traitées) */}
+              {/* En attente de rÃ©daction (enrichies mais pas encore traitÃ©es) */}
               {Array.from(enrichedCompanies.values()).map(e => (
                 <div key={e.companyId} className="border border-slate-100 rounded-xl px-5 py-3.5 flex items-center gap-3 opacity-40">
                   <span className="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0" />
@@ -982,7 +1195,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
             </div>
           )}
 
-          {/* ── STEP 4: Ready / Launched ─────── */}
+          {/* â”€â”€ STEP 4: Ready / Launched â”€â”€â”€â”€â”€â”€â”€ */}
           {pipelineStep === 4 && (
             <div className="p-8">
               <>
@@ -1114,14 +1327,14 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
           )}
         </div>
 
-        {/* ── Right: Stats + Activity log ────── */}
+        {/* â”€â”€ Right: Stats + Activity log â”€â”€â”€â”€â”€â”€ */}
         <div className="w-[340px] shrink-0 flex flex-col gap-4">
           {/* Metrics */}
           <div className="bg-white border border-slate-300 rounded-2xl px-5 py-4 shrink-0">
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-4">Vue d&apos;ensemble</p>
             <div className="grid grid-cols-3 gap-0">
               <div className="flex flex-col items-center gap-1 py-1">
-                <span className="text-2xl font-bold text-slate-900 tabular-nums">{companies.length}</span>
+                <span className="text-2xl font-bold text-slate-900 tabular-nums">{pipelineStep === 1 ? availableCompaniesCount : companies.length}</span>
                 <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider text-center leading-tight">Entreprises</span>
               </div>
               <div className="flex flex-col items-center gap-1 py-1 border-x border-slate-100">
@@ -1141,7 +1354,7 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
-      {/* ── Company sidebar ─────────────────────── */}
+      {/* â”€â”€ Company sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <CompanyDetailView
         block={selectedCompanyId ? (blocks.find(b => b.companyId === selectedCompanyId) ?? null) : null}
         campaignName={campaign.name}
@@ -1150,17 +1363,17 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
         onSend={sendEmail}
       />
 
-      {/* ── Modals ─────────────────────────────── */}
+      {/* â”€â”€ Modals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <PaywallModal
         open={paywallOpen}
-        totalCompanies={companies.length}
+        totalCompanies={availableCompaniesCount}
         onConfirm={(count) => { setPaywallCount(count); setPaywallOpen(false); setPreGenerateOpen(true) }}
         onCancel={() => setPaywallOpen(false)}
       />
 
       <PreGenerateModal
         open={preGenerateOpen}
-        poolLimit={paywallCount || companies.length}
+        poolLimit={paywallCount || availableCompaniesCount}
         onConfirm={handleGenerate}
         onCancel={() => setPreGenerateOpen(false)}
       />
@@ -1180,6 +1393,21 @@ export default function CampaignPage({ params }: { params: { id: string } }) {
           {message}
         </div>
       )}
+      <style jsx>{`
+        @keyframes campaign-blur-marquee {
+          0% {
+            transform: translateY(0);
+          }
+          100% {
+            transform: translateY(-50%);
+          }
+        }
+
+        .campaign-blur-marquee {
+          animation: campaign-blur-marquee 24s linear infinite;
+          will-change: transform;
+        }
+      `}</style>
      </div>
     </div>
   )

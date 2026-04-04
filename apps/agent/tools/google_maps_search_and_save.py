@@ -6,7 +6,7 @@ from apify_client import ApifyClient
 from langchain_core.tools import tool
 
 from config import RATE_LIMIT_GOOGLE_MAPS
-from runtime import raise_if_cancelled
+from runtime import raise_if_cancelled, get_context_value
 from tools.candidate_store import get_candidates_rows, save_candidates_batch
 
 
@@ -94,6 +94,10 @@ def google_maps_search_and_save(
         `google_maps_search_and_save: added: X (found: Y, total: Z, duplicates: D).`
     """
     raise_if_cancelled()
+
+    ctx_target = get_context_value("target_count")
+    if isinstance(ctx_target, int) and ctx_target > 0:
+        max_per_keyword = min(max_per_keyword, ctx_target)
 
     api_key = _get_apify_key()
     if not api_key:

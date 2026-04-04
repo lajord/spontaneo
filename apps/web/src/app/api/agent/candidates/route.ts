@@ -75,6 +75,15 @@ export async function POST(req: NextRequest) {
   const resolvedSecteur = secteur ?? (typeof payload.secteur === 'string' ? payload.secteur : null)
   const resolvedJobTitle = jobTitle ?? (typeof payload.jobTitle === 'string' ? payload.jobTitle : null)
   const resolvedLocation = location ?? (typeof payload.location === 'string' ? payload.location : null)
+  const targetCount = typeof payload.targetCount === 'number' && payload.targetCount > 0
+    ? payload.targetCount
+    : null
+  const currentTotal = await prisma.agentCandidate.count({ where: { jobId } })
+  const remainingSlots = targetCount === null ? null : Math.max(0, targetCount - currentTotal)
+
+  if (remainingSlots === 0) {
+    return NextResponse.json({ added: 0, duplicates: companies.length, total: currentTotal })
+  }
 
   const incomingDomains = companies
     .map((company) => normalizeDomain(getCompanyWebsite(company) || company.domain))
@@ -98,15 +107,18 @@ export async function POST(req: NextRequest) {
     : []
   const existingNames = new Set(existingByName.map((item) => normalizeName(item.name)))
 
-  const toInsert = companies.filter((company) => {
+  const dedupedCompanies = companies.filter((company) => {
     const domain = normalizeDomain(getCompanyWebsite(company) || company.domain)
     if (domain) return !existingDomains.has(domain)
     return !existingNames.has(normalizeName(company.name))
   })
 
+  const toInsert = remainingSlots === null
+    ? dedupedCompanies
+    : dedupedCompanies.slice(0, remainingSlots)
+
   if (toInsert.length === 0) {
-    const total = await prisma.agentCandidate.count({ where: { jobId } })
-    return NextResponse.json({ added: 0, duplicates: companies.length, total })
+    return NextResponse.json({ added: 0, duplicates: companies.length, total: currentTotal })
   }
 
   const created = await prisma.agentCandidate.createMany({

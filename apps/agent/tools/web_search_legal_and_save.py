@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 from openai import OpenAI
 
 from config import RATE_LIMIT_PERPLEXITY, TOOL_MAX_RETRIES, TOOL_RETRY_BASE_DELAY
-from runtime import raise_if_cancelled
+from runtime import raise_if_cancelled, get_context_value
 from tools.candidate_store import get_candidates_rows, save_candidates_batch
 
 
@@ -75,7 +75,7 @@ def web_search_legal_and_save(
     location: str,
     organization_types: list[str] = None,
     legal_specialties: list[str] = None,
-    max_results: int = 50,
+    max_results: int = 15,
 ) -> str:
     """Recherche exhaustive sur Perplexity puis sauvegarde immediatement en DB.
 
@@ -93,6 +93,10 @@ def web_search_legal_and_save(
         `web_search_legal_and_save: added: X (found: Y, total: Z, duplicates: D).`
     """
     raise_if_cancelled()
+
+    ctx_target = get_context_value("target_count")
+    if isinstance(ctx_target, int) and ctx_target > 0:
+        max_results = min(max_results, ctx_target)
 
     api_key = _get_perplexity_key()
     if not api_key:

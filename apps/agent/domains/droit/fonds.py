@@ -63,7 +63,5 @@ ONTOLOGY = {
         "Finkey",
         "LinkedIn",
     ],
-    "recherche_apollo": {
-        "seniorities": ["owner", "partner", "c_suite", "director"],
-    },
+
 }

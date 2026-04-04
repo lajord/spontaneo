@@ -24,6 +24,7 @@ def set_agent_context(
     secteur: str | None = None,
     job_title: str | None = None,
     location: str | None = None,
+    target_count: int | None = None,
 ) -> None:
     set_run_context(
         user_id=user_id,
@@ -32,6 +33,7 @@ def set_agent_context(
         secteur=secteur,
         job_title=job_title,
         location=location,
+        target_count=target_count,
     )
 
 
