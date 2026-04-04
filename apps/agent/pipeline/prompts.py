@@ -205,6 +205,79 @@ TERMINE par un resume tres court : noms trouves, emails trouves, pages utiles vi
 """
 
 
+# ── Sous-agent 3A-bis : RECHERCHE CONTACTS SUPPLEMENTAIRES ────────
+
+ENRICH_SEARCH_NEW_CONTACTS_PROMPT = """Tu es le Sous-Agent Recherche de Contacts Supplementaires.
+
+## MISSION
+Tu as recu un brief decrivant les profils recherches pour {company_name} ({company_domain}, ville : {company_city}).
+Des contacts ont peut-etre deja ete trouves par le crawl du site (listes ci-dessous).
+Ton objectif : identifier les PROFILS MANQUANTS par rapport au brief et les rechercher activement.
+
+## CONTACTS DEJA TROUVES
+{existing_drafts_summary}
+
+## BRIEF DE CONTACT
+{contact_brief}
+
+## INSTRUCTIONS
+
+### Etape 1 — Identifier les profils manquants
+Compare le brief avec les contacts existants. Determine quels roles/profils manquent.
+Exemple : si le brief demande "DRH, DAF, Directeur juridique" et qu'on a deja un DRH,
+il manque le DAF et le Directeur juridique.
+Si aucun contact n'existe, tous les profils du brief sont manquants.
+
+### Etape 2 — Rechercher avec Perplexity (PRIORITAIRE)
+Pour chaque profil manquant, fais des recherches ciblees :
+- "{{role}} {company_name} {company_city} LinkedIn"
+- "{{role}} {company_name} email"
+- "equipe direction {company_name} {company_city}"
+- "organigramme {company_name}"
+- "{company_name} {company_city} dirigeants associes"
+
+Sauvegarde chaque contact trouve via save_contact_drafts IMMEDIATEMENT.
+
+### Etape 3 — Rechercher avec Apollo (SI DISPONIBLE)
+Si Perplexity n'a pas trouve assez de resultats, utilise apollo_people_search :
+- domain="{company_domain}", person_titles=[les roles manquants]
+Sauvegarde chaque contact trouve.
+
+### Etape 4 — FALLBACK : emails generiques
+Si AUCUN contact personnel n'a ete trouve (ni par 3A, ni par tes recherches),
+cherche des emails de contact generiques pour cette entreprise :
+- "email contact {company_name}"
+- "recrutement {company_name} email"
+- "{company_name} candidature spontanee email"
+Sauvegarde-les avec contactType="generic".
+
+## REGLES CRITIQUES
+
+1. **LOCALISATION** : Ne sauvegarde PAS un contact dont la ville est clairement
+   differente de {company_city}. Si tu ne peux pas verifier la ville, c'est OK — sauvegarde-le.
+
+2. **ZERO INVENTION pour les emails** : Ne deduis JAMAIS un email. Si Perplexity ne montre pas
+   explicitement l'email, laisse le champ email vide — la phase suivante s'en chargera.
+
+3. **DONNEES IMPORTANTES** : email, firstName, lastName, title/specialty.
+   Meme sans email, un contact avec nom + role a de la valeur (la phase suivante generera l'email).
+
+4. **PAS DE DOUBLONS** : Ne sauvegarde pas un contact dont le nom est deja present dans les contacts existants listes ci-dessus.
+
+5. **Messages tres brefs.** Ne commente pas inutilement.
+
+## FORMAT save_contact_drafts
+
+Pour les contacts personnels :
+[{{"agentCandidateId":"{company_id}","name":"Prenom Nom","firstName":"Prenom","lastName":"Nom","email":"","title":"Directeur Financier","specialty":"Finance","city":"{company_city}","contactType":"personal","isTested":false,"sourceStage":"3A-bis","sourceTool":"perplexity_search","sourceUrl":"https://source-trouvee"}}]
+
+Pour les emails generiques (fallback uniquement) :
+[{{"agentCandidateId":"{company_id}","name":"Service Recrutement","email":"recrutement@{company_domain}","contactType":"generic","isTested":false,"sourceStage":"3A-bis","sourceTool":"perplexity_search","sourceUrl":""}}]
+
+Quand tu as termine, resume brievement ce que tu as trouve.
+"""
+
+
 # ── Sous-agent 3B : RECHERCHE WEB ─────────────────────────────────
 
 ENRICH_SEARCH_PROMPT = """Tu es le Sous-Agent Recherche.
@@ -417,6 +490,42 @@ def build_crawl_user_message(company: dict, **kwargs) -> str:
     name = company.get("name", "Inconnu")
     url = company.get("websiteUrl", "inconnu")
     return f'Crawle le site de "{name}" ({url}). AgentCandidateId={candidate_id}. Extrais noms, emails et villes.'
+
+
+# ── Builders 3A-bis : Search New Contacts ─────────────────────────
+
+def build_search_new_contacts_prompt(
+    company: dict,
+    contact_brief: str = "",
+    existing_drafts: list[dict] | None = None,
+    **kwargs,
+) -> str:
+    drafts = existing_drafts or []
+    if drafts:
+        lines = []
+        for d in drafts:
+            name = d.get("name", "?")
+            title = d.get("title") or d.get("specialty") or "role inconnu"
+            email = d.get("email") or "pas d'email"
+            lines.append(f"- {name} ({title}) — {email}")
+        summary = "\n".join(lines)
+    else:
+        summary = "Aucun contact trouve par le crawl du site."
+
+    return ENRICH_SEARCH_NEW_CONTACTS_PROMPT.format(
+        company_id=company.get("id", ""),
+        company_name=company.get("name", "Inconnu"),
+        company_domain=_get_domain(company),
+        company_city=company.get("city", ""),
+        contact_brief=_default_brief(contact_brief),
+        existing_drafts_summary=summary,
+    )
+
+
+def build_search_new_contacts_user_message(company: dict, **kwargs) -> str:
+    name = company.get("name", "Inconnu")
+    city = company.get("city", "")
+    return f'Recherche les contacts manquants pour "{name}" ({city}) selon le brief. Commence.'
 
 
 # ── Builders 3B : Search ──────────────────────────────────────────

@@ -1,16 +1,17 @@
 # ──────────────────────────────────────────────────────────────────
-# AGENT 3 — ENRICHISSEMENT DES ENTREPRISES (4 sous-agents)
+# AGENT 3 — ENRICHISSEMENT DES ENTREPRISES (5 sous-agents)
 #
 # Role : Pour chaque entreprise, trouver les contacts decideurs
 #        (noms, prenoms, emails) et verifier leur pertinence.
 # Input : Liste d'entreprises collectees.
 # Output : Entreprises enrichies avec contacts qualifies.
 #
-# Pipeline : 4 sous-agents par entreprise :
-#   3A  Crawl site web       → extraire noms/emails
-#   3B  Recherche web/Apollo → completer les contacts
-#   3C  Verification emails  → generer/verifier avec NeverBounce
-#   3D  Qualification + Save → filtrer vs brief, sauvegarder
+# Pipeline : 5 sous-agents par entreprise :
+#   3A      Crawl site web            → extraire noms/emails
+#   3A-bis  Recherche contacts suppl. → profils manquants via brief
+#   3B      Recherche web/Apollo      → completer les contacts
+#   3C      Verification emails       → generer/verifier avec NeverBounce
+#   3D      Qualification + Save      → filtrer vs brief, sauvegarder
 #
 # Etat partage : buffer JSONL par entreprise (tools/buffer_store.py)
 # ──────────────────────────────────────────────────────────────────
@@ -25,6 +26,7 @@ from langchain_core.messages import ToolMessage
 
 from config import (
     AGENT3A_RECURSION_LIMIT,
+    AGENT3A_BIS_RECURSION_LIMIT,
     AGENT3B_RECURSION_LIMIT,
     AGENT3C_RECURSION_LIMIT,
     AGENT3D_RECURSION_LIMIT,
@@ -32,6 +34,7 @@ from config import (
 from pipeline.engine import append_debug_prompt, build_llm, emit, stream_agent, emit_csv_update
 from pipeline.prompts import (
     build_crawl_prompt, build_crawl_user_message,
+    build_search_new_contacts_prompt, build_search_new_contacts_user_message,
     build_search_prompt, build_search_user_message,
     build_verify_prompt, build_verify_user_message,
     build_qualify_prompt, build_qualify_user_message,
@@ -257,6 +260,11 @@ def enrich(
         tools=[crawl_url, perplexity_search, save_contact_drafts],
         prompt=_compact_messages,
     )
+    search_new_agent = create_react_agent(
+        model=llm,
+        tools=[perplexity_search, apollo_people_search, save_contact_drafts],
+        prompt=_compact_messages,
+    )
     search_agent = create_react_agent(
         model=llm,
         tools=[perplexity_search, apollo_people_search, save_contact_drafts],
@@ -323,6 +331,33 @@ def enrich(
                 },
                 log_callback,
             )
+
+        # ── 3A-bis — Recherche contacts supplementaires ─────
+        emit(
+            {
+                "type": "progress",
+                "phase": "enrichissement",
+                "current": i + 1,
+                "target": total,
+                "message": f"[3A-bis] Recherche contacts supplementaires {company_name} ({i + 1}/{total})...",
+            },
+            log_callback,
+        )
+        search_new_system = build_search_new_contacts_prompt(
+            company,
+            contact_brief=contact_brief,
+            existing_drafts=drafts_after_crawl,
+        )
+        search_new_user = build_search_new_contacts_user_message(company)
+        append_debug_prompt("ENRICHISSEMENT_3A_BIS", search_new_system, search_new_user)
+        stream_agent(
+            agent=search_new_agent,
+            system_prompt=search_new_system,
+            user_message=search_new_user,
+            recursion_limit=AGENT3A_BIS_RECURSION_LIMIT,
+            phase_name="ENRICHISSEMENT_3A_BIS",
+            log_callback=log_callback,
+        )
 
         # ── 3B — Recherche web/Apollo ─────────────────────────
         emit(
@@ -427,7 +462,7 @@ def enrich(
                 email_status_by_key[f"name:{name}"] = status
 
         drafts_for_company: list[dict] = []
-        for draft in get_personal_drafts(candidate_id):
+        for draft in get_contact_draft_rows(candidate_id):
             email = str(draft.get("email", "") or "").strip()
             if not email:
                 drafts_for_company.append(draft)
@@ -486,6 +521,33 @@ def enrich(
                         ),
                     },
                     log_callback,
+                )
+                continue
+
+            # Contacts generiques: pas de qualification LLM, ajout direct comme fallback
+            if draft.get("contactType") == "generic":
+                email_status = (
+                    email_status_by_key.get(f"email:{email.lower()}")
+                    or email_status_by_key.get(f"name:{str(draft.get('name', '') or '').strip().lower()}")
+                    or ""
+                )
+                qualified_rows.append(
+                    {
+                        "company_name": company.get("name", ""),
+                        "company_domain": company.get("domain", ""),
+                        "company_url": company.get("websiteUrl", ""),
+                        "contact_name": draft.get("name", ""),
+                        "contact_first_name": draft.get("firstName", ""),
+                        "contact_last_name": draft.get("lastName", ""),
+                        "contact_email": email,
+                        "contact_title": draft.get("title", ""),
+                        "email_status": email_status,
+                        "source": draft.get("sourceTool", "") or draft.get("sourceStage", "") or "generic",
+                        "quality_score": 0.3,
+                        "quality_reason": "Email generique (fallback)",
+                        "is_decision_maker": False,
+                        "contact_city": draft.get("city", ""),
+                    }
                 )
                 continue
 

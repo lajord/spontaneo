@@ -37,6 +37,7 @@ AGENT1_DEFAULT_BATCH_SIZE = 10 # candidats cibles par iteration
 
 # Agent 3 — Enrichissement (4 sous-agents)
 AGENT3A_RECURSION_LIMIT = 20      # 3A : Crawl site web
+AGENT3A_BIS_RECURSION_LIMIT = 30  # 3A-bis : Recherche contacts supplementaires
 AGENT3B_RECURSION_LIMIT = 30   # 3B : Recherche Perplexity/Apollo
 AGENT3C_RECURSION_LIMIT = 20      # 3C : Verification emails
 AGENT3D_RECURSION_LIMIT = 15      # 3D : Qualification + sauvegarde
