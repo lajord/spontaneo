@@ -96,6 +96,7 @@ def collect(
     collect_brief: str = "",
     log_callback: Callable | None = None,
     batch_size: int = AGENT1_DEFAULT_BATCH_SIZE,
+    secteur: str = "",
 ) -> list[dict]:
     """Collecte des entreprises via sources multiples.
 
@@ -127,10 +128,12 @@ def collect(
     tools = [
         apollo_search_and_save,
         web_search_legal_and_save,
-        google_maps_search_and_save,
         crawl_url,
         save_candidates,
     ]
+    # Google Maps uniquement pour cabinets / petites structures, pas pour les banques
+    if secteur != "banques":
+        tools.insert(2, google_maps_search_and_save)
     agent = create_react_agent(model=llm, tools=tools, prompt=_compact_messages)
 
     # 3. Build prompts
@@ -143,6 +146,7 @@ def collect(
         collect_brief=collect_brief,
         batch_size=batch_size,
         state_info=state_info,
+        secteur=secteur,
     )
 
     user_message = build_collect_user_message(

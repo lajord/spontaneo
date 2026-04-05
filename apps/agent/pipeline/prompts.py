@@ -28,17 +28,17 @@ DES QUE LE QUOTA DE {batch_size} NOUVELLES ENTREPRISES EST ATTEINT, TU DOIS IMME
 
 Choisis les outils de recherche intelligemment :
 
-1. **apollo_search_and_save** - Prio 1 pour Banques et Grosses Entreprises
+1. **apollo_search_and_save** - Pour rechercher des entreprises via Apollo.
    - TOUJOURS faire 2 appels SEPARES : Un appel avec **keywords** (tags) et Un appel avec **job_titles**.
    - NE JAMAIS les combiner.
    - Ce tool appelle Apollo puis sauvegarde directement en DB.
 2. **web_search_legal_and_save** (Perplexity structure) - Pour extraire un maximum d'URLs et de noms d'entreprises depuis le web.
    - Ce tool appelle Perplexity structuree puis sauvegarde directement en DB.
-3. **google_maps_search_and_save** - Prio 1 pour Cabinets, petites structures, commerces locaux.
-   - Ce tool appelle Google Maps puis sauvegarde directement en DB.
-4. **crawl_url** - Si tu as trouve un lien vers un annuaire ou une page listant des entreprises, utilise cet outil pour fouiller la page.
+{tools_google_maps}4. **crawl_url** - Si tu as trouve un lien vers un annuaire ou une page listant des entreprises, utilise cet outil pour fouiller la page.
 5. **save_candidates** - Fallback uniquement si tu as toi-meme extrait une liste explicite d'entreprises depuis un contenu `crawl_url`.
 6. N'utilise PAS `perplexity_search` ici : pour la collecte d'entreprises, passe par **web_search_legal_and_save**.
+
+{tools_priority}
 
 ## METHODE DE TRAVAIL ET OPTIMISATION
 
@@ -79,17 +79,35 @@ def build_collect_prompt(
     collect_brief: str = "",
     batch_size: int = 30,
     state_info: str = "",
+    secteur: str = "",
 ) -> str:
     if not state_info:
         state_section = "Premiere iteration. Aucun candidat existant."
     else:
         state_section = state_info
 
+    if secteur == "banques":
+        tools_google_maps = ""
+        tools_priority = (
+            "## PRIORITE OUTILS POUR BANQUES\n"
+            "Pour le secteur banques, **web_search_legal_and_save** (Perplexity) est ton outil PRIORITAIRE.\n"
+            "N'utilise PAS google_maps_search_and_save pour les banques (resultats non pertinents).\n"
+            "Ordre de priorite : web_search_legal_and_save > apollo_search_and_save > crawl_url."
+        )
+    else:
+        tools_google_maps = (
+            "3. **google_maps_search_and_save** - Prio 1 pour Cabinets, petites structures, commerces locaux.\n"
+            "   - Ce tool appelle Google Maps puis sauvegarde directement en DB.\n"
+        )
+        tools_priority = ""
+
     return COLLECT_SYSTEM_PROMPT.format(
         user_query=query,
         collect_brief=collect_brief,
         state_section=state_section,
         batch_size=batch_size,
+        tools_google_maps=tools_google_maps,
+        tools_priority=tools_priority,
     )
 
 

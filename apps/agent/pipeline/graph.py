@@ -166,6 +166,7 @@ def run_pipeline(
         collect_brief=collect_brief,
         log_callback=log_callback,
         batch_size=target_count,
+        secteur=secteur,
     )
 
     if mode == "collect":
