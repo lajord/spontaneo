@@ -633,10 +633,41 @@ def enrich(
 
         qualified_rows.sort(key=lambda row: float(row.get("quality_score", 0) or 0), reverse=True)
 
+        # ── Debug: classement scoring de tous les contacts ──
+        if qualified_rows:
+            ranking_lines = []
+            for rank, row in enumerate(qualified_rows, 1):
+                name = row.get("contact_name", "Inconnu")
+                score = row.get("quality_score", 0)
+                title = row.get("contact_title", "") or "—"
+                email = row.get("contact_email", "") or "pas d'email"
+                reason = row.get("quality_reason", "") or ""
+                ranking_lines.append(
+                    f"  #{rank} [{score}] {name} | {title} | {email} | {reason}"
+                )
+            emit(
+                {
+                    "type": "log",
+                    "phase": "ENRICHISSEMENT",
+                    "message": (
+                        f"{company_name}: CLASSEMENT SCORING ({len(qualified_rows)} contacts)\n"
+                        + "\n".join(ranking_lines)
+                    ),
+                },
+                log_callback,
+            )
+
+        # Filtrer: on ne garde jamais un contact avec score < 0.3
+        MIN_SCORE = 0.3
+        eligible_rows = [
+            row for row in qualified_rows
+            if float(row.get("quality_score", 0) or 0) >= MIN_SCORE
+        ]
+
         selected_contacts: list[dict] = []
         selected_keys: set[str] = set()
 
-        for row in qualified_rows:
+        for row in eligible_rows:
             if float(row.get("quality_score", 0) or 0) <= 0.8:
                 continue
             key = str(row.get("contact_email", "") or row.get("contact_name", "")).strip().lower()
@@ -646,7 +677,7 @@ def enrich(
             selected_keys.add(key)
 
         if len(selected_contacts) < 3:
-            for row in qualified_rows:
+            for row in eligible_rows:
                 key = str(row.get("contact_email", "") or row.get("contact_name", "")).strip().lower()
                 if not key or key in selected_keys:
                     continue
@@ -654,6 +685,37 @@ def enrich(
                 selected_keys.add(key)
                 if len(selected_contacts) >= 3:
                     break
+
+        # ── Recap final 3D ──
+        rejected_rows = [
+            row for row in qualified_rows
+            if float(row.get("quality_score", 0) or 0) < MIN_SCORE
+        ]
+        recap_lines = []
+        for row in selected_contacts:
+            name = row.get("contact_name", "Inconnu")
+            score = row.get("quality_score", 0)
+            title = row.get("contact_title", "") or "—"
+            recap_lines.append(f"  RETENU  [{score}] {name} | {title}")
+        for row in rejected_rows:
+            name = row.get("contact_name", "Inconnu")
+            score = row.get("quality_score", 0)
+            title = row.get("contact_title", "") or "—"
+            reason = row.get("quality_reason", "") or ""
+            recap_lines.append(f"  ECARTE  [{score}] {name} | {title} | {reason}")
+        if recap_lines:
+            emit(
+                {
+                    "type": "log",
+                    "phase": "ENRICHISSEMENT",
+                    "message": (
+                        f"{company_name}: RECAP 3D — {len(selected_contacts)} retenus, "
+                        f"{len(rejected_rows)} ecartes (score < {MIN_SCORE})\n"
+                        + "\n".join(recap_lines)
+                    ),
+                },
+                log_callback,
+            )
 
         if selected_contacts:
             selected_names = ", ".join(

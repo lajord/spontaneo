@@ -402,15 +402,16 @@ Ville : {draft_city}
 ## INSTRUCTIONS
 1. Verifie si le contact correspond au type de personne vise par le brief en comparant son titre, sa specialite et son role avec le brief.
 2. Si le contact n'a aucune specialite ni aucun role reellement defini → score automatique de 0.5 (ne cherche pas plus loin).
-3. Attribue un score entre 0 et 1 :
+3. Si le titre du contact est un poste de direction generale (CEO, Directeur General, DG, Co-fondateur, Founder, President, Gerant, Managing Director, CFO, COO, CTO), le score doit etre < 0.3. Ces personnes sont trop haut placees pour etre contactees directement.
+4. Attribue un score entre 0 et 1 :
    - `1.0` si le contact correspond clairement au brief et a un email
    - `> 0.8` si le role est tres proche du brief
    - `0.5` si le role ou la specialite ne sont pas definis (information insuffisante)
    - `0.3 a 0.5` si c'est dans le bon departement / la bonne equipe mais moins direct
-   - `< 0.3` si c'est faible ou hors sujet
-4. Si la ville du contact est explicitement differente de la ville cible, le contact doit etre exclu.
-5. Tu ne fais pas la shortlist finale et tu ne sauves rien toi-meme. Tu notes uniquement ce contact.
-6. Tu n'appelles AUCUN outil. Tu te bases uniquement sur les informations fournies ci-dessus.
+   - `< 0.3` si c'est faible, hors sujet, ou poste de direction generale
+5. Si la ville du contact est explicitement differente de la ville cible, le contact doit etre exclu.
+6. Tu ne fais pas la shortlist finale et tu ne sauves rien toi-meme. Tu notes uniquement ce contact.
+7. Tu n'appelles AUCUN outil. Tu te bases uniquement sur les informations fournies ci-dessus.
 
 ## SORTIE JSON OBLIGATOIRE
 '{{"draftId":"{draft_id}","score":0.92,"reason":"Associe M&A avec email valide","isDecisionMaker":true,"discard":false}}'
