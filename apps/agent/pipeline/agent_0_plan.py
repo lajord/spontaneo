@@ -57,14 +57,17 @@ TA MISSION
 <un mini paragraphe brut>
 
 CONTRAINTES BRIEF COLLECTE
-- Le brief est une LISTE DE PHRASES-CLES separees par des virgules.
-- Chaque phrase-cle = type de structure + specialite si pertinente.
-- Exemples pour les banques : "Banque financement retail, Banque financement corporate, Banque privee, Banque publique"
-- Exemples pour les cabinets : "Cabinet avocat specialite M&A, Cabinet avocat specialite droit social, Cabinet avocat droit des affaires" ou simplement "Cabinet d'avocats" si aucune specialite n'est requise.
-- Exemples pour les fonds : "Fond d'investissement private equity, Fond d'investissement immobilier"
-- INTERDIT : citer des noms d'entreprises (pas de "BNP Paribas", "Natixis", "CMS Francis Lefebvre").
-- INTERDIT : faire des paragraphes descriptifs. Juste des phrases-cles courtes.
-- Ces phrases-cles seront utilisees directement comme requetes de recherche.
+- Le brief a DEUX parties obligatoires :
+  1) Un court paragraphe (2-3 phrases) qui explique ce qu'on cherche, le type de structure, pourquoi, et donne des exemples concrets de noms d'entreprises pour guider la recherche. Ce paragraphe aide l'agent de collecte a comprendre le contexte.
+  2) Une ligne "Phrases-cles :" suivie d'une liste de mots-cles de recherche separes par des virgules. Ces phrases-cles seront utilisees directement dans les outils de recherche.
+- Exemple pour les banques :
+  "Les structures a rechercher sont des banques avec un departement juridique structure en financement. Les grands groupes bancaires comme Credit Agricole, BNP Paribas ou Societe Generale sont pertinents. On peut aussi chercher des specialites plus fines comme la banque privee ou la banque d'investissement.
+  Phrases-cles : Banque, Banque financement, Banque privee, Banque d'investissement, Banque publique"
+- Exemple pour les cabinets :
+  "On cherche des cabinets d'avocats d'affaires avec une pratique en M&A. Les gros cabinets internationaux et les boutiques specialisees sont tous pertinents. Une recherche simple par 'cabinet avocat' dans la ville donnera deja de bons resultats.
+  Phrases-cles : Cabinet avocat M&A, Cabinet avocat droit des affaires, Cabinet avocat fusion acquisition"
+- Le paragraphe explicatif PEUT citer des noms d'entreprises comme exemples pour donner le ton.
+- Les phrases-cles NE DOIVENT PAS contenir de noms d'entreprises, juste des types + specialites.
 
 CONTRAINTES BRIEF CONTACTS
 - 2 a 3 lignes maximum.
