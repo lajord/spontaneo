@@ -57,14 +57,14 @@ TA MISSION
 <un mini paragraphe brut>
 
 CONTRAINTES BRIEF COLLECTE
-- 3 a 4 lignes maximum.
-- Texte brut uniquement.
-- Aucun sous-titre, aucune puce, aucune liste.
-- Repondre simplement a : "Qu'est-ce que je dois chercher comme entreprise ?"
-- Partir d'abord de l'ontologie, puis affiner avec Perplexity marche.
-- Dire le type d'entreprise, la specialite / pratique / sous-secteur et, si utile, la taille ou le style de structure.
-- Si utile, indiquer une priorite entre typologies principales et secondaires.
-- Ne pas parler de verification, de scoring ou de logique complexe.
+- Le brief est une LISTE DE PHRASES-CLES separees par des virgules.
+- Chaque phrase-cle = type de structure + specialite si pertinente.
+- Exemples pour les banques : "Banque financement retail, Banque financement corporate, Banque privee, Banque publique"
+- Exemples pour les cabinets : "Cabinet avocat specialite M&A, Cabinet avocat specialite droit social, Cabinet avocat droit des affaires" ou simplement "Cabinet d'avocats" si aucune specialite n'est requise.
+- Exemples pour les fonds : "Fond d'investissement private equity, Fond d'investissement immobilier"
+- INTERDIT : citer des noms d'entreprises (pas de "BNP Paribas", "Natixis", "CMS Francis Lefebvre").
+- INTERDIT : faire des paragraphes descriptifs. Juste des phrases-cles courtes.
+- Ces phrases-cles seront utilisees directement comme requetes de recherche.
 
 CONTRAINTES BRIEF CONTACTS
 - 2 a 3 lignes maximum.
