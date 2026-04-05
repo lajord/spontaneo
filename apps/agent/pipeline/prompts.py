@@ -196,6 +196,7 @@ TERMINE par un resume tres court : noms trouves, emails trouves, pages utiles vi
 ## REGLES
 - ZERO INVENTION : ne sauvegarde que ce qui est ecrit noir sur blanc sur le site.
 - Si un email, un titre, une specialite ou une ville n'apparait pas, laisse le champ vide.
+- **URLs** : Tu peux tenter les pages generiques classiques (/contact, /equipe, /team, /teams, /a-propos, /about, /avocats, /lawyers, /people, /nous-rejoindre). Par contre tu ne devines JAMAIS une URL avec le nom d'une personne (ex: /jean-dupont, /profil/123). Les URLs de fiches individuelles, tu ne les crawles QUE si elles apparaissent dans le contenu d'une page deja crawlee (liens href, menus, listes).
 - **perplexity_search** ne sert qu'a retrouver une URL officielle de secours, jamais a chercher des contacts dans 3A.
 - L'URL trouvee via **perplexity_search** est une URL de secours. Tu ne l'utilises que si l'URL de base est cassee ou inutilisable.
 - Si tu trouves une info nouvelle sur un contact deja vu, tu dois rappeler **save_contact_drafts** pour mettre ce contact a jour.
@@ -274,16 +275,10 @@ Champs manquants : {missing_fields}
 
 ## INSTRUCTIONS DIRECTES
 1. Tu traites uniquement ce contact.
-2. Si l'email manque, fais une recherche ultra ciblee pour trouver son email.
-   Exemples :
-   - "{draft_name} {company_name} email"
-   - "{draft_name} {company_name} mail"
-   - "{draft_name} {company_name} {company_city} email"
-3. Si la specialite manque, fais une recherche separee ultra ciblee pour trouver sa specialite ou son poste.
-   Exemples :
-   - "{draft_name} {company_name} specialite"
-   - "{draft_name} {company_name} poste"
-   - "{draft_name} {company_name} linkedin"
+2. Fais UNE SEULE recherche Perplexity pour ce contact :
+   "{draft_name} {company_name} {company_city}"
+   Cette unique recherche doit te donner email, specialite, poste — tout ce qui est disponible.
+3. STRICTEMENT 1 requete Perplexity par contact. Pas de deuxieme recherche "plus large", pas de retry.
 4. Si rien de supplementaire n'est trouve, termine avec ce message exact :
    `Rien trouve de supplementaire`
 5. Si tu trouves une information utile, appelle **save_contact_drafts** avec un JSON strict pour mettre a jour ce contact.
@@ -295,6 +290,7 @@ Champs manquants : {missing_fields}
    - corrige immediatement le JSON ;
    - renvoie le batch corrige ;
    - puis termine.
+8. N'utilise PAS apollo_people_search en 3B. Seulement perplexity_search.
 
 ## REGLE CRITIQUE PERPLEXITY
 Avec **perplexity_search**, tu ne dois EN AUCUN CAS inventer, deduire, extrapoler ou deviner une information.

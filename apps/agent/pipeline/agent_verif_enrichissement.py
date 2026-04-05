@@ -267,7 +267,7 @@ def enrich(
     )
     search_agent = create_react_agent(
         model=llm,
-        tools=[perplexity_search, apollo_people_search, save_contact_drafts],
+        tools=[perplexity_search, save_contact_drafts],
         prompt=_compact_messages,
     )
     verify_agent = create_react_agent(

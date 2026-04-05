@@ -67,15 +67,16 @@ CONTRAINTES BRIEF COLLECTE
 - Ne pas parler de verification, de scoring ou de logique complexe.
 
 CONTRAINTES BRIEF CONTACTS
-- 3 a 4 lignes maximum.
+- 2 a 3 lignes maximum.
 - Texte brut uniquement.
 - Aucun sous-titre, aucune puce, aucune liste.
 - Repondre simplement a : "Quelle personne faut-il essayer de trouver dans l'entreprise ?"
-- Partir d'abord de `profils_et_contacts`, puis affiner avec Perplexity persona/contact.
-- Expliquer la cible principale, puis les fallbacks acceptables si utile.
-- Preciser le service, le pole ou la pratique quand c'est pertinent.
-- Si le secteur concerne un cabinet, dire explicitement qu'il faut verifier que le contact correspond bien a la bonne pratique / specialite avant de le garder.
-- Ne pas ajouter de longue liste de mots-cles ni d'explications inutiles.
+- Citer 3 a 4 titres de poste MAXIMUM, pas plus.
+- UNIQUEMENT des titres en francais, simples et courants. Exemples : "Directeur juridique", "DRH", "DAF", "Associe", "Responsable financement", "Directeur commercial".
+- INTERDIT : titres en anglais (pas de "Head of", "General Counsel", "Managing Partner", "Chief"), titres ultra-specifiques (pas de "Responsable Juridique Financements Structures"), acronymes anglais.
+- TOUJOURS inclure au moins un poste evident et transversal comme DRH ou Responsable RH en fallback.
+- Si le secteur concerne un cabinet, preciser la specialite a verifier (ex: "Associe specialise en M&A" et non "Head of M&A Practice").
+- Les titres doivent etre cherchables : quelqu'un doit pouvoir taper "{titre} {entreprise} {ville}" sur Google et trouver la personne.
 
 FORMAT
 - Respecte strictement les titres `## BRIEF COLLECTE` et `## BRIEF CONTACTS`.
