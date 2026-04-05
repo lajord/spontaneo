@@ -277,7 +277,7 @@ def enrich(
     )
     qualify_agent = create_react_agent(
         model=llm,
-        tools=[perplexity_search],
+        tools=[],
         prompt=_compact_messages,
     )
 
@@ -309,6 +309,20 @@ def enrich(
             phase_name="ENRICHISSEMENT_3A",
             log_callback=log_callback,
         )
+
+        # ── Skip si 3A detecte un mismatch structure/brief ──
+        if "SKIP_ENTREPRISE" in (crawl_result or ""):
+            reason = (crawl_result or "").strip()
+            emit(
+                {
+                    "type": "log",
+                    "phase": "ENRICHISSEMENT",
+                    "message": f"{company_name}: {reason} — entreprise ignoree.",
+                },
+                log_callback,
+            )
+            cleanup_buffer(company_name)
+            continue
 
         candidate_id = str(company.get("id", "") or "")
         drafts_after_crawl = get_contact_draft_rows(candidate_id)
@@ -544,7 +558,7 @@ def enrich(
                         "contact_specialty": draft.get("specialty", ""),
                         "email_status": email_status,
                         "source": draft.get("sourceTool", "") or draft.get("sourceStage", "") or "generic",
-                        "quality_score": 0.3,
+                        "quality_score": 0.4,
                         "quality_reason": "Email generique (fallback)",
                         "is_decision_maker": False,
                         "contact_city": draft.get("city", ""),

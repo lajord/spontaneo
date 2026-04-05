@@ -141,12 +141,16 @@ BRIEF COLLECTE :
 Avant d'aller loin dans le crawl, verifie TOUJOURS rapidement que l'entreprise correspond bien a la structure attendue par le BRIEF COLLECTE.
 - si le brief parle d'une banque, assure-toi que le site correspond bien a une banque ou a un etablissement financier ;
 - si le brief parle d'un cabinet d'avocats, assure-toi que le site correspond bien a un cabinet d'avocats ;
-- si la structure ne correspond pas au brief, tu dois arreter la l'extraction et passer directement a la prochaine entreprises
+- si la structure ne correspond pas au brief, tu dois IMMEDIATEMENT arreter et repondre UNIQUEMENT avec ce message exact :
+  `SKIP_ENTREPRISE: structure ne correspond pas au brief`
+  Tu ne crawles rien de plus, tu n'appelles aucun autre outil, tu renvoies ce message et c'est tout.
 
 Verification plus profonde :
 - cette verification plus profonde ne s'applique vraiment qu'aux cabinets d'avocats ;
 - si le BRIEF COLLECTE indique qu'on cible un cabinet d'avocats avec une specialite precise, verifie rapidement sur la homepage, les expertises ou la page equipe que cette specialite existe bien ;
-- si cette specialite n'apparait nulle part, reste tres limite dans le crawl.
+- si cette specialite n'apparait nulle part, tu dois IMMEDIATEMENT arreter et repondre UNIQUEMENT avec ce message exact :
+  `SKIP_ENTREPRISE: specialite non trouvee sur le site`
+  Tu ne crawles rien de plus, tu n'appelles aucun autre outil, tu renvoies ce message et c'est tout.
 
 ## FALLBACK SI L'URL INITIALE EST CASSEE
 Si le premier **crawl_url** ne retourne rien d'exploitable parce que l'URL semble fausse, cassee, ou inaccessible :
@@ -227,11 +231,14 @@ Trouver les contacts manquants pour {company_name} (ville : {company_city}).
 1. Compare le brief aux contacts existants. Liste les postes manquants.
 2. Pour chaque poste manquant, fais UNE SEULE recherche Perplexity avec cette phrase :
    "Qui est le {{poste}} de {company_name} a {company_city}"
-3. Si Perplexity trouve un nom : save_contact_drafts immediatement, puis poste suivant.
-4. Si Perplexity ne trouve rien : passe au poste suivant. Ne refais PAS de recherche.
+3. Analyse TOUTE la reponse de Perplexity, pas seulement la premiere ligne.
+   - Si Perplexity trouve le poste cherche : save_contact_drafts immediatement.
+   - Si Perplexity dit "NON TROUVE" pour ce poste MAIS mentionne d'autres personnes de l'entreprise (noms, postes, emails, telephones) : sauvegarde-les aussi ! Ce sont des contacts utiles meme si ce n'est pas le poste exact recherche.
+   - Sauvegarde TOUT ce que Perplexity te donne comme personne identifiee de cette entreprise.
+4. Puis passe au poste suivant. Ne refais PAS de recherche pour le meme poste.
 5. Apres les postes du brief, fais UNE recherche supplementaire pour les RH :
    "Responsable RH {company_name} {company_city}"
-   Si un nom est trouve, save_contact_drafts avec title="Responsable RH" ou le titre exact trouve.
+   Meme logique : sauvegarde toute personne mentionnee dans la reponse.
 6. Quand tout est traite : si AUCUN contact n'a ete trouve au total (ni par 3A ni par toi), fais UNE recherche "email contact {company_name}" et sauvegarde le resultat avec contactType="generic".
 
 STRICTEMENT 1 requete Perplexity par poste manquant + 1 pour les RH. Pas une de plus.
@@ -393,15 +400,17 @@ Specialite : {draft_specialty}
 Ville : {draft_city}
 
 ## INSTRUCTIONS
-1. Verifie si le contact correspond au type de personne vise par le brief.
-2. Si besoin, appelle **perplexity_search** pour confirmer le role, la specialite ou le poste.
+1. Verifie si le contact correspond au type de personne vise par le brief en comparant son titre, sa specialite et son role avec le brief.
+2. Si le contact n'a aucune specialite ni aucun role reellement defini → score automatique de 0.5 (ne cherche pas plus loin).
 3. Attribue un score entre 0 et 1 :
    - `1.0` si le contact correspond clairement au brief et a un email
    - `> 0.8` si le role est tres proche du brief
-   - `0.5 a 0.8` si c'est dans le bon departement / la bonne equipe mais moins direct
-   - `< 0.5` si c'est faible ou hors sujet
+   - `0.5` si le role ou la specialite ne sont pas definis (information insuffisante)
+   - `0.3 a 0.5` si c'est dans le bon departement / la bonne equipe mais moins direct
+   - `< 0.3` si c'est faible ou hors sujet
 4. Si la ville du contact est explicitement differente de la ville cible, le contact doit etre exclu.
 5. Tu ne fais pas la shortlist finale et tu ne sauves rien toi-meme. Tu notes uniquement ce contact.
+6. Tu n'appelles AUCUN outil. Tu te bases uniquement sur les informations fournies ci-dessus.
 
 ## SORTIE JSON OBLIGATOIRE
 '{{"draftId":"{draft_id}","score":0.92,"reason":"Associe M&A avec email valide","isDecisionMaker":true,"discard":false}}'

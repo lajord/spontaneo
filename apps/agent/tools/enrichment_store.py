@@ -281,16 +281,12 @@ def save_enrichment(contacts_json: str) -> str:
 
     filtered_contacts: list[dict] = []
     rejected_no_email = 0
-    rejected_generic_email = 0
     rejected_city = 0
 
     for contact in normalized_contacts:
         email = contact.get("contact_email", "")
         if not email:
             rejected_no_email += 1
-            continue
-        if _is_generic_email(email):
-            rejected_generic_email += 1
             continue
 
         contact_city = str(contact.get("contact_city") or "")
@@ -304,8 +300,6 @@ def save_enrichment(contacts_json: str) -> str:
         details = []
         if rejected_no_email:
             details.append(f"{rejected_no_email} sans email")
-        if rejected_generic_email:
-            details.append(f"{rejected_generic_email} emails generiques")
         if rejected_city:
             details.append(f"{rejected_city} hors ville ou ville non confirmee")
         detail_text = ", ".join(details) if details else "aucun contact exploitable"
@@ -336,8 +330,6 @@ def save_enrichment(contacts_json: str) -> str:
     rejects = []
     if rejected_no_email:
         rejects.append(f"{rejected_no_email} sans email")
-    if rejected_generic_email:
-        rejects.append(f"{rejected_generic_email} emails generiques")
     if rejected_city:
         rejects.append(f"{rejected_city} hors ville")
     rejects_text = f" Rejets: {', '.join(rejects)}." if rejects else ""
