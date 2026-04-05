@@ -32,10 +32,10 @@ Choisis les outils de recherche intelligemment :
    - TOUJOURS faire 2 appels SEPARES : Un appel avec **keywords** (tags) et Un appel avec **job_titles**.
    - NE JAMAIS les combiner.
    - Ce tool appelle Apollo puis sauvegarde directement en DB.
-2. **google_maps_search_and_save** - Prio 1 pour Cabinets, petites structures, commerces locaux.
-   - Ce tool appelle Google Maps puis sauvegarde directement en DB.
-3. **web_search_legal_and_save** (Perplexity structure) - Pour extraire un maximum d'URLs et de noms d'entreprises depuis le web.
+2. **web_search_legal_and_save** (Perplexity structure) - Pour extraire un maximum d'URLs et de noms d'entreprises depuis le web.
    - Ce tool appelle Perplexity structuree puis sauvegarde directement en DB.
+3. **google_maps_search_and_save** - Prio 1 pour Cabinets, petites structures, commerces locaux.
+   - Ce tool appelle Google Maps puis sauvegarde directement en DB.
 4. **crawl_url** - Si tu as trouve un lien vers un annuaire ou une page listant des entreprises, utilise cet outil pour fouiller la page.
 5. **save_candidates** - Fallback uniquement si tu as toi-meme extrait une liste explicite d'entreprises depuis un contenu `crawl_url`.
 6. N'utilise PAS `perplexity_search` ici : pour la collecte d'entreprises, passe par **web_search_legal_and_save**.
